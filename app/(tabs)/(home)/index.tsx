@@ -8,7 +8,6 @@ import {
   Dimensions,
   Platform,
   PanResponder,
-  ScrollView,
 } from 'react-native';
 import { Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -43,8 +42,8 @@ import {
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
-const GRID_PADDING = 16;
-const TILE_GAP = 6;
+const GRID_PADDING = 12;
+const TILE_GAP = 4;
 const GRID_WIDTH = SCREEN_WIDTH - GRID_PADDING * 2;
 const TILE_SIZE = (GRID_WIDTH - TILE_GAP * (GRID_CONFIG.COLS - 1)) / GRID_CONFIG.COLS;
 
@@ -95,6 +94,7 @@ export default function GameScreen() {
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
+      onPanResponderTerminationRequest: () => false,
       
       onPanResponderGrant: (evt) => {
         console.log('User started dragging');
@@ -358,11 +358,7 @@ export default function GameScreen() {
         </View>
       </View>
       
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
+      <View style={styles.gameContainer}>
         <Animated.View
           ref={gridRef}
           style={[styles.gridContainer, shakeStyle]}
@@ -433,7 +429,7 @@ export default function GameScreen() {
             />
           ))}
         </Animated.View>
-      </ScrollView>
+      </View>
       
       <TouchableOpacity
         style={styles.newGameButton}
@@ -475,6 +471,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     paddingVertical: 12,
     paddingHorizontal: 16,
+    backgroundColor: colors.background,
   },
   scoreContainer: {
     alignItems: 'center',
@@ -501,15 +498,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginTop: 8,
   },
-  scrollView: {
+  gameContainer: {
     flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   gridContainer: {
     padding: GRID_PADDING,
-    alignSelf: 'center',
     position: 'relative',
   },
   svgOverlay: {
