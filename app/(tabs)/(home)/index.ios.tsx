@@ -42,9 +42,17 @@ import { IconSymbol } from '@/components/IconSymbol';
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const GRID_PADDING = 16;
-const TILE_GAP = 6;
+const TILE_GAP = 8;
+const HEADER_HEIGHT = 100;
+const BOTTOM_BUTTON_HEIGHT = 80;
+const AVAILABLE_HEIGHT = SCREEN_HEIGHT - HEADER_HEIGHT - BOTTOM_BUTTON_HEIGHT;
 const GRID_WIDTH = SCREEN_WIDTH - GRID_PADDING * 2;
-const TILE_SIZE = (GRID_WIDTH - TILE_GAP * (GRID_CONFIG.COLS - 1)) / GRID_CONFIG.COLS;
+const GRID_HEIGHT = AVAILABLE_HEIGHT - GRID_PADDING * 2;
+
+// Calculate tile size to fit both width and height constraints
+const TILE_SIZE_BY_WIDTH = (GRID_WIDTH - TILE_GAP * (GRID_CONFIG.COLS - 1)) / GRID_CONFIG.COLS;
+const TILE_SIZE_BY_HEIGHT = (GRID_HEIGHT - TILE_GAP * (GRID_CONFIG.ROWS - 1)) / GRID_CONFIG.ROWS;
+const TILE_SIZE = Math.min(TILE_SIZE_BY_WIDTH, TILE_SIZE_BY_HEIGHT);
 
 export default function GameScreen() {
   const router = useRouter();

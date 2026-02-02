@@ -1,8 +1,8 @@
 
 import { Tile } from '@/types/game';
 
-export const GRID_COLS = 8;
-export const GRID_ROWS = 11;
+export const GRID_COLS = 6;
+export const GRID_ROWS = 8;
 
 export const GRID_CONFIG = {
   COLS: GRID_COLS,
@@ -27,35 +27,41 @@ export function formatTileValue(value: number): string {
   return value.toString();
 }
 
-// Get tile color based on value - PASTEL COLOR PALETTE
-export function getTileColor(value: number): string {
-  const colorMap: { [key: number]: string } = {
-    2: '#FFB3BA',      // Pastel Pink
-    4: '#FFDFBA',      // Pastel Peach
-    8: '#FFFFBA',      // Pastel Yellow
-    16: '#BAFFC9',     // Pastel Mint
-    32: '#BAE1FF',     // Pastel Blue
-    64: '#D4BAFF',     // Pastel Lavender
-    128: '#FFB3E6',    // Pastel Magenta
-    256: '#FFD4BA',    // Pastel Orange
-    512: '#E6BAFF',    // Pastel Purple
-    1024: '#BAFFF0',   // Pastel Cyan
-    2048: '#FFBAD4',   // Pastel Rose
-    4096: '#C9BAFF',   // Pastel Violet
-    8192: '#BAFFDB',   // Pastel Green
-    16384: '#FFD1BA',  // Pastel Coral
-    32768: '#BABFFF',  // Pastel Periwinkle
-    65536: '#FFBAE1',  // Pastel Hot Pink
+// Get tile gradient colors based on value - MATT GLOSSY GRADIENT COLORS
+export function getTileColor(value: number): { gradientColors: string[] } {
+  const colorMap: { [key: number]: string[] } = {
+    2: ['#667EEA', '#764BA2'],      // Purple Blue
+    4: ['#F093FB', '#F5576C'],      // Pink Red
+    8: ['#4FACFE', '#00F2FE'],      // Cyan Blue
+    16: ['#43E97B', '#38F9D7'],     // Green Cyan
+    32: ['#FA709A', '#FEE140'],     // Pink Yellow
+    64: ['#30CFD0', '#330867'],     // Cyan Purple
+    128: ['#A8EDEA', '#FED6E3'],    // Mint Pink
+    256: ['#FF9A56', '#FF6A88'],    // Orange Pink
+    512: ['#FBC2EB', '#A6C1EE'],    // Pink Blue
+    1024: ['#FFD89B', '#19547B'],   // Gold Blue (Glow)
+    2048: ['#FDC830', '#F37335'],   // Gold Orange (Glow)
+    4096: ['#FF512F', '#DD2476'],   // Red Pink (Glow)
+    8192: ['#DA22FF', '#9733EE'],   // Purple Magenta (Glow)
+    16384: ['#17EAD9', '#6078EA'],  // Cyan Blue (Glow)
+    32768: ['#F4D03F', '#16A085'],  // Yellow Teal (Glow)
+    65536: ['#D66D75', '#E29587'],  // Rose (Glow)
   };
   
-  // For values beyond the map, cycle through pastel colors
+  // For values beyond the map, generate a gradient
   if (colorMap[value]) {
-    return colorMap[value];
+    return { gradientColors: colorMap[value] };
   }
   
-  // Generate a pastel color for very high values
-  const hue = (Math.log2(value) * 30) % 360;
-  return `hsl(${hue}, 100%, 87%)`;
+  // Generate a gradient for very high values
+  const hue1 = (Math.log2(value) * 30) % 360;
+  const hue2 = (hue1 + 60) % 360;
+  return { 
+    gradientColors: [
+      `hsl(${hue1}, 80%, 60%)`,
+      `hsl(${hue2}, 80%, 50%)`
+    ]
+  };
 }
 
 // Calculate minimum tile value based on max tile achieved
