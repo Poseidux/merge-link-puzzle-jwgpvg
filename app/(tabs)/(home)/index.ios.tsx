@@ -6,7 +6,6 @@ import {
   Text,
   TouchableOpacity,
   Dimensions,
-  PanResponder,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -67,6 +66,8 @@ export default function GameScreen() {
   const [confirmNewGameVisible, setConfirmNewGameVisible] = useState(false);
   
   const shakeAnim = useSharedValue(0);
+  const gridContainerRef = useRef<View>(null);
+  const gridOffsetRef = useRef({ x: 0, y: 0 });
   
   useEffect(() => {
     selectedTilesRef.current = selectedTiles;
@@ -82,6 +83,15 @@ export default function GameScreen() {
     saveGameState(gameState);
   }, [gameState]);
   
+  useEffect(() => {
+    if (gridContainerRef.current) {
+      gridContainerRef.current.measure((x, y, width, height, pageX, pageY) => {
+        gridOffsetRef.current = { x: pageX, y: pageY };
+        console.log('Grid container offset:', pageX, pageY);
+      });
+    }
+  }, []);
+  
   async function loadSavedData() {
     const savedState = await loadGameState();
     
@@ -96,6 +106,7 @@ export default function GameScreen() {
     const row = Math.floor(y / (TILE_SIZE + TILE_GAP));
     
     if (row < 0 || row >= GRID_CONFIG.ROWS || col < 0 || col >= GRID_CONFIG.COLS) {
+      console.log('Touch outside grid bounds:', row, col);
       return null;
     }
     
@@ -113,102 +124,97 @@ export default function GameScreen() {
       }
     }
     
+    console.log('Touch in gap between tiles');
     return null;
   }
   
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderTerminationRequest: () => false,
+  function handleTouchStart(event: any) {
+    const touch = event.nativeEvent.touches[0];
+    const locationX = touch.pageX - gridOffsetRef.current.x - GRID_PADDING;
+    const locationY = touch.pageY - gridOffsetRef.current.y - GRID_PADDING;
+    
+    console.log('Touch started at:', locationX, locationY);
+    
+    const tile = getTileAtPosition(locationX, locationY);
+    
+    if (tile) {
+      console.log('Selected first tile:', tile.value);
+      const newSelection = [tile];
+      setSelectedTiles(newSelection);
+      selectedTilesRef.current = newSelection;
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  }
+  
+  function handleTouchMove(event: any) {
+    const touch = event.nativeEvent.touches[0];
+    const locationX = touch.pageX - gridOffsetRef.current.x - GRID_PADDING;
+    const locationY = touch.pageY - gridOffsetRef.current.y - GRID_PADDING;
+    
+    const tile = getTileAtPosition(locationX, locationY);
+    
+    if (tile && selectedTilesRef.current.length > 0) {
+      const currentSelection = selectedTilesRef.current;
+      const lastTile = currentSelection[currentSelection.length - 1];
       
-      onPanResponderGrant: (evt) => {
-        const locationX = evt.nativeEvent.locationX - GRID_PADDING;
-        const locationY = evt.nativeEvent.locationY - GRID_PADDING;
-        
-        console.log('Touch started at:', locationX, locationY);
-        
-        const tile = getTileAtPosition(locationX, locationY);
-        
-        if (tile) {
-          console.log('Selected first tile:', tile.value);
-          const newSelection = [tile];
+      if (tile.row === lastTile.row && tile.col === lastTile.col) {
+        return;
+      }
+      
+      if (currentSelection.length >= 2) {
+        const previousTile = currentSelection[currentSelection.length - 2];
+        if (tile.row === previousTile.row && tile.col === previousTile.col) {
+          const newSelection = currentSelection.slice(0, -1);
           setSelectedTiles(newSelection);
           selectedTilesRef.current = newSelection;
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          return;
         }
-      },
+      }
       
-      onPanResponderMove: (evt) => {
-        const locationX = evt.nativeEvent.locationX - GRID_PADDING;
-        const locationY = evt.nativeEvent.locationY - GRID_PADDING;
-        
-        const tile = getTileAtPosition(locationX, locationY);
-        
-        if (tile && selectedTilesRef.current.length > 0) {
-          const currentSelection = selectedTilesRef.current;
-          const lastTile = currentSelection[currentSelection.length - 1];
-          
-          if (tile.row === lastTile.row && tile.col === lastTile.col) {
-            return;
-          }
-          
-          if (currentSelection.length >= 2) {
-            const previousTile = currentSelection[currentSelection.length - 2];
-            if (tile.row === previousTile.row && tile.col === previousTile.col) {
-              const newSelection = currentSelection.slice(0, -1);
-              setSelectedTiles(newSelection);
-              selectedTilesRef.current = newSelection;
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              return;
-            }
-          }
-          
-          const alreadySelected = currentSelection.some(
-            t => t.row === tile.row && t.col === tile.col
-          );
-          
-          if (alreadySelected) {
-            return;
-          }
-          
-          const rowDiff = Math.abs(tile.row - lastTile.row);
-          const colDiff = Math.abs(tile.col - lastTile.col);
-          const isAdjacent = rowDiff <= 1 && colDiff <= 1 && !(rowDiff === 0 && colDiff === 0);
-          
-          if (!isAdjacent) {
-            return;
-          }
-          
-          let canAdd = false;
-          
-          if (currentSelection.length === 1) {
-            if (tile.value === currentSelection[0].value) {
-              canAdd = true;
-            }
-          } else {
-            const prevValue = lastTile.value;
-            if (tile.value === prevValue || tile.value === prevValue * 2) {
-              canAdd = true;
-            }
-          }
-          
-          if (canAdd) {
-            const newSelection = [...currentSelection, tile];
-            setSelectedTiles(newSelection);
-            selectedTilesRef.current = newSelection;
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          }
+      const alreadySelected = currentSelection.some(
+        t => t.row === tile.row && t.col === tile.col
+      );
+      
+      if (alreadySelected) {
+        return;
+      }
+      
+      const rowDiff = Math.abs(tile.row - lastTile.row);
+      const colDiff = Math.abs(tile.col - lastTile.col);
+      const isAdjacent = rowDiff <= 1 && colDiff <= 1 && !(rowDiff === 0 && colDiff === 0);
+      
+      if (!isAdjacent) {
+        return;
+      }
+      
+      let canAdd = false;
+      
+      if (currentSelection.length === 1) {
+        if (tile.value === currentSelection[0].value) {
+          canAdd = true;
         }
-      },
+      } else {
+        const prevValue = lastTile.value;
+        if (tile.value === prevValue || tile.value === prevValue * 2) {
+          canAdd = true;
+        }
+      }
       
-      onPanResponderRelease: () => {
-        const finalSelection = selectedTilesRef.current;
-        console.log('Released with chain length:', finalSelection.length);
-        handleChainRelease(finalSelection);
-      },
-    })
-  ).current;
+      if (canAdd) {
+        const newSelection = [...currentSelection, tile];
+        setSelectedTiles(newSelection);
+        selectedTilesRef.current = newSelection;
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+    }
+  }
+  
+  function handleTouchEnd() {
+    const finalSelection = selectedTilesRef.current;
+    console.log('Released with chain length:', finalSelection.length);
+    handleChainRelease(finalSelection);
+  }
   
   function handleChainRelease(chainTiles: SelectedTile[]) {
     if (chainTiles.length < 2) {
@@ -388,8 +394,11 @@ export default function GameScreen() {
       
       <View style={styles.gameContainer}>
         <Animated.View
+          ref={gridContainerRef}
           style={[styles.gridContainer, shakeStyle]}
-          {...panResponder.panHandlers}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
         >
           {selectedTiles.length > 1 && (
             <Svg style={styles.svgOverlay} pointerEvents="none">
