@@ -26,7 +26,8 @@ import {
   createInitialGrid,
   isValidChain,
   resolveChain,
-  fillEmptyCells,
+  applyGravity,
+  spawnNewTilesAtTop,
   hasValidMoves,
   ensureValidMovesAfterContinue,
   getMinimumTileValue,
@@ -288,7 +289,12 @@ export default function GameScreen() {
       newGrid = removeTilesBelowMinimum(newGrid, newMinTileValue);
     }
     
-    const filledGrid = fillEmptyCells(newGrid, currentMinTileValue);
+    // CRITICAL FIX: Apply gravity first, then spawn new tiles at top
+    console.log('Step 1: Applying gravity');
+    const afterGravity = applyGravity(newGrid);
+    
+    console.log('Step 2: Spawning new tiles at top');
+    const filledGrid = spawnNewTilesAtTop(afterGravity, currentMinTileValue);
     
     setGameState(prev => ({
       ...prev,

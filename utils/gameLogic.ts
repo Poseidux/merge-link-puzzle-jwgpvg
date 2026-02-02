@@ -264,27 +264,77 @@ export function resolveChain(
   return { newGrid, score, mergedValue: newValue };
 }
 
-// Fill empty cells with new tiles (adaptive weighted randomness)
-// Grid should always be full after this
-// Respects minimum tile value based on progression
-export function fillEmptyCells(grid: (Tile | null)[][], minTileValue: number): (Tile | null)[][] {
+// CRITICAL FIX: Apply gravity - tiles fall straight down to fill empty spaces
+// This function makes tiles "drop" down column by column
+export function applyGravity(grid: (Tile | null)[][]): (Tile | null)[][] {
+  const newGrid: (Tile | null)[][] = Array.from({ length: GRID_ROWS }, () => 
+    Array(GRID_COLS).fill(null)
+  );
+  
+  console.log('Applying gravity to grid');
+  
+  // Process each column independently
+  for (let col = 0; col < GRID_COLS; col++) {
+    // Collect all non-null tiles in this column from top to bottom
+    const tilesInColumn: Tile[] = [];
+    for (let row = 0; row < GRID_ROWS; row++) {
+      const tile = grid[row][col];
+      if (tile !== null) {
+        tilesInColumn.push(tile);
+      }
+    }
+    
+    // Place tiles at the bottom of the column, moving upward
+    let targetRow = GRID_ROWS - 1;
+    for (let i = tilesInColumn.length - 1; i >= 0; i--) {
+      const tile = tilesInColumn[i];
+      newGrid[targetRow][col] = {
+        ...tile,
+        row: targetRow,
+        col: col,
+      };
+      targetRow--;
+    }
+    
+    console.log(`Column ${col}: ${tilesInColumn.length} tiles fell down`);
+  }
+  
+  return newGrid;
+}
+
+// CRITICAL FIX: Spawn new tiles ONLY at the top of columns where there are empty spaces
+// This function fills remaining null spaces after gravity has been applied
+export function spawnNewTilesAtTop(grid: (Tile | null)[][], minTileValue: number): (Tile | null)[][] {
   const newGrid = grid.map(row => [...row]);
   const maxValue = getMaxBoardValue(grid);
   
-  for (let row = 0; row < GRID_ROWS; row++) {
-    for (let col = 0; col < GRID_COLS; col++) {
+  console.log('Spawning new tiles at top of columns');
+  
+  // For each column, fill empty spaces from top down
+  for (let col = 0; col < GRID_COLS; col++) {
+    for (let row = 0; row < GRID_ROWS; row++) {
       if (newGrid[row][col] === null) {
+        const newValue = generateNewTileValue(maxValue, minTileValue);
         newGrid[row][col] = {
           id: generateTileId(),
-          value: generateNewTileValue(maxValue, minTileValue),
+          value: newValue,
           row,
           col,
         };
+        console.log(`Spawned new tile with value ${newValue} at (${row}, ${col})`);
       }
     }
   }
   
   return newGrid;
+}
+
+// DEPRECATED: Use applyGravity + spawnNewTilesAtTop instead
+// Keeping this for backward compatibility during transition
+export function fillEmptyCells(grid: (Tile | null)[][], minTileValue: number): (Tile | null)[][] {
+  console.warn('fillEmptyCells is deprecated. Use applyGravity + spawnNewTilesAtTop instead.');
+  const afterGravity = applyGravity(grid);
+  return spawnNewTilesAtTop(afterGravity, minTileValue);
 }
 
 // Check if any valid moves exist (any possible chain of length >= 2)
