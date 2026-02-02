@@ -9,7 +9,7 @@ import {
   Platform,
   PanResponder,
 } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import Animated, {
   useSharedValue,
@@ -39,6 +39,7 @@ import {
   saveGameState,
   loadGameState,
 } from '@/utils/storage';
+import { IconSymbol } from '@/components/IconSymbol';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -48,6 +49,8 @@ const GRID_WIDTH = SCREEN_WIDTH - GRID_PADDING * 2;
 const TILE_SIZE = (GRID_WIDTH - TILE_GAP * (GRID_CONFIG.COLS - 1)) / GRID_CONFIG.COLS;
 
 export default function GameScreen() {
+  const router = useRouter();
+  
   const [gameState, setGameState] = useState<GameState>({
     grid: createInitialGrid(),
     score: 0,
@@ -65,7 +68,6 @@ export default function GameScreen() {
   const [confirmNewGameVisible, setConfirmNewGameVisible] = useState(false);
   
   const gridRef = useRef<View>(null);
-  const gridLayoutRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
   const shakeAnim = useSharedValue(0);
   
   useEffect(() => {
@@ -98,10 +100,12 @@ export default function GameScreen() {
       onPanResponderTerminationRequest: () => false,
       
       onPanResponderGrant: (evt) => {
-        const locationX = evt.nativeEvent.locationX - GRID_PADDING;
-        const locationY = evt.nativeEvent.locationY - GRID_PADDING;
+        // locationX and locationY are ALREADY relative to the view with panHandlers
+        // DO NOT subtract GRID_PADDING here - it's already accounted for
+        const locationX = evt.nativeEvent.locationX;
+        const locationY = evt.nativeEvent.locationY;
         
-        console.log('User started dragging at position (adjusted):', locationX, locationY);
+        console.log('User started dragging at position:', locationX, locationY);
         
         const tile = getTileAtPosition(locationX, locationY);
         
@@ -117,8 +121,8 @@ export default function GameScreen() {
       },
       
       onPanResponderMove: (evt) => {
-        const locationX = evt.nativeEvent.locationX - GRID_PADDING;
-        const locationY = evt.nativeEvent.locationY - GRID_PADDING;
+        const locationX = evt.nativeEvent.locationX;
+        const locationY = evt.nativeEvent.locationY;
         
         const tile = getTileAtPosition(locationX, locationY);
         
@@ -205,12 +209,12 @@ export default function GameScreen() {
   ).current;
   
   function getTileAtPosition(x: number, y: number): SelectedTile | null {
-    // x and y are now adjusted (GRID_PADDING already subtracted in panResponder)
+    // x and y are relative to the gridContainer (which has padding)
     // Calculate which tile was touched based on tile size and gap
     const col = Math.floor(x / (TILE_SIZE + TILE_GAP));
     const row = Math.floor(y / (TILE_SIZE + TILE_GAP));
     
-    console.log('Touch at adjusted x:', x, 'y:', y, '-> row:', row, 'col:', col);
+    console.log('Touch at x:', x, 'y:', y, '-> row:', row, 'col:', col);
     
     // Verify the touch is within grid bounds
     if (row < 0 || row >= GRID_CONFIG.ROWS || col < 0 || col >= GRID_CONFIG.COLS) {
@@ -385,6 +389,19 @@ export default function GameScreen() {
           title: 'Number Link',
           headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.text,
+          headerLeft: () => (
+            <TouchableOpacity
+              onPress={() => router.push('/(tabs)/profile')}
+              style={styles.menuButton}
+            >
+              <IconSymbol
+                ios_icon_name="line.3.horizontal"
+                android_material_icon_name="menu"
+                size={24}
+                color={colors.text}
+              />
+            </TouchableOpacity>
+          ),
         }}
       />
       
@@ -416,10 +433,10 @@ export default function GameScreen() {
                 if (index === 0) return null;
                 const prevTile = selectedTiles[index - 1];
                 
-                const x1 = prevTile.col * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2 + GRID_PADDING;
-                const y1 = prevTile.row * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2 + GRID_PADDING;
-                const x2 = tile.col * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2 + GRID_PADDING;
-                const y2 = tile.row * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2 + GRID_PADDING;
+                const x1 = prevTile.col * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
+                const y1 = prevTile.row * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
+                const x2 = tile.col * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
+                const y2 = tile.row * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
                 
                 return (
                   <Line
@@ -510,6 +527,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  menuButton: {
+    marginLeft: 16,
+    padding: 8,
   },
   scoreBar: {
     flexDirection: 'row',
