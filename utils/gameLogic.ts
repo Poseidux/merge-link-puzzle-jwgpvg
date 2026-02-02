@@ -75,21 +75,25 @@ export function isValidChain(tiles: { row: number; col: number; value: number }[
     }
   }
   
-  // Check value rules: start with identical values, then can add same or double
-  const firstValue = tiles[0].value;
-  let lastValue = firstValue;
-  
-  for (let i = 1; i < tiles.length; i++) {
-    const currentValue = tiles[i].value;
-    
-    // Must be same as last value OR exactly double
-    if (currentValue !== lastValue && currentValue !== lastValue * 2) {
-      return false;
-    }
-    
-    lastValue = currentValue;
+  // CRITICAL RULE: The first two tiles MUST have identical values
+  if (tiles[0].value !== tiles[1].value) {
+    console.log('Chain validation failed: First two tiles must be identical', tiles[0].value, '!==', tiles[1].value);
+    return false;
   }
   
+  // After the first two identical tiles, subsequent tiles can be same OR double the previous
+  for (let i = 2; i < tiles.length; i++) {
+    const prevValue = tiles[i - 1].value;
+    const currentValue = tiles[i].value;
+    
+    // Must be same as previous value OR exactly double it
+    if (currentValue !== prevValue && currentValue !== prevValue * 2) {
+      console.log('Chain validation failed at index', i, ':', currentValue, 'is not equal to or double of', prevValue);
+      return false;
+    }
+  }
+  
+  console.log('Chain validation passed:', tiles.map(t => t.value).join(' → '));
   return true;
 }
 
