@@ -4,7 +4,6 @@ import { GameState, GameSettings } from '@/types/game';
 
 const GAME_STATE_KEY = '@merge_puzzle_game_state';
 const SETTINGS_KEY = '@merge_puzzle_settings';
-const TUTORIAL_KEY = '@merge_puzzle_tutorial_shown';
 
 export async function saveGameState(state: GameState): Promise<void> {
   try {
@@ -54,24 +53,5 @@ export async function loadSettings(): Promise<GameSettings | null> {
   } catch (error) {
     console.error('Error loading settings:', error);
     return null;
-  }
-}
-
-export async function markTutorialShown(): Promise<void> {
-  try {
-    console.log('Marking tutorial as shown');
-    await AsyncStorage.setItem(TUTORIAL_KEY, 'true');
-  } catch (error) {
-    console.error('Error marking tutorial shown:', error);
-  }
-}
-
-export async function hasTutorialBeenShown(): Promise<boolean> {
-  try {
-    const value = await AsyncStorage.getItem(TUTORIAL_KEY);
-    return value === 'true';
-  } catch (error) {
-    console.error('Error checking tutorial status:', error);
-    return false;
   }
 }

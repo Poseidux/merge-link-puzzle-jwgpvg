@@ -1,12 +1,11 @@
 
 import React, { useEffect } from 'react';
-import { Text, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
   withSequence,
-  runOnJS,
 } from 'react-native-reanimated';
 
 interface FloatingScoreProps {
@@ -20,16 +19,21 @@ export default function FloatingScore({ score, x, y, onComplete }: FloatingScore
   const opacity = useSharedValue(1);
   const translateY = useSharedValue(0);
   
+  const scoreText = `+${score}`;
+  
   useEffect(() => {
-    console.log('FloatingScore animation started for score:', score);
     opacity.value = withSequence(
       withTiming(1, { duration: 100 }),
-      withTiming(0, { duration: 800 }, () => {
-        runOnJS(onComplete)();
-      })
+      withTiming(0, { duration: 800 })
     );
     translateY.value = withTiming(-50, { duration: 900 });
-  }, []);
+    
+    const timer = setTimeout(() => {
+      onComplete();
+    }, 900);
+    
+    return () => clearTimeout(timer);
+  }, [opacity, translateY, onComplete]);
   
   const animatedStyle = useAnimatedStyle(() => {
     return {
@@ -38,26 +42,30 @@ export default function FloatingScore({ score, x, y, onComplete }: FloatingScore
     };
   });
   
-  const scoreText = `+${score}`;
-  
   return (
-    <Animated.View style={[styles.container, { left: x, top: y }, animatedStyle]}>
-      <Text style={styles.text}>{scoreText}</Text>
-    </Animated.View>
+    <Animated.Text
+      style={[
+        styles.floatingScore,
+        {
+          left: x,
+          top: y,
+        },
+        animatedStyle,
+      ]}
+    >
+      {scoreText}
+    </Animated.Text>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  floatingScore: {
     position: 'absolute',
-    zIndex: 1000,
-  },
-  text: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#FFE66D',
-    textShadowColor: '#000',
-    textShadowOffset: { width: 1, height: 1 },
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },
 });

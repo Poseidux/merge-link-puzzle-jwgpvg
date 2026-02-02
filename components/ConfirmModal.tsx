@@ -19,18 +19,14 @@ export default function ConfirmModal({
   message,
   onConfirm,
   onCancel,
-  confirmText,
-  cancelText,
+  confirmText = 'Confirm',
+  cancelText = 'Cancel',
 }: ConfirmModalProps) {
-  const confirmButtonText = confirmText || 'Confirm';
-  const cancelButtonText = cancelText || 'Cancel';
-  
   return (
     <Modal
       visible={visible}
       transparent
       animationType="fade"
-      onRequestClose={onCancel}
     >
       <View style={styles.overlay}>
         <View style={styles.modal}>
@@ -42,14 +38,14 @@ export default function ConfirmModal({
               style={[styles.button, styles.cancelButton]}
               onPress={onCancel}
             >
-              <Text style={styles.cancelButtonText}>{cancelButtonText}</Text>
+              <Text style={styles.cancelText}>{cancelText}</Text>
             </TouchableOpacity>
             
             <TouchableOpacity
               style={[styles.button, styles.confirmButton]}
               onPress={onConfirm}
             >
-              <Text style={styles.confirmButtonText}>{confirmButtonText}</Text>
+              <Text style={styles.confirmText}>{confirmText}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -61,31 +57,27 @@ export default function ConfirmModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   modal: {
-    backgroundColor: colors.backgroundAlt,
-    borderRadius: 16,
+    backgroundColor: colors.card,
+    borderRadius: 20,
     padding: 24,
-    width: '85%',
+    minWidth: 300,
     maxWidth: 400,
-    borderWidth: 2,
-    borderColor: colors.secondary,
   },
   title: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: 'bold',
     color: colors.text,
     marginBottom: 12,
-    textAlign: 'center',
   },
   message: {
     fontSize: 16,
     color: colors.textSecondary,
     marginBottom: 24,
-    textAlign: 'center',
     lineHeight: 22,
   },
   buttonContainer: {
@@ -96,21 +88,21 @@ const styles = StyleSheet.create({
   button: {
     flex: 1,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 10,
     alignItems: 'center',
   },
   cancelButton: {
-    backgroundColor: colors.card,
+    backgroundColor: colors.backgroundAlt,
   },
   confirmButton: {
     backgroundColor: colors.primary,
   },
-  cancelButtonText: {
+  cancelText: {
     color: colors.text,
     fontSize: 16,
     fontWeight: '600',
   },
-  confirmButtonText: {
+  confirmText: {
     color: '#FFF',
     fontSize: 16,
     fontWeight: '600',

@@ -10,7 +10,6 @@ export interface GameState {
   grid: (Tile | null)[][];
   score: number;
   bestScore: number;
-  moveHistory: GameSnapshot[];
   continueUsed: boolean;
   preGameOverSnapshot: GameSnapshot | null;
 }

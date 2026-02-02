@@ -13,7 +13,6 @@ import * as Haptics from 'expo-haptics';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  withSpring,
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
@@ -23,30 +22,20 @@ import { IconSymbol } from '@/components/IconSymbol';
 import GameTile from '@/components/GameTile';
 import FloatingScore from '@/components/FloatingScore';
 import GameOverModal from '@/components/GameOverModal';
-import TutorialOverlay from '@/components/TutorialOverlay';
-import SettingsModal from '@/components/SettingsModal';
 import ConfirmModal from '@/components/ConfirmModal';
-import { GameState, GameSettings, SelectedTile } from '@/types/game';
+import { GameState, SelectedTile } from '@/types/game';
 import {
   createInitialGrid,
   isValidChain,
   resolveChain,
   fillEmptyCells,
   hasValidMoves,
-  removeTile,
-  swapTiles,
-  findHint,
   ensureValidMovesAfterContinue,
   GRID_CONFIG,
 } from '@/utils/gameLogic';
 import {
   saveGameState,
   loadGameState,
-  clearGameState,
-  saveSettings,
-  loadSettings,
-  hasTutorialBeenShown,
-  markTutorialShown,
 } from '@/utils/storage';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -60,90 +49,41 @@ export default function GameScreen() {
     grid: createInitialGrid(),
     score: 0,
     bestScore: 0,
-    moveHistory: [],
     continueUsed: false,
     preGameOverSnapshot: null,
   });
   
   const [selectedTiles, setSelectedTiles] = useState<SelectedTile[]>([]);
-  const [floatingScores, setFloatingScores] = useState<{ id: string; score: number; x: number; y: number }[]>([]);
+  const [floatingScores, setFloatingScores] = useState<Array<{ id: string; score: number; x: number; y: number }>>([]);
   const [gameOverVisible, setGameOverVisible] = useState(false);
-  const [tutorialVisible, setTutorialVisible] = useState(false);
-  const [settingsVisible, setSettingsVisible] = useState(false);
   const [confirmNewGameVisible, setConfirmNewGameVisible] = useState(false);
-  
-  const [settings, setSettings] = useState<GameSettings>({
-    soundEnabled: true,
-    hapticsEnabled: true,
-    darkMode: true,
-  });
-  
-  const [swapMode, setSwapMode] = useState(false);
-  const [swapFirstTile, setSwapFirstTile] = useState<{ row: number; col: number } | null>(null);
-  const [hammerMode, setHammerMode] = useState(false);
-  const [hintTiles, setHintTiles] = useState<{ row: number; col: number }[]>([]);
   
   const gridRef = useRef<View>(null);
   const shakeAnim = useSharedValue(0);
   
-  // Load game state and settings on mount
   useEffect(() => {
     console.log('GameScreen mounted, loading saved data');
     loadSavedData();
   }, []);
   
-  // Save game state whenever it changes
   useEffect(() => {
     console.log('Game state changed, saving to storage');
     saveGameState(gameState);
   }, [gameState]);
   
-  // Check for tutorial on first launch
-  useEffect(() => {
-    checkTutorial();
-  }, []);
-  
   async function loadSavedData() {
     const savedState = await loadGameState();
-    const savedSettings = await loadSettings();
     
     if (savedState) {
       console.log('Loaded saved game state');
       setGameState(savedState);
     }
-    
-    if (savedSettings) {
-      console.log('Loaded saved settings');
-      setSettings(savedSettings);
-    }
   }
   
-  async function checkTutorial() {
-    const shown = await hasTutorialBeenShown();
-    if (!shown) {
-      console.log('First launch, showing tutorial');
-      setTutorialVisible(true);
-    }
-  }
-  
-  function handleTutorialClose() {
-    console.log('User closed tutorial');
-    setTutorialVisible(false);
-    markTutorialShown();
-  }
-  
-  function handleSettingChange(key: keyof GameSettings, value: boolean) {
-    console.log('Setting changed:', key, value);
-    const newSettings = { ...settings, [key]: value };
-    setSettings(newSettings);
-    saveSettings(newSettings);
-  }
-  
-  // Pan responder for drag gestures
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => !swapMode && !hammerMode,
-      onMoveShouldSetPanResponder: () => !swapMode && !hammerMode,
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
       
       onPanResponderGrant: (evt) => {
         console.log('User started dragging');
@@ -153,9 +93,7 @@ export default function GameScreen() {
         if (tile) {
           console.log('Selected first tile:', tile);
           setSelectedTiles([tile]);
-          if (settings.hapticsEnabled) {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          }
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         }
       },
       
@@ -166,42 +104,28 @@ export default function GameScreen() {
         if (tile && selectedTiles.length > 0) {
           const lastTile = selectedTiles[selectedTiles.length - 1];
           
-          // Check if tile is already in the chain
           const alreadySelected = selectedTiles.some(
             t => t.row === tile.row && t.col === tile.col
           );
           
           if (!alreadySelected) {
-            // Check if adjacent to last tile
             const isAdjacent = Math.abs(tile.row - lastTile.row) <= 1 && 
                               Math.abs(tile.col - lastTile.col) <= 1 &&
                               !(tile.row === lastTile.row && tile.col === lastTile.col);
             
             if (isAdjacent) {
-              const newChain = [...selectedTiles, tile];
-              
-              // Only add if it would still be valid
-              // For first tile, any adjacent tile works
-              // For second tile, must be identical to first
-              // For subsequent tiles, must be same or double previous
               if (selectedTiles.length === 1) {
-                // Second tile - must be identical to first
                 if (tile.value === selectedTiles[0].value) {
                   console.log('Extended chain to second tile:', tile);
-                  setSelectedTiles(newChain);
-                  if (settings.hapticsEnabled) {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  }
+                  setSelectedTiles([...selectedTiles, tile]);
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 }
               } else {
-                // Third+ tile - must be same or double previous
                 const prevValue = lastTile.value;
                 if (tile.value === prevValue || tile.value === prevValue * 2) {
                   console.log('Extended chain:', tile);
-                  setSelectedTiles(newChain);
-                  if (settings.hapticsEnabled) {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  }
+                  setSelectedTiles([...selectedTiles, tile]);
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 }
               }
             }
@@ -246,9 +170,7 @@ export default function GameScreen() {
         withTiming(0, { duration: 50 })
       );
       setSelectedTiles([]);
-      if (settings.hapticsEnabled) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
     
@@ -256,20 +178,14 @@ export default function GameScreen() {
     const { newGrid, score } = resolveChain(gameState.grid, selectedTiles);
     const lastTile = selectedTiles[selectedTiles.length - 1];
     
-    // Add floating score
     const scoreId = `score_${Date.now()}`;
     const scoreX = lastTile.col * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
     const scoreY = lastTile.row * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
     setFloatingScores(prev => [...prev, { id: scoreId, score, x: scoreX, y: scoreY }]);
     
-    // Update game state
     const newScore = gameState.score + score;
     const newBestScore = Math.max(newScore, gameState.bestScore);
     
-    // Save snapshot before filling
-    const snapshot = { grid: gameState.grid, score: gameState.score };
-    
-    // Fill empty cells
     const filledGrid = fillEmptyCells(newGrid);
     
     setGameState(prev => ({
@@ -277,16 +193,11 @@ export default function GameScreen() {
       grid: filledGrid,
       score: newScore,
       bestScore: newBestScore,
-      moveHistory: [...prev.moveHistory.slice(-9), snapshot],
     }));
     
     setSelectedTiles([]);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     
-    if (settings.hapticsEnabled) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }
-    
-    // Check for game over
     setTimeout(() => {
       if (!hasValidMoves(filledGrid)) {
         console.log('No valid moves, game over');
@@ -311,7 +222,6 @@ export default function GameScreen() {
       grid: createInitialGrid(),
       score: 0,
       bestScore: gameState.bestScore,
-      moveHistory: [],
       continueUsed: false,
       preGameOverSnapshot: null,
     });
@@ -333,90 +243,6 @@ export default function GameScreen() {
     }
   }
   
-  function handleUndo() {
-    console.log('User pressed undo');
-    if (gameState.moveHistory.length > 0) {
-      const lastSnapshot = gameState.moveHistory[gameState.moveHistory.length - 1];
-      setGameState(prev => ({
-        ...prev,
-        grid: lastSnapshot.grid,
-        score: lastSnapshot.score,
-        moveHistory: prev.moveHistory.slice(0, -1),
-      }));
-      if (settings.hapticsEnabled) {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      }
-    }
-  }
-  
-  function handleHammer() {
-    console.log('User activated hammer mode');
-    setHammerMode(true);
-    setSwapMode(false);
-    if (settings.hapticsEnabled) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
-  }
-  
-  function handleSwap() {
-    console.log('User activated swap mode');
-    setSwapMode(true);
-    setHammerMode(false);
-    setSwapFirstTile(null);
-    if (settings.hapticsEnabled) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
-  }
-  
-  function handleHint() {
-    console.log('User requested hint');
-    const hint = findHint(gameState.grid);
-    if (hint) {
-      console.log('Showing hint tiles:', hint);
-      setHintTiles(hint);
-      setTimeout(() => setHintTiles([]), 2000);
-      if (settings.hapticsEnabled) {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      }
-    }
-  }
-  
-  function handleTilePress(row: number, col: number) {
-    if (hammerMode) {
-      console.log('Hammer used on tile:', row, col);
-      const snapshot = { grid: gameState.grid, score: gameState.score };
-      const newGrid = removeTile(gameState.grid, row, col);
-      setGameState(prev => ({
-        ...prev,
-        grid: newGrid,
-        moveHistory: [...prev.moveHistory.slice(-9), snapshot],
-      }));
-      setHammerMode(false);
-      if (settings.hapticsEnabled) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
-    } else if (swapMode) {
-      if (!swapFirstTile) {
-        console.log('Selected first tile for swap:', row, col);
-        setSwapFirstTile({ row, col });
-      } else {
-        console.log('Swapping tiles:', swapFirstTile, 'with', row, col);
-        const snapshot = { grid: gameState.grid, score: gameState.score };
-        const newGrid = swapTiles(gameState.grid, swapFirstTile.row, swapFirstTile.col, row, col);
-        setGameState(prev => ({
-          ...prev,
-          grid: newGrid,
-          moveHistory: [...prev.moveHistory.slice(-9), snapshot],
-        }));
-        setSwapMode(false);
-        setSwapFirstTile(null);
-        if (settings.hapticsEnabled) {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        }
-      }
-    }
-  }
-  
   function handleNewGame() {
     console.log('User requested new game');
     setConfirmNewGameVisible(true);
@@ -429,7 +255,6 @@ export default function GameScreen() {
       grid: createInitialGrid(),
       score: 0,
       bestScore: gameState.bestScore,
-      moveHistory: [],
       continueUsed: false,
       preGameOverSnapshot: null,
     });
@@ -452,20 +277,9 @@ export default function GameScreen() {
           title: 'Number Link',
           headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.text,
-          headerRight: () => (
-            <TouchableOpacity onPress={() => setSettingsVisible(true)} style={styles.headerButton}>
-              <IconSymbol
-                ios_icon_name="gear"
-                android_material_icon_name="settings"
-                size={24}
-                color={colors.text}
-              />
-            </TouchableOpacity>
-          ),
         }}
       />
       
-      {/* Score Bar */}
       <View style={styles.scoreBar}>
         <View style={styles.scoreContainer}>
           <Text style={styles.scoreLabel}>Score</Text>
@@ -478,13 +292,11 @@ export default function GameScreen() {
         </View>
       </View>
       
-      {/* Game Grid */}
       <Animated.View
         ref={gridRef}
         style={[styles.gridContainer, shakeStyle]}
         {...panResponder.panHandlers}
       >
-        {/* Connector Lines */}
         {selectedTiles.length > 1 && (
           <Svg style={styles.svgOverlay} pointerEvents="none">
             {selectedTiles.map((tile, index) => {
@@ -520,34 +332,23 @@ export default function GameScreen() {
               const isSelected = selectedTiles.some(
                 t => t.row === rowIndex && t.col === colIndex
               );
-              const isHinted = hintTiles.some(
-                t => t.row === rowIndex && t.col === colIndex
-              );
-              const isSwapSelected = swapFirstTile?.row === rowIndex && swapFirstTile?.col === colIndex;
               
               return (
-                <TouchableOpacity
+                <View
                   key={tile.id}
-                  onPress={() => handleTilePress(rowIndex, colIndex)}
-                  activeOpacity={0.8}
-                  style={[
-                    styles.tileWrapper,
-                    isHinted && styles.hintedTile,
-                    isSwapSelected && styles.swapSelectedTile,
-                  ]}
+                  style={styles.tileWrapper}
                 >
                   <GameTile
                     value={tile.value}
                     isSelected={isSelected}
                     size={TILE_SIZE}
                   />
-                </TouchableOpacity>
+                </View>
               );
             })}
           </View>
         ))}
         
-        {/* Floating Scores */}
         {floatingScores.map(fs => (
           <FloatingScore
             key={fs.id}
@@ -561,71 +362,6 @@ export default function GameScreen() {
         ))}
       </Animated.View>
       
-      {/* Control Bar */}
-      <View style={styles.controlBar}>
-        <TouchableOpacity
-          style={styles.controlButton}
-          onPress={handleUndo}
-          disabled={gameState.moveHistory.length === 0}
-        >
-          <IconSymbol
-            ios_icon_name="arrow.uturn.backward"
-            android_material_icon_name="undo"
-            size={28}
-            color={gameState.moveHistory.length === 0 ? colors.textSecondary : colors.text}
-          />
-          <Text style={[styles.controlLabel, gameState.moveHistory.length === 0 && styles.disabledLabel]}>
-            Undo
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.controlButton, hammerMode && styles.activeControl]}
-          onPress={handleHammer}
-        >
-          <IconSymbol
-            ios_icon_name="hammer"
-            android_material_icon_name="build"
-            size={28}
-            color={hammerMode ? colors.accent : colors.text}
-          />
-          <Text style={[styles.controlLabel, hammerMode && styles.activeLabel]}>
-            Hammer
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.controlButton, swapMode && styles.activeControl]}
-          onPress={handleSwap}
-        >
-          <IconSymbol
-            ios_icon_name="arrow.swap"
-            android_material_icon_name="swap-horiz"
-            size={28}
-            color={swapMode ? colors.accent : colors.text}
-          />
-          <Text style={[styles.controlLabel, swapMode && styles.activeLabel]}>
-            Swap
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={styles.controlButton}
-          onPress={handleHint}
-        >
-          <IconSymbol
-            ios_icon_name="lightbulb"
-            android_material_icon_name="lightbulb"
-            size={28}
-            color={colors.text}
-          />
-          <Text style={styles.controlLabel}>
-            Hint
-          </Text>
-        </TouchableOpacity>
-      </View>
-      
-      {/* New Game Button */}
       <TouchableOpacity
         style={styles.newGameButton}
         onPress={handleNewGame}
@@ -633,7 +369,6 @@ export default function GameScreen() {
         <Text style={styles.newGameText}>New Game</Text>
       </TouchableOpacity>
       
-      {/* Modals */}
       <GameOverModal
         visible={gameOverVisible}
         score={gameState.score}
@@ -641,18 +376,6 @@ export default function GameScreen() {
         canContinue={!gameState.continueUsed}
         onRestart={handleRestart}
         onContinue={handleContinue}
-      />
-      
-      <TutorialOverlay
-        visible={tutorialVisible}
-        onClose={handleTutorialClose}
-      />
-      
-      <SettingsModal
-        visible={settingsVisible}
-        settings={settings}
-        onClose={() => setSettingsVisible(false)}
-        onSettingChange={handleSettingChange}
       />
       
       <ConfirmModal
@@ -672,9 +395,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-  },
-  headerButton: {
-    marginRight: 16,
   },
   scoreBar: {
     flexDirection: 'row',
@@ -722,48 +442,11 @@ const styles = StyleSheet.create({
     marginRight: TILE_GAP,
     zIndex: 2,
   },
-  hintedTile: {
-    borderWidth: 3,
-    borderColor: colors.accent,
-    borderRadius: 12,
-  },
-  swapSelectedTile: {
-    borderWidth: 3,
-    borderColor: colors.secondary,
-    borderRadius: 12,
-  },
-  controlBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingVertical: 20,
-    paddingHorizontal: 16,
-    marginTop: 'auto',
-  },
-  controlButton: {
-    alignItems: 'center',
-    padding: 8,
-  },
-  activeControl: {
-    backgroundColor: colors.card,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-  },
-  controlLabel: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 4,
-    fontWeight: '600',
-  },
-  activeLabel: {
-    color: colors.accent,
-  },
-  disabledLabel: {
-    opacity: 0.5,
-  },
   newGameButton: {
     backgroundColor: colors.primary,
     marginHorizontal: 24,
     marginBottom: 24,
+    marginTop: 'auto',
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',

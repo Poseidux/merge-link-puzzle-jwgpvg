@@ -31,37 +31,33 @@ export default function GameOverModal({
     >
       <View style={styles.overlay}>
         <View style={styles.modal}>
-          <Text style={styles.title}>Game Over!</Text>
+          <Text style={styles.title}>Game Over</Text>
           
           <View style={styles.scoreContainer}>
-            <View style={styles.scoreRow}>
-              <Text style={styles.scoreLabel}>Score</Text>
-              <Text style={styles.scoreValue}>{scoreText}</Text>
-            </View>
-            
-            <View style={styles.scoreRow}>
-              <Text style={styles.scoreLabel}>Best</Text>
-              <Text style={styles.bestScoreValue}>{bestScoreText}</Text>
-            </View>
+            <Text style={styles.label}>Score</Text>
+            <Text style={styles.score}>{scoreText}</Text>
           </View>
           
-          <View style={styles.buttonContainer}>
-            <TouchableOpacity
-              style={[styles.button, styles.restartButton]}
-              onPress={onRestart}
-            >
-              <Text style={styles.buttonText}>Restart</Text>
-            </TouchableOpacity>
-            
-            {canContinue && (
-              <TouchableOpacity
-                style={[styles.button, styles.continueButton]}
-                onPress={onContinue}
-              >
-                <Text style={styles.buttonText}>Continue</Text>
-              </TouchableOpacity>
-            )}
+          <View style={styles.scoreContainer}>
+            <Text style={styles.label}>Best</Text>
+            <Text style={styles.bestScore}>{bestScoreText}</Text>
           </View>
+          
+          <TouchableOpacity
+            style={styles.button}
+            onPress={onRestart}
+          >
+            <Text style={styles.buttonText}>Restart</Text>
+          </TouchableOpacity>
+          
+          {canContinue && (
+            <TouchableOpacity
+              style={[styles.button, styles.continueButton]}
+              onPress={onContinue}
+            >
+              <Text style={styles.buttonText}>Continue</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </Modal>
@@ -76,55 +72,44 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modal: {
-    backgroundColor: colors.backgroundAlt,
+    backgroundColor: colors.card,
     borderRadius: 20,
     padding: 32,
-    width: '85%',
-    maxWidth: 400,
-    borderWidth: 3,
-    borderColor: colors.primary,
+    alignItems: 'center',
+    minWidth: 300,
   },
   title: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: colors.primary,
+    color: colors.text,
     marginBottom: 24,
-    textAlign: 'center',
   },
   scoreContainer: {
-    marginBottom: 32,
-  },
-  scoreRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
   },
-  scoreLabel: {
-    fontSize: 18,
+  label: {
+    fontSize: 16,
     color: colors.textSecondary,
-    fontWeight: '600',
+    marginBottom: 4,
   },
-  scoreValue: {
+  score: {
     fontSize: 28,
+    fontWeight: 'bold',
     color: colors.text,
-    fontWeight: 'bold',
   },
-  bestScoreValue: {
+  bestScore: {
     fontSize: 28,
-    color: colors.accent,
     fontWeight: 'bold',
-  },
-  buttonContainer: {
-    gap: 12,
+    color: colors.accent,
   },
   button: {
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  restartButton: {
     backgroundColor: colors.primary,
+    paddingVertical: 14,
+    paddingHorizontal: 40,
+    borderRadius: 12,
+    marginTop: 16,
+    minWidth: 200,
   },
   continueButton: {
     backgroundColor: colors.secondary,
@@ -133,5 +118,6 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 18,
     fontWeight: 'bold',
+    textAlign: 'center',
   },
 });
