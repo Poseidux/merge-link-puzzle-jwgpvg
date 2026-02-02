@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { View, Text, Modal, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, Modal, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { colors } from '@/styles/commonStyles';
 
 interface TutorialOverlayProps {
@@ -14,38 +14,101 @@ export default function TutorialOverlay({ visible, onClose }: TutorialOverlayPro
       visible={visible}
       transparent
       animationType="fade"
+      onRequestClose={onClose}
     >
       <View style={styles.overlay}>
         <View style={styles.modal}>
-          <Text style={styles.title}>How to Play</Text>
+          <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+            <Text style={styles.title}>How to Play</Text>
+            
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>🎯 Goal</Text>
+              <Text style={styles.text}>
+                Create chains of tiles to merge them into higher values and maximize your score!
+              </Text>
+            </View>
+            
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>👆 Basic Controls</Text>
+              <Text style={styles.text}>
+                Press and drag across tiles to form a chain. Release to merge.
+              </Text>
+            </View>
+            
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>✅ Chain Rules</Text>
+              <Text style={styles.ruleText}>
+                1. Chains must have at least 2 tiles
+              </Text>
+              <Text style={styles.ruleText}>
+                2. First two tiles MUST be identical
+              </Text>
+              <Text style={styles.ruleText}>
+                3. After that, each tile must be either:
+              </Text>
+              <Text style={styles.subRuleText}>
+                • The SAME value as the previous tile
+              </Text>
+              <Text style={styles.subRuleText}>
+                • EXACTLY DOUBLE the previous tile
+              </Text>
+            </View>
+            
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>📝 Examples</Text>
+              <Text style={styles.exampleText}>
+                ✅ Valid: 2→2→4→4→8
+              </Text>
+              <Text style={styles.exampleText}>
+                ✅ Valid: 8→8→16→32
+              </Text>
+              <Text style={styles.exampleText}>
+                ✅ Valid: 4→4→4→8→8→16
+              </Text>
+              <Text style={styles.invalidText}>
+                ❌ Invalid: 2→4 (must start with identical)
+              </Text>
+              <Text style={styles.invalidText}>
+                ❌ Invalid: 2→2→8 (skips the double step)
+              </Text>
+            </View>
+            
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>🎁 Merge Result</Text>
+              <Text style={styles.text}>
+                The final tile becomes 2× the HIGHEST value in your chain.
+              </Text>
+              <Text style={styles.text}>
+                Score = sum of all merged tile values.
+              </Text>
+            </View>
+            
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>🛠️ Power-ups</Text>
+              <Text style={styles.powerUpText}>
+                • Undo: Revert your last move
+              </Text>
+              <Text style={styles.powerUpText}>
+                • Hammer: Remove one tile
+              </Text>
+              <Text style={styles.powerUpText}>
+                • Swap: Exchange two tiles
+              </Text>
+              <Text style={styles.powerUpText}>
+                • Hint: Highlight a strong chain
+              </Text>
+            </View>
+            
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>🎮 Game Over</Text>
+              <Text style={styles.text}>
+                The game ends when no valid chains exist. You can Continue once per game to keep playing!
+              </Text>
+            </View>
+          </ScrollView>
           
-          <View style={styles.instructionContainer}>
-            <Text style={styles.instruction}>
-              <Text style={styles.bold}>1. Drag</Text> your finger across adjacent tiles to create a chain
-            </Text>
-            
-            <Text style={styles.instruction}>
-              <Text style={styles.bold}>2. Start</Text> by linking tiles with the same number
-            </Text>
-            
-            <Text style={styles.instruction}>
-              <Text style={styles.bold}>3. Continue</Text> the chain with tiles that are the same OR double the previous value
-            </Text>
-            
-            <Text style={styles.instruction}>
-              <Text style={styles.bold}>4. Release</Text> to merge! The last tile becomes 2× the highest value
-            </Text>
-            
-            <Text style={styles.instruction}>
-              <Text style={styles.bold}>Example:</Text> 2 → 2 → 4 → 4 → 8 = Valid chain!
-            </Text>
-          </View>
-          
-          <TouchableOpacity
-            style={styles.button}
-            onPress={onClose}
-          >
-            <Text style={styles.buttonText}>Got it!</Text>
+          <TouchableOpacity style={styles.button} onPress={onClose}>
+            <Text style={styles.buttonText}>Got It!</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -59,44 +122,85 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.85)',
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 20,
   },
   modal: {
     backgroundColor: colors.backgroundAlt,
     borderRadius: 20,
-    padding: 28,
-    width: '90%',
-    maxWidth: 450,
-    borderWidth: 3,
-    borderColor: colors.accent,
+    padding: 24,
+    width: '100%',
+    maxWidth: 500,
+    maxHeight: '85%',
+    borderWidth: 2,
+    borderColor: colors.secondary,
+  },
+  scrollView: {
+    maxHeight: 500,
   },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
     color: colors.accent,
-    marginBottom: 24,
     textAlign: 'center',
+    marginBottom: 20,
   },
-  instructionContainer: {
-    marginBottom: 28,
+  section: {
+    marginBottom: 20,
   },
-  instruction: {
-    fontSize: 16,
-    color: colors.text,
-    marginBottom: 16,
-    lineHeight: 24,
-  },
-  bold: {
+  sectionTitle: {
+    fontSize: 18,
     fontWeight: 'bold',
-    color: colors.accent,
+    color: colors.text,
+    marginBottom: 8,
+  },
+  text: {
+    fontSize: 15,
+    color: colors.textSecondary,
+    lineHeight: 22,
+    marginBottom: 4,
+  },
+  ruleText: {
+    fontSize: 15,
+    color: colors.text,
+    lineHeight: 22,
+    marginBottom: 4,
+  },
+  subRuleText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 20,
+    marginLeft: 16,
+    marginBottom: 2,
+  },
+  exampleText: {
+    fontSize: 15,
+    color: colors.secondary,
+    lineHeight: 22,
+    marginBottom: 4,
+    fontWeight: '600',
+  },
+  invalidText: {
+    fontSize: 15,
+    color: colors.primary,
+    lineHeight: 22,
+    marginBottom: 4,
+    fontWeight: '600',
+  },
+  powerUpText: {
+    fontSize: 15,
+    color: colors.textSecondary,
+    lineHeight: 22,
+    marginBottom: 4,
   },
   button: {
-    backgroundColor: colors.accent,
+    backgroundColor: colors.primary,
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
+    marginTop: 16,
   },
   buttonText: {
-    color: colors.background,
+    color: '#FFF',
     fontSize: 18,
     fontWeight: 'bold',
   },

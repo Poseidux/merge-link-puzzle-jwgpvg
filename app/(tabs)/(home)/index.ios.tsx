@@ -17,6 +17,7 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
+import Svg, { Line } from 'react-native-svg';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import GameTile from '@/components/GameTile';
@@ -35,6 +36,7 @@ import {
   removeTile,
   swapTiles,
   findHint,
+  ensureValidMovesAfterContinue,
   GRID_CONFIG,
 } from '@/utils/gameLogic';
 import {
@@ -84,16 +86,19 @@ export default function GameScreen() {
   const gridRef = useRef<View>(null);
   const shakeAnim = useSharedValue(0);
   
+  // Load game state and settings on mount
   useEffect(() => {
     console.log('GameScreen mounted, loading saved data');
     loadSavedData();
   }, []);
   
+  // Save game state whenever it changes
   useEffect(() => {
     console.log('Game state changed, saving to storage');
     saveGameState(gameState);
   }, [gameState]);
   
+  // Check for tutorial on first launch
   useEffect(() => {
     checkTutorial();
   }, []);
@@ -134,6 +139,7 @@ export default function GameScreen() {
     saveSettings(newSettings);
   }
   
+  // Pan responder for drag gestures
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => !swapMode && !hammerMode,
@@ -159,22 +165,43 @@ export default function GameScreen() {
         
         if (tile && selectedTiles.length > 0) {
           const lastTile = selectedTiles[selectedTiles.length - 1];
+          
+          // Check if tile is already in the chain
           const alreadySelected = selectedTiles.some(
             t => t.row === tile.row && t.col === tile.col
           );
           
           if (!alreadySelected) {
+            // Check if adjacent to last tile
             const isAdjacent = Math.abs(tile.row - lastTile.row) <= 1 && 
                               Math.abs(tile.col - lastTile.col) <= 1 &&
                               !(tile.row === lastTile.row && tile.col === lastTile.col);
             
             if (isAdjacent) {
               const newChain = [...selectedTiles, tile];
-              if (isValidChain(newChain)) {
-                console.log('Extended chain to:', tile);
-                setSelectedTiles(newChain);
-                if (settings.hapticsEnabled) {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              
+              // Only add if it would still be valid
+              // For first tile, any adjacent tile works
+              // For second tile, must be identical to first
+              // For subsequent tiles, must be same or double previous
+              if (selectedTiles.length === 1) {
+                // Second tile - must be identical to first
+                if (tile.value === selectedTiles[0].value) {
+                  console.log('Extended chain to second tile:', tile);
+                  setSelectedTiles(newChain);
+                  if (settings.hapticsEnabled) {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }
+                }
+              } else {
+                // Third+ tile - must be same or double previous
+                const prevValue = lastTile.value;
+                if (tile.value === prevValue || tile.value === prevValue * 2) {
+                  console.log('Extended chain:', tile);
+                  setSelectedTiles(newChain);
+                  if (settings.hapticsEnabled) {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }
                 }
               }
             }
@@ -229,16 +256,20 @@ export default function GameScreen() {
     const { newGrid, score } = resolveChain(gameState.grid, selectedTiles);
     const lastTile = selectedTiles[selectedTiles.length - 1];
     
+    // Add floating score
     const scoreId = `score_${Date.now()}`;
     const scoreX = lastTile.col * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
     const scoreY = lastTile.row * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
     setFloatingScores(prev => [...prev, { id: scoreId, score, x: scoreX, y: scoreY }]);
     
+    // Update game state
     const newScore = gameState.score + score;
     const newBestScore = Math.max(newScore, gameState.bestScore);
     
+    // Save snapshot before filling
     const snapshot = { grid: gameState.grid, score: gameState.score };
     
+    // Fill empty cells
     const filledGrid = fillEmptyCells(newGrid);
     
     setGameState(prev => ({
@@ -255,6 +286,7 @@ export default function GameScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
     
+    // Check for game over
     setTimeout(() => {
       if (!hasValidMoves(filledGrid)) {
         console.log('No valid moves, game over');
@@ -288,9 +320,13 @@ export default function GameScreen() {
   function handleContinue() {
     console.log('User used continue');
     if (gameState.preGameOverSnapshot) {
+      const restoredGrid = gameState.preGameOverSnapshot.grid;
+      const gridWithMoves = ensureValidMovesAfterContinue(restoredGrid);
+      
       setGameState(prev => ({
         ...prev,
-        grid: fillEmptyCells(prev.preGameOverSnapshot!.grid),
+        grid: gridWithMoves,
+        score: prev.preGameOverSnapshot!.score,
         continueUsed: true,
       }));
       setGameOverVisible(false);
@@ -429,6 +465,7 @@ export default function GameScreen() {
         }}
       />
       
+      {/* Score Bar */}
       <View style={styles.scoreBar}>
         <View style={styles.scoreContainer}>
           <Text style={styles.scoreLabel}>Score</Text>
@@ -441,11 +478,40 @@ export default function GameScreen() {
         </View>
       </View>
       
+      {/* Game Grid */}
       <Animated.View
         ref={gridRef}
         style={[styles.gridContainer, shakeStyle]}
         {...panResponder.panHandlers}
       >
+        {/* Connector Lines */}
+        {selectedTiles.length > 1 && (
+          <Svg style={styles.svgOverlay} pointerEvents="none">
+            {selectedTiles.map((tile, index) => {
+              if (index === 0) return null;
+              const prevTile = selectedTiles[index - 1];
+              
+              const x1 = prevTile.col * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
+              const y1 = prevTile.row * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
+              const x2 = tile.col * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
+              const y2 = tile.row * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
+              
+              return (
+                <Line
+                  key={`line-${index}`}
+                  x1={x1}
+                  y1={y1}
+                  x2={x2}
+                  y2={y2}
+                  stroke={colors.accent}
+                  strokeWidth={6}
+                  strokeLinecap="round"
+                />
+              );
+            })}
+          </Svg>
+        )}
+        
         {gameState.grid.map((row, rowIndex) => (
           <View key={rowIndex} style={styles.gridRow}>
             {row.map((tile, colIndex) => {
@@ -481,6 +547,7 @@ export default function GameScreen() {
           </View>
         ))}
         
+        {/* Floating Scores */}
         {floatingScores.map(fs => (
           <FloatingScore
             key={fs.id}
@@ -494,6 +561,7 @@ export default function GameScreen() {
         ))}
       </Animated.View>
       
+      {/* Control Bar */}
       <View style={styles.controlBar}>
         <TouchableOpacity
           style={styles.controlButton}
@@ -557,6 +625,7 @@ export default function GameScreen() {
         </TouchableOpacity>
       </View>
       
+      {/* New Game Button */}
       <TouchableOpacity
         style={styles.newGameButton}
         onPress={handleNewGame}
@@ -564,6 +633,7 @@ export default function GameScreen() {
         <Text style={styles.newGameText}>New Game</Text>
       </TouchableOpacity>
       
+      {/* Modals */}
       <GameOverModal
         visible={gameOverVisible}
         score={gameState.score}
@@ -634,6 +704,15 @@ const styles = StyleSheet.create({
   gridContainer: {
     padding: GRID_PADDING,
     alignSelf: 'center',
+    position: 'relative',
+  },
+  svgOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1,
   },
   gridRow: {
     flexDirection: 'row',
@@ -641,6 +720,7 @@ const styles = StyleSheet.create({
   },
   tileWrapper: {
     marginRight: TILE_GAP,
+    zIndex: 2,
   },
   hintedTile: {
     borderWidth: 3,
