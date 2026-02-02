@@ -41,18 +41,28 @@ import { IconSymbol } from '@/components/IconSymbol';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
-const GRID_PADDING = 16;
+const GRID_PADDING = 24;
 const TILE_GAP = 8;
 const HEADER_HEIGHT = 100;
-const BOTTOM_BUTTON_HEIGHT = 80;
-const AVAILABLE_HEIGHT = SCREEN_HEIGHT - HEADER_HEIGHT - BOTTOM_BUTTON_HEIGHT;
-const GRID_WIDTH = SCREEN_WIDTH - GRID_PADDING * 2;
-const GRID_HEIGHT = AVAILABLE_HEIGHT - GRID_PADDING * 2;
+const BOTTOM_BUTTON_HEIGHT = 100;
+const TOP_MARGIN = 20;
+const BOTTOM_MARGIN = 20;
+
+// Calculate available space for the grid with proper margins
+const AVAILABLE_HEIGHT = SCREEN_HEIGHT - HEADER_HEIGHT - BOTTOM_BUTTON_HEIGHT - TOP_MARGIN - BOTTOM_MARGIN;
+const AVAILABLE_WIDTH = SCREEN_WIDTH - GRID_PADDING * 2;
 
 // Calculate tile size to fit both width and height constraints
-const TILE_SIZE_BY_WIDTH = (GRID_WIDTH - TILE_GAP * (GRID_CONFIG.COLS - 1)) / GRID_CONFIG.COLS;
-const TILE_SIZE_BY_HEIGHT = (GRID_HEIGHT - TILE_GAP * (GRID_CONFIG.ROWS - 1)) / GRID_CONFIG.ROWS;
-const TILE_SIZE = Math.min(TILE_SIZE_BY_WIDTH, TILE_SIZE_BY_HEIGHT);
+const TILE_SIZE_BY_WIDTH = (AVAILABLE_WIDTH - TILE_GAP * (GRID_CONFIG.COLS - 1)) / GRID_CONFIG.COLS;
+const TILE_SIZE_BY_HEIGHT = (AVAILABLE_HEIGHT - TILE_GAP * (GRID_CONFIG.ROWS - 1)) / GRID_CONFIG.ROWS;
+
+// Use the smaller dimension and cap at a maximum size for better aesthetics
+const MAX_TILE_SIZE = 65;
+const TILE_SIZE = Math.min(TILE_SIZE_BY_WIDTH, TILE_SIZE_BY_HEIGHT, MAX_TILE_SIZE);
+
+// Calculate actual grid dimensions
+const GRID_WIDTH = GRID_CONFIG.COLS * TILE_SIZE + (GRID_CONFIG.COLS - 1) * TILE_GAP;
+const GRID_HEIGHT = GRID_CONFIG.ROWS * TILE_SIZE + (GRID_CONFIG.ROWS - 1) * TILE_GAP;
 
 export default function GameScreen() {
   const router = useRouter();
@@ -557,16 +567,19 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingVertical: TOP_MARGIN,
   },
   gridContainer: {
     position: 'relative',
+    width: GRID_WIDTH,
+    height: GRID_HEIGHT,
   },
   svgOverlay: {
     position: 'absolute',
     top: 0,
     left: 0,
-    right: 0,
-    bottom: 0,
+    width: GRID_WIDTH,
+    height: GRID_HEIGHT,
     zIndex: 1,
   },
   gridRow: {
