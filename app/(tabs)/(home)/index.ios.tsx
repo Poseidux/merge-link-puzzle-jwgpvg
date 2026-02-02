@@ -188,16 +188,16 @@ export default function GameScreen() {
   ).current;
   
   function getTileAtPosition(x: number, y: number): SelectedTile | null {
-    // Account for grid padding - subtract it from the touch coordinates
-    const adjustedX = x - GRID_PADDING;
-    const adjustedY = y - GRID_PADDING;
+    // locationX and locationY are already relative to the gridContainer's content area
+    // (the padding is applied to the container, so coordinates start at 0,0 inside the padding)
+    // We don't need to subtract GRID_PADDING
     
     // Calculate which tile was touched
-    // Each tile takes up (TILE_SIZE + TILE_GAP) space, except the last one in each row/column
-    const col = Math.floor(adjustedX / (TILE_SIZE + TILE_GAP));
-    const row = Math.floor(adjustedY / (TILE_SIZE + TILE_GAP));
+    // Each tile takes up (TILE_SIZE + TILE_GAP) space
+    const col = Math.floor(x / (TILE_SIZE + TILE_GAP));
+    const row = Math.floor(y / (TILE_SIZE + TILE_GAP));
     
-    console.log('Touch at x:', x, 'y:', y, '-> adjusted x:', adjustedX, 'y:', adjustedY, '-> row:', row, 'col:', col);
+    console.log('Touch at x:', x, 'y:', y, '-> row:', row, 'col:', col);
     
     // Verify the touch is actually within the tile bounds (not in the gap)
     if (row >= 0 && row < GRID_CONFIG.ROWS && col >= 0 && col < GRID_CONFIG.COLS) {
@@ -207,8 +207,8 @@ export default function GameScreen() {
       const tileEndY = tileStartY + TILE_SIZE;
       
       // Check if touch is within the tile (not in the gap between tiles)
-      if (adjustedX >= tileStartX && adjustedX <= tileEndX && 
-          adjustedY >= tileStartY && adjustedY <= tileEndY) {
+      if (x >= tileStartX && x <= tileEndX && 
+          y >= tileStartY && y <= tileEndY) {
         const tile = gameState.grid[row][col];
         if (tile) {
           return { row, col, value: tile.value };
