@@ -1,17 +1,18 @@
+
 import React from 'react';
-import { NativeTabs, Icon, Label } from 'expo-router/unstable-native-tabs';
+import { Stack } from 'expo-router';
 
 export default function TabLayout() {
+  // Navigation bar removed - using Stack navigation with menu button for iOS
   return (
-    <NativeTabs>
-      <NativeTabs.Trigger key="home" name="(home)">
-        <Icon sf="house.fill" />
-        <Label>Home</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger key="profile" name="profile">
-        <Icon sf="person.fill" />
-        <Label>Profile</Label>
-      </NativeTabs.Trigger>
-    </NativeTabs>
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        animation: 'default',
+      }}
+    >
+      <Stack.Screen key="home" name="(home)" />
+      <Stack.Screen key="profile" name="profile" />
+    </Stack>
   );
 }

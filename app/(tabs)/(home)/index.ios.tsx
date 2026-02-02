@@ -67,7 +67,7 @@ export default function GameScreen() {
   
   const shakeAnim = useSharedValue(0);
   const gridContainerRef = useRef<View>(null);
-  const gridOffsetRef = useRef({ x: 0, y: 0 });
+  const gridOffsetRef = useRef({ x: 0, y: 0, width: 0, height: 0 });
   
   useEffect(() => {
     selectedTilesRef.current = selectedTiles;
@@ -84,13 +84,17 @@ export default function GameScreen() {
   }, [gameState]);
   
   useEffect(() => {
-    if (gridContainerRef.current) {
-      gridContainerRef.current.measure((x, y, width, height, pageX, pageY) => {
-        gridOffsetRef.current = { x: pageX, y: pageY };
-        console.log('Grid container offset:', pageX, pageY);
-      });
-    }
-  }, []);
+    const timer = setTimeout(() => {
+      if (gridContainerRef.current) {
+        gridContainerRef.current.measure((x, y, width, height, pageX, pageY) => {
+          gridOffsetRef.current = { x: pageX, y: pageY, width, height };
+          console.log('Grid container measured - pageX:', pageX, 'pageY:', pageY, 'width:', width, 'height:', height);
+        });
+      }
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, [gameState.grid]);
   
   async function loadSavedData() {
     const savedState = await loadGameState();
@@ -105,8 +109,10 @@ export default function GameScreen() {
     const col = Math.floor(x / (TILE_SIZE + TILE_GAP));
     const row = Math.floor(y / (TILE_SIZE + TILE_GAP));
     
+    console.log('getTileAtPosition - x:', x, 'y:', y, 'calculated row:', row, 'col:', col);
+    
     if (row < 0 || row >= GRID_CONFIG.ROWS || col < 0 || col >= GRID_CONFIG.COLS) {
-      console.log('Touch outside grid bounds:', row, col);
+      console.log('Touch outside grid bounds');
       return null;
     }
     
@@ -119,7 +125,7 @@ export default function GameScreen() {
     if (localX >= 0 && localX <= TILE_SIZE && localY >= 0 && localY <= TILE_SIZE) {
       const tile = gameState.grid[row][col];
       if (tile) {
-        console.log('Found tile at row:', row, 'col:', col, 'value:', tile.value);
+        console.log('Selected tile at row:', row, 'col:', col, 'value:', tile.value);
         return { row, col, value: tile.value };
       }
     }
@@ -130,15 +136,17 @@ export default function GameScreen() {
   
   function handleTouchStart(event: any) {
     const touch = event.nativeEvent.touches[0];
-    const locationX = touch.pageX - gridOffsetRef.current.x - GRID_PADDING;
-    const locationY = touch.pageY - gridOffsetRef.current.y - GRID_PADDING;
+    const locationX = touch.pageX - gridOffsetRef.current.x;
+    const locationY = touch.pageY - gridOffsetRef.current.y;
     
-    console.log('Touch started at:', locationX, locationY);
+    console.log('Touch start - pageX:', touch.pageX, 'pageY:', touch.pageY);
+    console.log('Grid offset - x:', gridOffsetRef.current.x, 'y:', gridOffsetRef.current.y);
+    console.log('Relative location - x:', locationX, 'y:', locationY);
     
     const tile = getTileAtPosition(locationX, locationY);
     
     if (tile) {
-      console.log('Selected first tile:', tile.value);
+      console.log('Started chain with tile value:', tile.value);
       const newSelection = [tile];
       setSelectedTiles(newSelection);
       selectedTilesRef.current = newSelection;
@@ -148,8 +156,8 @@ export default function GameScreen() {
   
   function handleTouchMove(event: any) {
     const touch = event.nativeEvent.touches[0];
-    const locationX = touch.pageX - gridOffsetRef.current.x - GRID_PADDING;
-    const locationY = touch.pageY - gridOffsetRef.current.y - GRID_PADDING;
+    const locationX = touch.pageX - gridOffsetRef.current.x;
+    const locationY = touch.pageY - gridOffsetRef.current.y;
     
     const tile = getTileAtPosition(locationX, locationY);
     
@@ -406,10 +414,10 @@ export default function GameScreen() {
                 if (index === 0) return null;
                 const prevTile = selectedTiles[index - 1];
                 
-                const x1 = prevTile.col * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2 + GRID_PADDING;
-                const y1 = prevTile.row * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2 + GRID_PADDING;
-                const x2 = tile.col * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2 + GRID_PADDING;
-                const y2 = tile.row * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2 + GRID_PADDING;
+                const x1 = prevTile.col * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
+                const y1 = prevTile.row * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
+                const x2 = tile.col * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
+                const y2 = tile.row * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
                 
                 return (
                   <Line
@@ -457,8 +465,8 @@ export default function GameScreen() {
             <FloatingScore
               key={fs.id}
               score={fs.score}
-              x={fs.x + GRID_PADDING}
-              y={fs.y + GRID_PADDING}
+              x={fs.x}
+              y={fs.y}
               onComplete={() => {
                 setFloatingScores(prev => prev.filter(s => s.id !== fs.id));
               }}
@@ -543,7 +551,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   gridContainer: {
-    padding: GRID_PADDING,
     position: 'relative',
   },
   svgOverlay: {
