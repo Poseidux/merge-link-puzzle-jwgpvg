@@ -7,13 +7,14 @@ import {
   TouchableOpacity,
   Dimensions,
 } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSequence,
   withTiming,
+  withDelay,
 } from 'react-native-reanimated';
 import Svg, { Line } from 'react-native-svg';
 import { colors } from '@/styles/commonStyles';
@@ -21,7 +22,9 @@ import GameTile from '@/components/GameTile';
 import FloatingScore from '@/components/FloatingScore';
 import GameOverModal from '@/components/GameOverModal';
 import ConfirmModal from '@/components/ConfirmModal';
-import { GameState, SelectedTile } from '@/types/game';
+import PowerUpBar, { PowerUp } from '@/components/PowerUpBar';
+import GameMenu from '@/components/GameMenu';
+import { GameState, SelectedTile, Tile } from '@/types/game';
 import {
   createInitialGrid,
   isValidChain,
@@ -37,6 +40,7 @@ import {
 import {
   saveGameState,
   loadGameState,
+  clearGameState,
 } from '@/utils/storage';
 import { IconSymbol } from '@/components/IconSymbol';
 
@@ -45,28 +49,26 @@ const SCREEN_HEIGHT = Dimensions.get('window').height;
 const GRID_PADDING = 24;
 const TILE_GAP = 8;
 const HEADER_HEIGHT = 100;
-const BOTTOM_BUTTON_HEIGHT = 100;
+const POWERUP_BAR_HEIGHT = 70;
+const BOTTOM_BUTTON_HEIGHT = 80;
 const TOP_MARGIN = 20;
 const BOTTOM_MARGIN = 20;
 
-// Calculate available space for the grid with proper margins
-const AVAILABLE_HEIGHT = SCREEN_HEIGHT - HEADER_HEIGHT - BOTTOM_BUTTON_HEIGHT - TOP_MARGIN - BOTTOM_MARGIN;
+const AVAILABLE_HEIGHT = SCREEN_HEIGHT - HEADER_HEIGHT - POWERUP_BAR_HEIGHT - BOTTOM_BUTTON_HEIGHT - TOP_MARGIN - BOTTOM_MARGIN;
 const AVAILABLE_WIDTH = SCREEN_WIDTH - GRID_PADDING * 2;
 
-// Calculate tile size to fit both width and height constraints
 const TILE_SIZE_BY_WIDTH = (AVAILABLE_WIDTH - TILE_GAP * (GRID_CONFIG.COLS - 1)) / GRID_CONFIG.COLS;
 const TILE_SIZE_BY_HEIGHT = (AVAILABLE_HEIGHT - TILE_GAP * (GRID_CONFIG.ROWS - 1)) / GRID_CONFIG.ROWS;
 
-// Use the smaller dimension and cap at a maximum size for better aesthetics
 const MAX_TILE_SIZE = 65;
 const TILE_SIZE = Math.min(TILE_SIZE_BY_WIDTH, TILE_SIZE_BY_HEIGHT, MAX_TILE_SIZE);
 
-// Calculate actual grid dimensions
 const GRID_WIDTH = GRID_CONFIG.COLS * TILE_SIZE + (GRID_CONFIG.COLS - 1) * TILE_GAP;
 const GRID_HEIGHT = GRID_CONFIG.ROWS * TILE_SIZE + (GRID_CONFIG.ROWS - 1) * TILE_GAP;
 
 export default function GameScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
   
   const [gameState, setGameState] = useState<GameState>({
     grid: createInitialGrid(),
@@ -83,6 +85,16 @@ export default function GameScreen() {
   const [floatingScores, setFloatingScores] = useState<Array<{ id: string; score: number; x: number; y: number }>>([]);
   const [gameOverVisible, setGameOverVisible] = useState(false);
   const [confirmNewGameVisible, setConfirmNewGameVisible] = useState(false);
+  const [gameMenuVisible, setGameMenuVisible] = useState(false);
+  
+  const [powerUps, setPowerUps] = useState<PowerUp[]>([
+    { id: 'undo', name: 'Undo', icon: 'undo', usesLeft: 2, maxUses: 2 },
+    { id: 'hammer', name: 'Hammer', icon: 'delete', usesLeft: 2, maxUses: 2 },
+    { id: 'swap', name: 'Swap', icon: 'swap-horiz', usesLeft: 2, maxUses: 2 },
+    { id: 'hint', name: 'Hint', icon: 'lightbulb', usesLeft: 2, maxUses: 2 },
+  ]);
+  
+  const [animatingTiles, setAnimatingTiles] = useState<Set<string>>(new Set());
   
   const shakeAnim = useSharedValue(0);
   const gridContainerRef = useRef<View>(null);
@@ -93,8 +105,13 @@ export default function GameScreen() {
   }, [selectedTiles]);
   
   useEffect(() => {
-    console.log('GameScreen mounted, loading saved data');
-    loadSavedData();
+    console.log('GameScreen mounted, checking params:', params);
+    if (params.newGame === 'true') {
+      console.log('Starting new game from home screen');
+      startFreshGame();
+    } else {
+      loadSavedData();
+    }
   }, []);
   
   useEffect(() => {
@@ -122,6 +139,24 @@ export default function GameScreen() {
       console.log('Loaded saved game state');
       setGameState(savedState);
     }
+  }
+  
+  function startFreshGame() {
+    console.log('Starting fresh game');
+    setGameState({
+      grid: createInitialGrid(),
+      score: 0,
+      bestScore: gameState.bestScore,
+      continueUsed: false,
+      preGameOverSnapshot: null,
+      minTileValue: 2,
+    });
+    setPowerUps([
+      { id: 'undo', name: 'Undo', icon: 'undo', usesLeft: 2, maxUses: 2 },
+      { id: 'hammer', name: 'Hammer', icon: 'delete', usesLeft: 2, maxUses: 2 },
+      { id: 'swap', name: 'Swap', icon: 'swap-horiz', usesLeft: 2, maxUses: 2 },
+      { id: 'hint', name: 'Hint', icon: 'lightbulb', usesLeft: 2, maxUses: 2 },
+    ]);
   }
   
   function getTileAtPosition(x: number, y: number): SelectedTile | null {
@@ -243,7 +278,7 @@ export default function GameScreen() {
     handleChainRelease(finalSelection);
   }
   
-  function handleChainRelease(chainTiles: SelectedTile[]) {
+  async function handleChainRelease(chainTiles: SelectedTile[]) {
     if (chainTiles.length < 2) {
       console.log('Chain too short');
       setSelectedTiles([]);
@@ -265,12 +300,31 @@ export default function GameScreen() {
       return;
     }
     
-    console.log('Valid chain, resolving');
+    console.log('Valid chain, resolving with pop/explode animation');
+    
+    // Animate tiles popping one by one (wave effect)
+    const tilesToAnimate = chainTiles.slice(0, -1); // All except the last tile
+    const lastTile = chainTiles[chainTiles.length - 1];
+    
+    // Mark tiles as animating
+    const animatingIds = new Set<string>();
+    tilesToAnimate.forEach(tile => {
+      const tileObj = gameState.grid[tile.row][tile.col];
+      if (tileObj) {
+        animatingIds.add(tileObj.id);
+      }
+    });
+    setAnimatingTiles(animatingIds);
+    
+    // Wait for pop animation to complete (150ms per tile)
+    const animationDuration = tilesToAnimate.length * 150;
+    await new Promise(resolve => setTimeout(resolve, animationDuration));
+    
+    // Now resolve the chain
     const resolveResult = resolveChain(gameState.grid, chainTiles);
     let newGrid = resolveResult.newGrid;
     const score = resolveResult.score;
     const mergedValue = resolveResult.mergedValue;
-    const lastTile = chainTiles[chainTiles.length - 1];
     
     const scoreId = `score_${Date.now()}`;
     const scoreX = lastTile.col * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
@@ -289,7 +343,10 @@ export default function GameScreen() {
       newGrid = removeTilesBelowMinimum(newGrid, newMinTileValue);
     }
     
-    // CRITICAL FIX: Apply gravity first, then spawn new tiles at top
+    // Clear animating tiles
+    setAnimatingTiles(new Set());
+    
+    // Apply gravity and spawn new tiles
     console.log('Step 1: Applying gravity');
     const afterGravity = applyGravity(newGrid);
     
@@ -328,14 +385,7 @@ export default function GameScreen() {
   function handleRestart() {
     console.log('Restart game');
     setGameOverVisible(false);
-    setGameState({
-      grid: createInitialGrid(),
-      score: 0,
-      bestScore: gameState.bestScore,
-      continueUsed: false,
-      preGameOverSnapshot: null,
-      minTileValue: 2,
-    });
+    startFreshGame();
   }
   
   function handleContinue() {
@@ -364,14 +414,44 @@ export default function GameScreen() {
   function confirmNewGame() {
     console.log('New game confirmed');
     setConfirmNewGameVisible(false);
-    setGameState({
-      grid: createInitialGrid(),
-      score: 0,
-      bestScore: gameState.bestScore,
-      continueUsed: false,
-      preGameOverSnapshot: null,
-      minTileValue: 2,
-    });
+    startFreshGame();
+  }
+  
+  function handlePowerUpPress(powerUpId: string) {
+    console.log('Power-up pressed:', powerUpId);
+    
+    const powerUp = powerUps.find(p => p.id === powerUpId);
+    if (!powerUp || powerUp.usesLeft === 0) {
+      return;
+    }
+    
+    // Decrease uses
+    setPowerUps(prev => prev.map(p => 
+      p.id === powerUpId 
+        ? { ...p, usesLeft: p.usesLeft - 1 }
+        : p
+    ));
+    
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    // TODO: Implement power-up logic
+    console.log(`Power-up ${powerUpId} used. Uses left: ${powerUp.usesLeft - 1}`);
+  }
+  
+  function handleSettingsPress() {
+    console.log('Settings button pressed');
+    setGameMenuVisible(true);
+  }
+  
+  function handleResumeGame() {
+    console.log('Resume game');
+    setGameMenuVisible(false);
+  }
+  
+  function handleBackToHome() {
+    console.log('Back to home');
+    setGameMenuVisible(false);
+    router.push('/');
   }
   
   const shakeStyle = useAnimatedStyle(() => {
@@ -382,29 +462,12 @@ export default function GameScreen() {
   
   const scoreText = `${gameState.score}`;
   const bestScoreText = `${gameState.bestScore}`;
-  const minTileText = `Min: ${gameState.minTileValue}`;
   
   return (
     <View style={styles.container}>
       <Stack.Screen
         options={{
-          headerShown: true,
-          title: 'Number Merger',
-          headerStyle: { backgroundColor: colors.background },
-          headerTintColor: colors.text,
-          headerLeft: () => (
-            <TouchableOpacity
-              onPress={() => router.push('/(tabs)/profile')}
-              style={styles.menuButton}
-            >
-              <IconSymbol
-                ios_icon_name="line.3.horizontal"
-                android_material_icon_name="menu"
-                size={24}
-                color={colors.text}
-              />
-            </TouchableOpacity>
-          ),
+          headerShown: false,
         }}
       />
       
@@ -417,10 +480,6 @@ export default function GameScreen() {
         <View style={styles.scoreContainer}>
           <Text style={styles.scoreLabel}>Best</Text>
           <Text style={styles.bestScoreValue}>{bestScoreText}</Text>
-        </View>
-        
-        <View style={styles.scoreContainer}>
-          <Text style={styles.minTileLabel}>{minTileText}</Text>
         </View>
       </View>
       
@@ -469,6 +528,11 @@ export default function GameScreen() {
                   t => t.row === rowIndex && t.col === colIndex
                 );
                 
+                const isAnimating = animatingTiles.has(tile.id);
+                const animationIndex = selectedTiles.findIndex(
+                  t => t.row === rowIndex && t.col === colIndex
+                );
+                
                 return (
                   <View
                     key={tile.id}
@@ -478,6 +542,8 @@ export default function GameScreen() {
                       value={tile.value}
                       isSelected={isSelected}
                       size={TILE_SIZE}
+                      isAnimating={isAnimating}
+                      animationDelay={animationIndex * 150}
                     />
                   </View>
                 );
@@ -498,6 +564,12 @@ export default function GameScreen() {
           ))}
         </Animated.View>
       </View>
+      
+      <PowerUpBar
+        powerUps={powerUps}
+        onPowerUpPress={handlePowerUpPress}
+        onSettingsPress={handleSettingsPress}
+      />
       
       <TouchableOpacity
         style={styles.newGameButton}
@@ -524,6 +596,12 @@ export default function GameScreen() {
         onConfirm={confirmNewGame}
         onCancel={() => setConfirmNewGameVisible(false)}
       />
+      
+      <GameMenu
+        visible={gameMenuVisible}
+        onResumeGame={handleResumeGame}
+        onBackToHome={handleBackToHome}
+      />
     </View>
   );
 }
@@ -532,10 +610,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-  },
-  menuButton: {
-    marginLeft: 16,
-    padding: 8,
+    paddingTop: 48,
   },
   scoreBar: {
     flexDirection: 'row',
@@ -562,12 +637,6 @@ const styles = StyleSheet.create({
     fontSize: 28,
     color: colors.accent,
     fontWeight: 'bold',
-  },
-  minTileLabel: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    fontWeight: '600',
-    marginTop: 10,
   },
   gameContainer: {
     flex: 1,
@@ -599,15 +668,15 @@ const styles = StyleSheet.create({
   newGameButton: {
     backgroundColor: colors.primary,
     marginHorizontal: 24,
-    marginBottom: 24,
-    marginTop: 12,
-    paddingVertical: 16,
+    marginBottom: 16,
+    marginTop: 8,
+    paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
   },
   newGameText: {
     color: '#FFF',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
   },
 });

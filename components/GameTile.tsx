@@ -1,21 +1,66 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSequence,
+  withDelay,
+  Easing,
+} from 'react-native-reanimated';
 import { getTileColor, formatTileValue } from '@/utils/gameLogic';
 
 interface GameTileProps {
   value: number;
   isSelected: boolean;
   size: number;
+  isAnimating?: boolean;
+  animationDelay?: number;
 }
 
-export default function GameTile({ value, isSelected, size }: GameTileProps) {
+export default function GameTile({ value, isSelected, size, isAnimating = false, animationDelay = 0 }: GameTileProps) {
   const tileColorData = getTileColor(value);
   const displayValue = formatTileValue(value);
   const isGlowing = value >= 1024;
   
-  // Dynamic font size based on the length of the display value
+  const scale = useSharedValue(1);
+  const opacity = useSharedValue(1);
+  
+  useEffect(() => {
+    if (isAnimating) {
+      console.log('Starting pop/explode animation with delay:', animationDelay);
+      
+      // Pop and explode effect
+      scale.value = withDelay(
+        animationDelay,
+        withSequence(
+          withTiming(1.3, { duration: 100, easing: Easing.out(Easing.ease) }),
+          withTiming(0, { duration: 50, easing: Easing.in(Easing.ease) })
+        )
+      );
+      
+      opacity.value = withDelay(
+        animationDelay,
+        withSequence(
+          withTiming(1, { duration: 100 }),
+          withTiming(0, { duration: 50 })
+        )
+      );
+    } else {
+      scale.value = 1;
+      opacity.value = 1;
+    }
+  }, [isAnimating, animationDelay]);
+  
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: scale.value }],
+      opacity: opacity.value,
+    };
+  });
+  
   const getFontSize = () => {
     const baseSize = size * 0.35;
     if (displayValue.length >= 4) return baseSize * 0.7;
@@ -26,7 +71,7 @@ export default function GameTile({ value, isSelected, size }: GameTileProps) {
   const fontSize = getFontSize();
   
   return (
-    <View
+    <Animated.View
       style={[
         styles.tileContainer,
         {
@@ -34,6 +79,7 @@ export default function GameTile({ value, isSelected, size }: GameTileProps) {
           height: size,
         },
         isGlowing && styles.glowContainer,
+        animatedStyle,
       ]}
     >
       <LinearGradient
@@ -61,7 +107,7 @@ export default function GameTile({ value, isSelected, size }: GameTileProps) {
           {displayValue}
         </Text>
       </LinearGradient>
-    </View>
+    </Animated.View>
   );
 }
 
