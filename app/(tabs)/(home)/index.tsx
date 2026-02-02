@@ -100,10 +100,8 @@ export default function GameScreen() {
       onPanResponderTerminationRequest: () => false,
       
       onPanResponderGrant: (evt) => {
-        // locationX and locationY are ALREADY relative to the view with panHandlers
-        // DO NOT subtract GRID_PADDING here - it's already accounted for
-        const locationX = evt.nativeEvent.locationX;
-        const locationY = evt.nativeEvent.locationY;
+        const locationX = evt.nativeEvent.locationX - GRID_PADDING;
+        const locationY = evt.nativeEvent.locationY - GRID_PADDING;
         
         console.log('User started dragging at position:', locationX, locationY);
         
@@ -121,8 +119,8 @@ export default function GameScreen() {
       },
       
       onPanResponderMove: (evt) => {
-        const locationX = evt.nativeEvent.locationX;
-        const locationY = evt.nativeEvent.locationY;
+        const locationX = evt.nativeEvent.locationX - GRID_PADDING;
+        const locationY = evt.nativeEvent.locationY - GRID_PADDING;
         
         const tile = getTileAtPosition(locationX, locationY);
         
@@ -130,12 +128,10 @@ export default function GameScreen() {
           const currentSelection = selectedTilesRef.current;
           const lastTile = currentSelection[currentSelection.length - 1];
           
-          // Check if this is the same tile as the last one (no action needed)
           if (tile.row === lastTile.row && tile.col === lastTile.col) {
             return;
           }
           
-          // Check if this is the previous tile (backtracking)
           if (currentSelection.length >= 2) {
             const previousTile = currentSelection[currentSelection.length - 2];
             if (tile.row === previousTile.row && tile.col === previousTile.col) {
@@ -148,7 +144,6 @@ export default function GameScreen() {
             }
           }
           
-          // Check if tile is already in the chain (can't reuse tiles)
           const alreadySelected = currentSelection.some(
             t => t.row === tile.row && t.col === tile.col
           );
@@ -157,7 +152,6 @@ export default function GameScreen() {
             return;
           }
           
-          // Check if tile is adjacent to the last tile (8 directions)
           const rowDiff = Math.abs(tile.row - lastTile.row);
           const colDiff = Math.abs(tile.col - lastTile.col);
           const isAdjacent = rowDiff <= 1 && colDiff <= 1 && !(rowDiff === 0 && colDiff === 0);
@@ -166,11 +160,9 @@ export default function GameScreen() {
             return;
           }
           
-          // CRITICAL: Apply the exact chain rules
           let canAdd = false;
           
           if (currentSelection.length === 1) {
-            // Rule: First two tiles MUST be identical
             if (tile.value === currentSelection[0].value) {
               canAdd = true;
               console.log('Extended chain to second tile (matching first):', tile.value);
@@ -178,7 +170,6 @@ export default function GameScreen() {
               console.log('Cannot add tile: First two tiles must be identical. Current:', currentSelection[0].value, 'Attempted:', tile.value);
             }
           } else {
-            // Rule: After first two, each tile must be SAME or EXACTLY DOUBLE the previous
             const prevValue = lastTile.value;
             if (tile.value === prevValue) {
               canAdd = true;
@@ -209,26 +200,21 @@ export default function GameScreen() {
   ).current;
   
   function getTileAtPosition(x: number, y: number): SelectedTile | null {
-    // x and y are relative to the gridContainer (which has padding)
-    // Calculate which tile was touched based on tile size and gap
     const col = Math.floor(x / (TILE_SIZE + TILE_GAP));
     const row = Math.floor(y / (TILE_SIZE + TILE_GAP));
     
     console.log('Touch at x:', x, 'y:', y, '-> row:', row, 'col:', col);
     
-    // Verify the touch is within grid bounds
     if (row < 0 || row >= GRID_CONFIG.ROWS || col < 0 || col >= GRID_CONFIG.COLS) {
       console.log('Touch outside grid bounds');
       return null;
     }
     
-    // Verify the touch is actually within the tile bounds (not in the gap)
     const tileStartX = col * (TILE_SIZE + TILE_GAP);
     const tileStartY = row * (TILE_SIZE + TILE_GAP);
     const tileEndX = tileStartX + TILE_SIZE;
     const tileEndY = tileStartY + TILE_SIZE;
     
-    // Check if touch is within the tile (not in the gap between tiles)
     if (x >= tileStartX && x <= tileEndX && 
         y >= tileStartY && y <= tileEndY) {
       const tile = gameState.grid[row][col];
@@ -249,7 +235,6 @@ export default function GameScreen() {
       return;
     }
     
-    // Validate the chain using the strict validation function
     if (!isValidChain(chainTiles)) {
       console.log('Invalid chain, shaking and canceling');
       shakeAnim.value = withSequence(
@@ -279,15 +264,12 @@ export default function GameScreen() {
     const newScore = gameState.score + score;
     const newBestScore = Math.max(newScore, gameState.bestScore);
     
-    // Check if we hit a milestone and need to raise minimum tile value
     const newMinTileValue = getMinimumTileValue(mergedValue);
     let currentMinTileValue = gameState.minTileValue;
     
     if (newMinTileValue > currentMinTileValue) {
       console.log(`Milestone reached! Merged value: ${mergedValue}. Raising minimum tile value from ${currentMinTileValue} to ${newMinTileValue}`);
       currentMinTileValue = newMinTileValue;
-      
-      // Remove all tiles below the new minimum
       newGrid = removeTilesBelowMinimum(newGrid, newMinTileValue);
     }
     
@@ -433,10 +415,10 @@ export default function GameScreen() {
                 if (index === 0) return null;
                 const prevTile = selectedTiles[index - 1];
                 
-                const x1 = prevTile.col * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
-                const y1 = prevTile.row * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
-                const x2 = tile.col * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
-                const y2 = tile.row * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
+                const x1 = prevTile.col * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2 + GRID_PADDING;
+                const y1 = prevTile.row * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2 + GRID_PADDING;
+                const x2 = tile.col * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2 + GRID_PADDING;
+                const y2 = tile.row * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2 + GRID_PADDING;
                 
                 return (
                   <Line
@@ -484,8 +466,8 @@ export default function GameScreen() {
             <FloatingScore
               key={fs.id}
               score={fs.score}
-              x={fs.x}
-              y={fs.y}
+              x={fs.x + GRID_PADDING}
+              y={fs.y + GRID_PADDING}
               onComplete={() => {
                 setFloatingScores(prev => prev.filter(s => s.id !== fs.id));
               }}
