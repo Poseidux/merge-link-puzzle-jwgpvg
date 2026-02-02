@@ -42,8 +42,8 @@ import { IconSymbol } from '@/components/IconSymbol';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
-const GRID_PADDING = 12;
-const TILE_GAP = 4;
+const GRID_PADDING = 16;
+const TILE_GAP = 6;
 const GRID_WIDTH = SCREEN_WIDTH - GRID_PADDING * 2;
 const TILE_SIZE = (GRID_WIDTH - TILE_GAP * (GRID_CONFIG.COLS - 1)) / GRID_CONFIG.COLS;
 
@@ -66,7 +66,6 @@ export default function GameScreen() {
   const [gameOverVisible, setGameOverVisible] = useState(false);
   const [confirmNewGameVisible, setConfirmNewGameVisible] = useState(false);
   
-  const gridRef = useRef<View>(null);
   const shakeAnim = useSharedValue(0);
   
   useEffect(() => {
@@ -92,6 +91,31 @@ export default function GameScreen() {
     }
   }
   
+  function getTileAtPosition(x: number, y: number): SelectedTile | null {
+    const col = Math.floor(x / (TILE_SIZE + TILE_GAP));
+    const row = Math.floor(y / (TILE_SIZE + TILE_GAP));
+    
+    if (row < 0 || row >= GRID_CONFIG.ROWS || col < 0 || col >= GRID_CONFIG.COLS) {
+      return null;
+    }
+    
+    const tileStartX = col * (TILE_SIZE + TILE_GAP);
+    const tileStartY = row * (TILE_SIZE + TILE_GAP);
+    
+    const localX = x - tileStartX;
+    const localY = y - tileStartY;
+    
+    if (localX >= 0 && localX <= TILE_SIZE && localY >= 0 && localY <= TILE_SIZE) {
+      const tile = gameState.grid[row][col];
+      if (tile) {
+        console.log('Found tile at row:', row, 'col:', col, 'value:', tile.value);
+        return { row, col, value: tile.value };
+      }
+    }
+    
+    return null;
+  }
+  
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
@@ -102,18 +126,16 @@ export default function GameScreen() {
         const locationX = evt.nativeEvent.locationX - GRID_PADDING;
         const locationY = evt.nativeEvent.locationY - GRID_PADDING;
         
-        console.log('User started dragging at position:', locationX, locationY);
+        console.log('Touch started at:', locationX, locationY);
         
         const tile = getTileAtPosition(locationX, locationY);
         
         if (tile) {
-          console.log('Selected first tile at row:', tile.row, 'col:', tile.col, 'value:', tile.value);
+          console.log('Selected first tile:', tile.value);
           const newSelection = [tile];
           setSelectedTiles(newSelection);
           selectedTilesRef.current = newSelection;
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        } else {
-          console.log('No tile found at touch position');
         }
       },
       
@@ -134,7 +156,6 @@ export default function GameScreen() {
           if (currentSelection.length >= 2) {
             const previousTile = currentSelection[currentSelection.length - 2];
             if (tile.row === previousTile.row && tile.col === previousTile.col) {
-              console.log('Backtracking: removing last tile from chain');
               const newSelection = currentSelection.slice(0, -1);
               setSelectedTiles(newSelection);
               selectedTilesRef.current = newSelection;
@@ -164,20 +185,11 @@ export default function GameScreen() {
           if (currentSelection.length === 1) {
             if (tile.value === currentSelection[0].value) {
               canAdd = true;
-              console.log('Extended chain to second tile (matching first):', tile.value);
-            } else {
-              console.log('Cannot add tile: First two tiles must be identical. Current:', currentSelection[0].value, 'Attempted:', tile.value);
             }
           } else {
             const prevValue = lastTile.value;
-            if (tile.value === prevValue) {
+            if (tile.value === prevValue || tile.value === prevValue * 2) {
               canAdd = true;
-              console.log('Extended chain (same value):', tile.value, 'Chain length now:', currentSelection.length + 1);
-            } else if (tile.value === prevValue * 2) {
-              canAdd = true;
-              console.log('Extended chain (double value):', prevValue, '→', tile.value, 'Chain length now:', currentSelection.length + 1);
-            } else {
-              console.log('Cannot add tile: Must be same or double. Previous:', prevValue, 'Attempted:', tile.value);
             }
           }
           
@@ -192,50 +204,22 @@ export default function GameScreen() {
       
       onPanResponderRelease: () => {
         const finalSelection = selectedTilesRef.current;
-        console.log('User released drag, final chain length:', finalSelection.length);
+        console.log('Released with chain length:', finalSelection.length);
         handleChainRelease(finalSelection);
       },
     })
   ).current;
   
-  function getTileAtPosition(x: number, y: number): SelectedTile | null {
-    const col = Math.floor(x / (TILE_SIZE + TILE_GAP));
-    const row = Math.floor(y / (TILE_SIZE + TILE_GAP));
-    
-    console.log('Touch at x:', x, 'y:', y, '-> row:', row, 'col:', col);
-    
-    if (row < 0 || row >= GRID_CONFIG.ROWS || col < 0 || col >= GRID_CONFIG.COLS) {
-      console.log('Touch outside grid bounds');
-      return null;
-    }
-    
-    const tileStartX = col * (TILE_SIZE + TILE_GAP);
-    const tileStartY = row * (TILE_SIZE + TILE_GAP);
-    const tileEndX = tileStartX + TILE_SIZE;
-    const tileEndY = tileStartY + TILE_SIZE;
-    
-    if (x >= tileStartX && x <= tileEndX && 
-        y >= tileStartY && y <= tileEndY) {
-      const tile = gameState.grid[row][col];
-      if (tile) {
-        return { row, col, value: tile.value };
-      }
-    }
-    
-    console.log('Touch in gap between tiles');
-    return null;
-  }
-  
   function handleChainRelease(chainTiles: SelectedTile[]) {
     if (chainTiles.length < 2) {
-      console.log('Chain too short (need at least 2 tiles), canceling');
+      console.log('Chain too short');
       setSelectedTiles([]);
       selectedTilesRef.current = [];
       return;
     }
     
     if (!isValidChain(chainTiles)) {
-      console.log('Invalid chain, shaking and canceling');
+      console.log('Invalid chain');
       shakeAnim.value = withSequence(
         withTiming(10, { duration: 50 }),
         withTiming(-10, { duration: 50 }),
@@ -248,7 +232,7 @@ export default function GameScreen() {
       return;
     }
     
-    console.log('Valid chain, resolving merge');
+    console.log('Valid chain, resolving');
     const resolveResult = resolveChain(gameState.grid, chainTiles);
     let newGrid = resolveResult.newGrid;
     const score = resolveResult.score;
@@ -267,7 +251,7 @@ export default function GameScreen() {
     let currentMinTileValue = gameState.minTileValue;
     
     if (newMinTileValue > currentMinTileValue) {
-      console.log(`Milestone reached! Merged value: ${mergedValue}. Raising minimum tile value from ${currentMinTileValue} to ${newMinTileValue}`);
+      console.log('Raising minimum tile value to', newMinTileValue);
       currentMinTileValue = newMinTileValue;
       newGrid = removeTilesBelowMinimum(newGrid, newMinTileValue);
     }
@@ -295,7 +279,7 @@ export default function GameScreen() {
   }
   
   function handleGameOver(grid: any, score: number, minTileValue: number) {
-    console.log('Game over triggered');
+    console.log('Game over');
     setGameState(prev => ({
       ...prev,
       preGameOverSnapshot: { grid, score, minTileValue },
@@ -304,7 +288,7 @@ export default function GameScreen() {
   }
   
   function handleRestart() {
-    console.log('User restarted game');
+    console.log('Restart game');
     setGameOverVisible(false);
     setGameState({
       grid: createInitialGrid(),
@@ -317,7 +301,7 @@ export default function GameScreen() {
   }
   
   function handleContinue() {
-    console.log('User used continue');
+    console.log('Continue game');
     if (gameState.preGameOverSnapshot) {
       const restoredGrid = gameState.preGameOverSnapshot.grid;
       const minTileValue = gameState.preGameOverSnapshot.minTileValue;
@@ -335,12 +319,12 @@ export default function GameScreen() {
   }
   
   function handleNewGame() {
-    console.log('User requested new game');
+    console.log('New game requested');
     setConfirmNewGameVisible(true);
   }
   
   function confirmNewGame() {
-    console.log('User confirmed new game');
+    console.log('New game confirmed');
     setConfirmNewGameVisible(false);
     setGameState({
       grid: createInitialGrid(),
@@ -367,7 +351,7 @@ export default function GameScreen() {
       <Stack.Screen
         options={{
           headerShown: true,
-          title: 'Number Link',
+          title: 'Number Merger',
           headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.text,
           headerLeft: () => (
@@ -404,7 +388,6 @@ export default function GameScreen() {
       
       <View style={styles.gameContainer}>
         <Animated.View
-          ref={gridRef}
           style={[styles.gridContainer, shakeStyle]}
           {...panResponder.panHandlers}
         >
@@ -516,7 +499,7 @@ const styles = StyleSheet.create({
   scoreBar: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    paddingVertical: 12,
+    paddingVertical: 16,
     paddingHorizontal: 16,
     backgroundColor: colors.background,
   },
@@ -524,26 +507,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   scoreLabel: {
-    fontSize: 12,
+    fontSize: 14,
     color: colors.textSecondary,
     fontWeight: '600',
-    marginBottom: 2,
+    marginBottom: 4,
   },
   scoreValue: {
-    fontSize: 24,
+    fontSize: 28,
     color: colors.text,
     fontWeight: 'bold',
   },
   bestScoreValue: {
-    fontSize: 24,
+    fontSize: 28,
     color: colors.accent,
     fontWeight: 'bold',
   },
   minTileLabel: {
-    fontSize: 14,
+    fontSize: 16,
     color: colors.textSecondary,
     fontWeight: '600',
-    marginTop: 8,
+    marginTop: 10,
   },
   gameContainer: {
     flex: 1,
@@ -575,7 +558,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 24,
     marginBottom: 24,
     marginTop: 12,
-    paddingVertical: 14,
+    paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
   },
