@@ -19,7 +19,6 @@ import Animated, {
 } from 'react-native-reanimated';
 import Svg, { Line } from 'react-native-svg';
 import { colors } from '@/styles/commonStyles';
-import { IconSymbol } from '@/components/IconSymbol';
 import GameTile from '@/components/GameTile';
 import FloatingScore from '@/components/FloatingScore';
 import GameOverModal from '@/components/GameOverModal';
@@ -39,7 +38,7 @@ import {
   loadGameState,
 } from '@/utils/storage';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const SCREEN_WIDTH = Dimensions.get('window').width;
 const GRID_PADDING = 16;
 const TILE_GAP = 8;
 const GRID_WIDTH = SCREEN_WIDTH - GRID_PADDING * 2;
@@ -88,7 +87,8 @@ export default function GameScreen() {
       
       onPanResponderGrant: (evt) => {
         console.log('User started dragging');
-        const { locationX, locationY } = evt.nativeEvent;
+        const locationX = evt.nativeEvent.locationX;
+        const locationY = evt.nativeEvent.locationY;
         const tile = getTileAtPosition(locationX, locationY);
         
         if (tile) {
@@ -99,7 +99,8 @@ export default function GameScreen() {
       },
       
       onPanResponderMove: (evt) => {
-        const { locationX, locationY } = evt.nativeEvent;
+        const locationX = evt.nativeEvent.locationX;
+        const locationY = evt.nativeEvent.locationY;
         const tile = getTileAtPosition(locationX, locationY);
         
         if (tile && selectedTiles.length > 0) {
@@ -176,7 +177,9 @@ export default function GameScreen() {
     }
     
     console.log('Valid chain, resolving merge');
-    const { newGrid, score } = resolveChain(gameState.grid, selectedTiles);
+    const resolveResult = resolveChain(gameState.grid, selectedTiles);
+    const newGrid = resolveResult.newGrid;
+    const score = resolveResult.score;
     const lastTile = selectedTiles[selectedTiles.length - 1];
     
     const scoreId = `score_${Date.now()}`;

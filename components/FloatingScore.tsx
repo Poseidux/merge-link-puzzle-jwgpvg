@@ -33,7 +33,7 @@ export default function FloatingScore({ score, x, y, onComplete }: FloatingScore
     }, 900);
     
     return () => clearTimeout(timer);
-  }, [opacity, translateY, onComplete]);
+  }, []);
   
   const animatedStyle = useAnimatedStyle(() => {
     return {
