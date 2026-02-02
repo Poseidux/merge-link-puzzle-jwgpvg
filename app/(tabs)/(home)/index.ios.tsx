@@ -66,7 +66,7 @@ export default function GameScreen() {
   });
   
   const [selectedTiles, setSelectedTiles] = useState<SelectedTile[]>([]);
-  const [floatingScores, setFloatingScores] = useState<Array<{ id: string; score: number; x: number; y: number }>>([]);
+  const [floatingScores, setFloatingScores] = useState<{ id: string; score: number; x: number; y: number }[]>([]);
   const [gameOverVisible, setGameOverVisible] = useState(false);
   const [tutorialVisible, setTutorialVisible] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);

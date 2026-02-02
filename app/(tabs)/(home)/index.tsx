@@ -18,6 +18,7 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
+import Svg, { Line } from 'react-native-svg';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import GameTile from '@/components/GameTile';
@@ -36,6 +37,7 @@ import {
   removeTile,
   swapTiles,
   findHint,
+  ensureValidMovesAfterContinue,
   GRID_CONFIG,
 } from '@/utils/gameLogic';
 import {
@@ -65,7 +67,7 @@ export default function GameScreen() {
   });
   
   const [selectedTiles, setSelectedTiles] = useState<SelectedTile[]>([]);
-  const [floatingScores, setFloatingScores] = useState<Array<{ id: string; score: number; x: number; y: number }>>([]);
+  const [floatingScores, setFloatingScores] = useState<{ id: string; score: number; x: number; y: number }[]>([]);
   const [gameOverVisible, setGameOverVisible] = useState(false);
   const [tutorialVisible, setTutorialVisible] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
@@ -298,9 +300,13 @@ export default function GameScreen() {
   function handleContinue() {
     console.log('User used continue');
     if (gameState.preGameOverSnapshot) {
+      const restoredGrid = gameState.preGameOverSnapshot.grid;
+      const gridWithMoves = ensureValidMovesAfterContinue(restoredGrid);
+      
       setGameState(prev => ({
         ...prev,
-        grid: fillEmptyCells(prev.preGameOverSnapshot!.grid),
+        grid: gridWithMoves,
+        score: prev.preGameOverSnapshot!.score,
         continueUsed: true,
       }));
       setGameOverVisible(false);
@@ -458,6 +464,34 @@ export default function GameScreen() {
         style={[styles.gridContainer, shakeStyle]}
         {...panResponder.panHandlers}
       >
+        {/* Connector Lines */}
+        {selectedTiles.length > 1 && (
+          <Svg style={styles.svgOverlay} pointerEvents="none">
+            {selectedTiles.map((tile, index) => {
+              if (index === 0) return null;
+              const prevTile = selectedTiles[index - 1];
+              
+              const x1 = prevTile.col * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
+              const y1 = prevTile.row * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
+              const x2 = tile.col * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
+              const y2 = tile.row * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
+              
+              return (
+                <Line
+                  key={`line-${index}`}
+                  x1={x1}
+                  y1={y1}
+                  x2={x2}
+                  y2={y2}
+                  stroke={colors.accent}
+                  strokeWidth={6}
+                  strokeLinecap="round"
+                />
+              );
+            })}
+          </Svg>
+        )}
+        
         {gameState.grid.map((row, rowIndex) => (
           <View key={rowIndex} style={styles.gridRow}>
             {row.map((tile, colIndex) => {
@@ -651,6 +685,15 @@ const styles = StyleSheet.create({
   gridContainer: {
     padding: GRID_PADDING,
     alignSelf: 'center',
+    position: 'relative',
+  },
+  svgOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1,
   },
   gridRow: {
     flexDirection: 'row',
@@ -658,6 +701,7 @@ const styles = StyleSheet.create({
   },
   tileWrapper: {
     marginRight: TILE_GAP,
+    zIndex: 2,
   },
   hintedTile: {
     borderWidth: 3,
