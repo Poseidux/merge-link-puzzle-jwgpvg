@@ -14,26 +14,48 @@ export function generateTileId(): string {
   return `tile_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
-// Get tile color based on value
+// Format tile value for display (K for thousands, M for millions)
+export function formatTileValue(value: number): string {
+  if (value >= 1000000) {
+    const millions = value / 1000000;
+    return millions % 1 === 0 ? `${millions}M` : `${millions.toFixed(1)}M`;
+  }
+  if (value >= 1000) {
+    const thousands = value / 1000;
+    return thousands % 1 === 0 ? `${thousands}K` : `${thousands.toFixed(1)}K`;
+  }
+  return value.toString();
+}
+
+// Get tile color based on value - PASTEL COLOR PALETTE
 export function getTileColor(value: number): string {
   const colorMap: { [key: number]: string } = {
-    2: '#FF6B6B',
-    4: '#FF8E53',
-    8: '#FFD93D',
-    16: '#6BCF7F',
-    32: '#4ECDC4',
-    64: '#5DADE2',
-    128: '#A569BD',
-    256: '#EC7063',
-    512: '#F8B739',
-    1024: '#48C9B0',
-    2048: '#AF7AC5',
-    4096: '#E74C3C',
-    8192: '#3498DB',
-    16384: '#2ECC71',
+    2: '#FFB3BA',      // Pastel Pink
+    4: '#FFDFBA',      // Pastel Peach
+    8: '#FFFFBA',      // Pastel Yellow
+    16: '#BAFFC9',     // Pastel Mint
+    32: '#BAE1FF',     // Pastel Blue
+    64: '#D4BAFF',     // Pastel Lavender
+    128: '#FFB3E6',    // Pastel Magenta
+    256: '#FFD4BA',    // Pastel Orange
+    512: '#E6BAFF',    // Pastel Purple
+    1024: '#BAFFF0',   // Pastel Cyan
+    2048: '#FFBAD4',   // Pastel Rose
+    4096: '#C9BAFF',   // Pastel Violet
+    8192: '#BAFFDB',   // Pastel Green
+    16384: '#FFD1BA',  // Pastel Coral
+    32768: '#BABFFF',  // Pastel Periwinkle
+    65536: '#FFBAE1',  // Pastel Hot Pink
   };
   
-  return colorMap[value] || '#2C3E50';
+  // For values beyond the map, cycle through pastel colors
+  if (colorMap[value]) {
+    return colorMap[value];
+  }
+  
+  // Generate a pastel color for very high values
+  const hue = (Math.log2(value) * 30) % 360;
+  return `hsl(${hue}, 100%, 87%)`;
 }
 
 // Calculate minimum tile value based on max tile achieved
