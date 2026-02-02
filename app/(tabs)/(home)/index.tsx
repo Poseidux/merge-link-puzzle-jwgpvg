@@ -54,12 +54,18 @@ export default function GameScreen() {
   });
   
   const [selectedTiles, setSelectedTiles] = useState<SelectedTile[]>([]);
+  const selectedTilesRef = useRef<SelectedTile[]>([]);
+  
   const [floatingScores, setFloatingScores] = useState<Array<{ id: string; score: number; x: number; y: number }>>([]);
   const [gameOverVisible, setGameOverVisible] = useState(false);
   const [confirmNewGameVisible, setConfirmNewGameVisible] = useState(false);
   
   const gridRef = useRef<View>(null);
   const shakeAnim = useSharedValue(0);
+  
+  useEffect(() => {
+    selectedTilesRef.current = selectedTiles;
+  }, [selectedTiles]);
   
   useEffect(() => {
     console.log('GameScreen mounted, loading saved data');
@@ -93,7 +99,9 @@ export default function GameScreen() {
         
         if (tile) {
           console.log('Selected first tile:', tile);
-          setSelectedTiles([tile]);
+          const newSelection = [tile];
+          setSelectedTiles(newSelection);
+          selectedTilesRef.current = newSelection;
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         }
       },
@@ -103,32 +111,40 @@ export default function GameScreen() {
         const locationY = evt.nativeEvent.locationY;
         const tile = getTileAtPosition(locationX, locationY);
         
-        if (tile && selectedTiles.length > 0) {
-          const lastTile = selectedTiles[selectedTiles.length - 1];
+        if (tile && selectedTilesRef.current.length > 0) {
+          const currentSelection = selectedTilesRef.current;
+          const lastTile = currentSelection[currentSelection.length - 1];
           
-          const alreadySelected = selectedTiles.some(
+          const alreadySelected = currentSelection.some(
             t => t.row === tile.row && t.col === tile.col
           );
           
           if (!alreadySelected) {
-            const isAdjacent = Math.abs(tile.row - lastTile.row) <= 1 && 
-                              Math.abs(tile.col - lastTile.col) <= 1 &&
-                              !(tile.row === lastTile.row && tile.col === lastTile.col);
+            const rowDiff = Math.abs(tile.row - lastTile.row);
+            const colDiff = Math.abs(tile.col - lastTile.col);
+            const isAdjacent = rowDiff <= 1 && colDiff <= 1 && !(rowDiff === 0 && colDiff === 0);
             
             if (isAdjacent) {
-              if (selectedTiles.length === 1) {
-                if (tile.value === selectedTiles[0].value) {
-                  console.log('Extended chain to second tile:', tile);
-                  setSelectedTiles([...selectedTiles, tile]);
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              let canAdd = false;
+              
+              if (currentSelection.length === 1) {
+                if (tile.value === currentSelection[0].value) {
+                  canAdd = true;
+                  console.log('Extended chain to second tile (matching first):', tile);
                 }
               } else {
                 const prevValue = lastTile.value;
                 if (tile.value === prevValue || tile.value === prevValue * 2) {
-                  console.log('Extended chain:', tile);
-                  setSelectedTiles([...selectedTiles, tile]);
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  canAdd = true;
+                  console.log('Extended chain (same or double):', tile);
                 }
+              }
+              
+              if (canAdd) {
+                const newSelection = [...currentSelection, tile];
+                setSelectedTiles(newSelection);
+                selectedTilesRef.current = newSelection;
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               }
             }
           }
@@ -136,8 +152,9 @@ export default function GameScreen() {
       },
       
       onPanResponderRelease: () => {
-        console.log('User released drag, chain length:', selectedTiles.length);
-        handleChainRelease();
+        const finalSelection = selectedTilesRef.current;
+        console.log('User released drag, chain length:', finalSelection.length);
+        handleChainRelease(finalSelection);
       },
     })
   ).current;
@@ -156,14 +173,15 @@ export default function GameScreen() {
     return null;
   }
   
-  function handleChainRelease() {
-    if (selectedTiles.length < 2) {
+  function handleChainRelease(chainTiles: SelectedTile[]) {
+    if (chainTiles.length < 2) {
       console.log('Chain too short, canceling');
       setSelectedTiles([]);
+      selectedTilesRef.current = [];
       return;
     }
     
-    if (!isValidChain(selectedTiles)) {
+    if (!isValidChain(chainTiles)) {
       console.log('Invalid chain, shaking');
       shakeAnim.value = withSequence(
         withTiming(10, { duration: 50 }),
@@ -172,15 +190,16 @@ export default function GameScreen() {
         withTiming(0, { duration: 50 })
       );
       setSelectedTiles([]);
+      selectedTilesRef.current = [];
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
     
     console.log('Valid chain, resolving merge');
-    const resolveResult = resolveChain(gameState.grid, selectedTiles);
+    const resolveResult = resolveChain(gameState.grid, chainTiles);
     const newGrid = resolveResult.newGrid;
     const score = resolveResult.score;
-    const lastTile = selectedTiles[selectedTiles.length - 1];
+    const lastTile = chainTiles[chainTiles.length - 1];
     
     const scoreId = `score_${Date.now()}`;
     const scoreX = lastTile.col * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
@@ -200,6 +219,7 @@ export default function GameScreen() {
     }));
     
     setSelectedTiles([]);
+    selectedTilesRef.current = [];
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     
     setTimeout(() => {
