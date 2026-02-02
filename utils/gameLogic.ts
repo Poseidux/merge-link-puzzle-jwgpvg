@@ -30,30 +30,28 @@ export function formatTileValue(value: number): string {
 // Get tile gradient colors based on value - MATT GLOSSY GRADIENT COLORS
 export function getTileColor(value: number): { gradientColors: string[] } {
   const colorMap: { [key: number]: string[] } = {
-    2: ['#667EEA', '#764BA2'],      // Purple Blue
-    4: ['#F093FB', '#F5576C'],      // Pink Red
-    8: ['#4FACFE', '#00F2FE'],      // Cyan Blue
-    16: ['#43E97B', '#38F9D7'],     // Green Cyan
-    32: ['#FA709A', '#FEE140'],     // Pink Yellow
-    64: ['#30CFD0', '#330867'],     // Cyan Purple
-    128: ['#A8EDEA', '#FED6E3'],    // Mint Pink
-    256: ['#FF9A56', '#FF6A88'],    // Orange Pink
-    512: ['#FBC2EB', '#A6C1EE'],    // Pink Blue
-    1024: ['#FFD89B', '#19547B'],   // Gold Blue (Glow)
-    2048: ['#FDC830', '#F37335'],   // Gold Orange (Glow)
-    4096: ['#FF512F', '#DD2476'],   // Red Pink (Glow)
-    8192: ['#DA22FF', '#9733EE'],   // Purple Magenta (Glow)
-    16384: ['#17EAD9', '#6078EA'],  // Cyan Blue (Glow)
-    32768: ['#F4D03F', '#16A085'],  // Yellow Teal (Glow)
-    65536: ['#D66D75', '#E29587'],  // Rose (Glow)
+    2: ['#667EEA', '#764BA2'],
+    4: ['#F093FB', '#F5576C'],
+    8: ['#4FACFE', '#00F2FE'],
+    16: ['#43E97B', '#38F9D7'],
+    32: ['#FA709A', '#FEE140'],
+    64: ['#30CFD0', '#330867'],
+    128: ['#A8EDEA', '#FED6E3'],
+    256: ['#FF9A56', '#FF6A88'],
+    512: ['#FBC2EB', '#A6C1EE'],
+    1024: ['#FFD89B', '#19547B'],
+    2048: ['#FDC830', '#F37335'],
+    4096: ['#FF512F', '#DD2476'],
+    8192: ['#DA22FF', '#9733EE'],
+    16384: ['#17EAD9', '#6078EA'],
+    32768: ['#F4D03F', '#16A085'],
+    65536: ['#D66D75', '#E29587'],
   };
   
-  // For values beyond the map, generate a gradient
   if (colorMap[value]) {
     return { gradientColors: colorMap[value] };
   }
   
-  // Generate a gradient for very high values
   const hue1 = (Math.log2(value) * 30) % 360;
   const hue2 = (hue1 + 60) % 360;
   return { 
@@ -64,10 +62,6 @@ export function getTileColor(value: number): { gradientColors: string[] } {
   };
 }
 
-// Calculate minimum tile value based on max tile achieved
-// Once 2048 is reached, minimum becomes 4 (no more 2s)
-// Once 4096 is reached, minimum becomes 8 (no more 4s)
-// And so on...
 export function getMinimumTileValue(maxTileValue: number): number {
   if (maxTileValue >= 16384) return 32;
   if (maxTileValue >= 8192) return 16;
@@ -76,34 +70,26 @@ export function getMinimumTileValue(maxTileValue: number): number {
   return 2;
 }
 
-// Adaptive weighted randomness for spawning tiles
-// Respects minimum tile value based on progression
 export function generateNewTileValue(maxBoardValue: number, minTileValue: number): number {
   const random = Math.random();
   
-  // Filter out values below minimum
   const possibleValues: number[] = [];
   if (minTileValue <= 2) possibleValues.push(2);
   if (minTileValue <= 4) possibleValues.push(4);
   if (minTileValue <= 8) possibleValues.push(8);
   if (minTileValue <= 16) possibleValues.push(16);
   
-  // If no valid values (shouldn't happen), default to minTileValue
   if (possibleValues.length === 0) return minTileValue;
   
-  // Adaptive weights based on game progression
   if (maxBoardValue < 64) {
-    // Early game: favor lowest values
     if (possibleValues.includes(2) && random < 0.7) return 2;
     if (possibleValues.includes(4) && random < 0.95) return 4;
     return possibleValues[possibleValues.length - 1];
   } else if (maxBoardValue < 256) {
-    // Mid game: balanced distribution
     if (possibleValues.includes(2) && random < 0.5) return 2;
     if (possibleValues.includes(4) && random < 0.8) return 4;
     return possibleValues[possibleValues.length - 1];
   } else {
-    // Late game: favor higher values
     if (possibleValues.includes(2) && random < 0.3) return 2;
     if (possibleValues.includes(4) && random < 0.6) return 4;
     if (possibleValues.includes(8) && random < 0.85) return 8;
@@ -111,7 +97,6 @@ export function generateNewTileValue(maxBoardValue: number, minTileValue: number
   }
 }
 
-// Get max value on the board
 export function getMaxBoardValue(grid: (Tile | null)[][]): number {
   let max = 0;
   for (let row = 0; row < GRID_ROWS; row++) {
@@ -125,7 +110,6 @@ export function getMaxBoardValue(grid: (Tile | null)[][]): number {
   return max;
 }
 
-// Remove tiles below minimum value from grid
 export function removeTilesBelowMinimum(grid: (Tile | null)[][], minValue: number): (Tile | null)[][] {
   const newGrid = grid.map(row => [...row]);
   
@@ -142,14 +126,13 @@ export function removeTilesBelowMinimum(grid: (Tile | null)[][], minValue: numbe
   return newGrid;
 }
 
-// Create initial grid - always full
 export function createInitialGrid(): (Tile | null)[][] {
   const grid: (Tile | null)[][] = [];
   
   for (let row = 0; row < GRID_ROWS; row++) {
     const rowArray: (Tile | null)[] = [];
     for (let col = 0; col < GRID_COLS; col++) {
-      const value = generateNewTileValue(0, 2); // Start with low values, minimum 2
+      const value = generateNewTileValue(0, 2);
       rowArray.push({
         id: generateTileId(),
         value,
@@ -163,24 +146,18 @@ export function createInitialGrid(): (Tile | null)[][] {
   return grid;
 }
 
-// Check if two tiles are adjacent (including diagonals - all 8 directions)
 export function areAdjacent(row1: number, col1: number, row2: number, col2: number): boolean {
   const rowDiff = Math.abs(row1 - row2);
   const colDiff = Math.abs(col1 - col2);
   return rowDiff <= 1 && colDiff <= 1 && !(rowDiff === 0 && colDiff === 0);
 }
 
-// CRITICAL: Validate a chain of tiles according to the exact rules
-// Rule 1: Chain must have at least 2 tiles
-// Rule 2: First two tiles MUST be identical
-// Rule 3: After first two, each tile must be SAME or EXACTLY DOUBLE the previous
 export function isValidChain(tiles: { row: number; col: number; value: number }[]): boolean {
   if (tiles.length < 2) {
     console.log('Chain validation failed: Must have at least 2 tiles');
     return false;
   }
   
-  // Check adjacency for all consecutive tiles
   for (let i = 1; i < tiles.length; i++) {
     if (!areAdjacent(tiles[i - 1].row, tiles[i - 1].col, tiles[i].row, tiles[i].col)) {
       console.log('Chain validation failed: Tiles not adjacent at index', i);
@@ -188,7 +165,6 @@ export function isValidChain(tiles: { row: number; col: number; value: number }[
     }
   }
   
-  // Check for duplicate tiles (same tile visited twice)
   const visited = new Set<string>();
   for (const tile of tiles) {
     const key = `${tile.row},${tile.col}`;
@@ -199,15 +175,11 @@ export function isValidChain(tiles: { row: number; col: number; value: number }[
     visited.add(key);
   }
   
-  // Rule 2: The first two tiles MUST have identical values
   if (tiles[0].value !== tiles[1].value) {
     console.log('Chain validation failed: First two tiles must be identical:', tiles[0].value, '!==', tiles[1].value);
     return false;
   }
   
-  // Rule 3: After the first two identical tiles, each subsequent tile must be
-  // either the SAME value as the immediately previous tile, OR
-  // EXACTLY DOUBLE the immediately previous tile
   for (let i = 2; i < tiles.length; i++) {
     const prevValue = tiles[i - 1].value;
     const currentValue = tiles[i].value;
@@ -222,19 +194,14 @@ export function isValidChain(tiles: { row: number; col: number; value: number }[
   return true;
 }
 
-// Calculate score from a chain (sum of all tile values)
 export function calculateChainScore(tiles: { value: number }[]): number {
   return tiles.reduce((sum, tile) => sum + tile.value, 0);
 }
 
-// Get the highest value in a chain
 export function getHighestValue(tiles: { value: number }[]): number {
   return Math.max(...tiles.map(t => t.value));
 }
 
-// Resolve a valid chain: clear tiles and create new merged tile
-// Clear all selected tiles EXCEPT the final tile position
-// Final tile becomes: 2 × (highest value in chain)
 export function resolveChain(
   grid: (Tile | null)[][],
   selectedTiles: { row: number; col: number; value: number }[]
@@ -247,13 +214,11 @@ export function resolveChain(
   
   console.log('Resolving chain: highest value =', highestValue, ', new value =', newValue, ', score =', score);
   
-  // Clear all selected tiles except the last one
   for (let i = 0; i < selectedTiles.length - 1; i++) {
     const tile = selectedTiles[i];
     newGrid[tile.row][tile.col] = null;
   }
   
-  // Update the last tile with the new merged value
   newGrid[lastTile.row][lastTile.col] = {
     id: generateTileId(),
     value: newValue,
@@ -264,8 +229,6 @@ export function resolveChain(
   return { newGrid, score, mergedValue: newValue };
 }
 
-// CRITICAL FIX: Apply gravity - tiles fall straight down to fill empty spaces
-// This function makes tiles "drop" down column by column
 export function applyGravity(grid: (Tile | null)[][]): (Tile | null)[][] {
   const newGrid: (Tile | null)[][] = Array.from({ length: GRID_ROWS }, () => 
     Array(GRID_COLS).fill(null)
@@ -273,9 +236,7 @@ export function applyGravity(grid: (Tile | null)[][]): (Tile | null)[][] {
   
   console.log('Applying gravity to grid');
   
-  // Process each column independently
   for (let col = 0; col < GRID_COLS; col++) {
-    // Collect all non-null tiles in this column from top to bottom
     const tilesInColumn: Tile[] = [];
     for (let row = 0; row < GRID_ROWS; row++) {
       const tile = grid[row][col];
@@ -284,7 +245,6 @@ export function applyGravity(grid: (Tile | null)[][]): (Tile | null)[][] {
       }
     }
     
-    // Place tiles at the bottom of the column, moving upward
     let targetRow = GRID_ROWS - 1;
     for (let i = tilesInColumn.length - 1; i >= 0; i--) {
       const tile = tilesInColumn[i];
@@ -302,15 +262,12 @@ export function applyGravity(grid: (Tile | null)[][]): (Tile | null)[][] {
   return newGrid;
 }
 
-// CRITICAL FIX: Spawn new tiles ONLY at the top of columns where there are empty spaces
-// This function fills remaining null spaces after gravity has been applied
 export function spawnNewTilesAtTop(grid: (Tile | null)[][], minTileValue: number): (Tile | null)[][] {
   const newGrid = grid.map(row => [...row]);
   const maxValue = getMaxBoardValue(grid);
   
   console.log('Spawning new tiles at top of columns');
   
-  // For each column, fill empty spaces from top down
   for (let col = 0; col < GRID_COLS; col++) {
     for (let row = 0; row < GRID_ROWS; row++) {
       if (newGrid[row][col] === null) {
@@ -329,22 +286,18 @@ export function spawnNewTilesAtTop(grid: (Tile | null)[][], minTileValue: number
   return newGrid;
 }
 
-// DEPRECATED: Use applyGravity + spawnNewTilesAtTop instead
-// Keeping this for backward compatibility during transition
 export function fillEmptyCells(grid: (Tile | null)[][], minTileValue: number): (Tile | null)[][] {
   console.warn('fillEmptyCells is deprecated. Use applyGravity + spawnNewTilesAtTop instead.');
   const afterGravity = applyGravity(grid);
   return spawnNewTilesAtTop(afterGravity, minTileValue);
 }
 
-// Check if any valid moves exist (any possible chain of length >= 2)
 export function hasValidMoves(grid: (Tile | null)[][]): boolean {
   for (let row = 0; row < GRID_ROWS; row++) {
     for (let col = 0; col < GRID_COLS; col++) {
       const tile1 = grid[row][col];
       if (!tile1) continue;
       
-      // Check all 8 directions
       const directions = [
         [-1, -1], [-1, 0], [-1, 1],
         [0, -1],           [0, 1],
@@ -368,7 +321,6 @@ export function hasValidMoves(grid: (Tile | null)[][]): boolean {
   return false;
 }
 
-// Ensure valid moves after Continue by spawning low-value tiles
 export function ensureValidMovesAfterContinue(grid: (Tile | null)[][], minTileValue: number): (Tile | null)[][] {
   let newGrid = grid.map(row => [...row]);
   let attempts = 0;
@@ -390,5 +342,141 @@ export function ensureValidMovesAfterContinue(grid: (Tile | null)[][], minTileVa
   }
   
   console.log('Ensured valid moves after', attempts, 'attempts');
+  return newGrid;
+}
+
+// POWER-UP FUNCTIONS
+
+// Find one valid chain on the board (for Hint power-up)
+export function findValidChain(grid: (Tile | null)[][]): { row: number; col: number; value: number }[] | null {
+  console.log('Finding valid chain for hint');
+  
+  // Try to find a chain of at least 3 tiles
+  for (let row = 0; row < GRID_ROWS; row++) {
+    for (let col = 0; col < GRID_COLS; col++) {
+      const tile1 = grid[row][col];
+      if (!tile1) continue;
+      
+      // Check all 8 directions for adjacent matching tiles
+      const directions = [
+        [-1, -1], [-1, 0], [-1, 1],
+        [0, -1],           [0, 1],
+        [1, -1],  [1, 0],  [1, 1],
+      ];
+      
+      for (const [dRow, dCol] of directions) {
+        const newRow = row + dRow;
+        const newCol = col + dCol;
+        
+        if (newRow >= 0 && newRow < GRID_ROWS && newCol >= 0 && newCol < GRID_COLS) {
+          const tile2 = grid[newRow][newCol];
+          if (tile2 && tile1.value === tile2.value) {
+            // Found two matching tiles, try to extend the chain
+            const chain = [
+              { row, col, value: tile1.value },
+              { row: newRow, col: newCol, value: tile2.value }
+            ];
+            
+            // Try to find a third tile
+            for (const [dRow2, dCol2] of directions) {
+              const newRow2 = newRow + dRow2;
+              const newCol2 = newCol + dCol2;
+              
+              if (newRow2 >= 0 && newRow2 < GRID_ROWS && newCol2 >= 0 && newCol2 < GRID_COLS) {
+                if (newRow2 === row && newCol2 === col) continue; // Skip the first tile
+                
+                const tile3 = grid[newRow2][newCol2];
+                if (tile3 && (tile3.value === tile2.value || tile3.value === tile2.value * 2)) {
+                  chain.push({ row: newRow2, col: newCol2, value: tile3.value });
+                  console.log('Found valid chain:', chain.map(t => t.value).join(' → '));
+                  return chain;
+                }
+              }
+            }
+            
+            // If no third tile, return the pair
+            console.log('Found valid pair:', chain.map(t => t.value).join(' → '));
+            return chain;
+          }
+        }
+      }
+    }
+  }
+  
+  console.log('No valid chain found');
+  return null;
+}
+
+// Swap two tiles (for Swap power-up)
+export function swapTiles(
+  grid: (Tile | null)[][],
+  tile1: { row: number; col: number },
+  tile2: { row: number; col: number }
+): (Tile | null)[][] {
+  const newGrid = grid.map(row => [...row]);
+  
+  const temp = newGrid[tile1.row][tile1.col];
+  newGrid[tile1.row][tile1.col] = newGrid[tile2.row][tile2.col];
+  newGrid[tile2.row][tile2.col] = temp;
+  
+  // Update row/col properties
+  if (newGrid[tile1.row][tile1.col]) {
+    newGrid[tile1.row][tile1.col] = {
+      ...newGrid[tile1.row][tile1.col]!,
+      row: tile1.row,
+      col: tile1.col,
+    };
+  }
+  
+  if (newGrid[tile2.row][tile2.col]) {
+    newGrid[tile2.row][tile2.col] = {
+      ...newGrid[tile2.row][tile2.col]!,
+      row: tile2.row,
+      col: tile2.col,
+    };
+  }
+  
+  console.log(`Swapped tiles at (${tile1.row}, ${tile1.col}) and (${tile2.row}, ${tile2.col})`);
+  return newGrid;
+}
+
+// Shuffle all tile values randomly (for Shuffle power-up)
+export function shuffleTiles(grid: (Tile | null)[][]): (Tile | null)[][] {
+  const newGrid = grid.map(row => [...row]);
+  
+  // Collect all tile values
+  const values: number[] = [];
+  for (let row = 0; row < GRID_ROWS; row++) {
+    for (let col = 0; col < GRID_COLS; col++) {
+      const tile = newGrid[row][col];
+      if (tile) {
+        values.push(tile.value);
+      }
+    }
+  }
+  
+  // Shuffle values using Fisher-Yates algorithm
+  for (let i = values.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [values[i], values[j]] = [values[j], values[i]];
+  }
+  
+  // Reassign shuffled values to tiles
+  let valueIndex = 0;
+  for (let row = 0; row < GRID_ROWS; row++) {
+    for (let col = 0; col < GRID_COLS; col++) {
+      if (newGrid[row][col]) {
+        newGrid[row][col] = {
+          id: generateTileId(),
+          value: values[valueIndex],
+          row,
+          col,
+        };
+        valueIndex++;
+      }
+    }
+  }
+  
+  console.log('Shuffled all tile values');
   return newGrid;
 }

@@ -30,22 +30,22 @@ export default function GameTile({ value, isSelected, size, isAnimating = false,
   
   useEffect(() => {
     if (isAnimating) {
-      console.log('Starting pop/explode animation with delay:', animationDelay);
+      console.log('Starting quick pop/explode animation with delay:', animationDelay);
       
-      // Pop and explode effect
+      // Quick pop and explode effect (much faster)
       scale.value = withDelay(
         animationDelay,
         withSequence(
-          withTiming(1.3, { duration: 100, easing: Easing.out(Easing.ease) }),
-          withTiming(0, { duration: 50, easing: Easing.in(Easing.ease) })
+          withTiming(1.4, { duration: 60, easing: Easing.out(Easing.cubic) }),
+          withTiming(0, { duration: 40, easing: Easing.in(Easing.cubic) })
         )
       );
       
       opacity.value = withDelay(
         animationDelay,
         withSequence(
-          withTiming(1, { duration: 100 }),
-          withTiming(0, { duration: 50 })
+          withTiming(1, { duration: 60 }),
+          withTiming(0, { duration: 40 })
         )
       );
     } else {

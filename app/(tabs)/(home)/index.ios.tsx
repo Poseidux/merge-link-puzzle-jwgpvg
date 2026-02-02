@@ -14,7 +14,6 @@ import Animated, {
   useAnimatedStyle,
   withSequence,
   withTiming,
-  withDelay,
 } from 'react-native-reanimated';
 import Svg, { Line } from 'react-native-svg';
 import { colors } from '@/styles/commonStyles';
@@ -36,11 +35,13 @@ import {
   getMinimumTileValue,
   removeTilesBelowMinimum,
   GRID_CONFIG,
+  findValidChain,
+  swapTiles,
+  shuffleTiles,
 } from '@/utils/gameLogic';
 import {
   saveGameState,
   loadGameState,
-  clearGameState,
 } from '@/utils/storage';
 import { IconSymbol } from '@/components/IconSymbol';
 
@@ -88,13 +89,18 @@ export default function GameScreen() {
   const [gameMenuVisible, setGameMenuVisible] = useState(false);
   
   const [powerUps, setPowerUps] = useState<PowerUp[]>([
-    { id: 'undo', name: 'Undo', icon: 'undo', usesLeft: 2, maxUses: 2 },
-    { id: 'hammer', name: 'Hammer', icon: 'delete', usesLeft: 2, maxUses: 2 },
-    { id: 'swap', name: 'Swap', icon: 'swap-horiz', usesLeft: 2, maxUses: 2 },
     { id: 'hint', name: 'Hint', icon: 'lightbulb', usesLeft: 2, maxUses: 2 },
+    { id: 'bomb', name: 'Bomb', icon: 'delete', usesLeft: 2, maxUses: 2 },
+    { id: 'swap', name: 'Swap', icon: 'swap-horiz', usesLeft: 2, maxUses: 2 },
+    { id: 'shuffle', name: 'Shuffle', icon: 'shuffle', usesLeft: 2, maxUses: 2 },
   ]);
   
   const [animatingTiles, setAnimatingTiles] = useState<Set<string>>(new Set());
+  const [highlightedTiles, setHighlightedTiles] = useState<Set<string>>(new Set());
+  const [activePowerUp, setActivePowerUp] = useState<string | null>(null);
+  const [selectedPowerUpTiles, setSelectedPowerUpTiles] = useState<SelectedTile[]>([]);
+  const [isProcessingChain, setIsProcessingChain] = useState(false);
+  const chainQueueRef = useRef<SelectedTile[][]>([]);
   
   const shakeAnim = useSharedValue(0);
   const gridContainerRef = useRef<View>(null);
@@ -152,11 +158,14 @@ export default function GameScreen() {
       minTileValue: 2,
     });
     setPowerUps([
-      { id: 'undo', name: 'Undo', icon: 'undo', usesLeft: 2, maxUses: 2 },
-      { id: 'hammer', name: 'Hammer', icon: 'delete', usesLeft: 2, maxUses: 2 },
-      { id: 'swap', name: 'Swap', icon: 'swap-horiz', usesLeft: 2, maxUses: 2 },
       { id: 'hint', name: 'Hint', icon: 'lightbulb', usesLeft: 2, maxUses: 2 },
+      { id: 'bomb', name: 'Bomb', icon: 'delete', usesLeft: 2, maxUses: 2 },
+      { id: 'swap', name: 'Swap', icon: 'swap-horiz', usesLeft: 2, maxUses: 2 },
+      { id: 'shuffle', name: 'Shuffle', icon: 'shuffle', usesLeft: 2, maxUses: 2 },
     ]);
+    setHighlightedTiles(new Set());
+    setActivePowerUp(null);
+    setSelectedPowerUpTiles([]);
   }
   
   function getTileAtPosition(x: number, y: number): SelectedTile | null {
@@ -189,6 +198,11 @@ export default function GameScreen() {
   }
   
   function handleTouchStart(event: any) {
+    if (activePowerUp) {
+      handlePowerUpTileSelection(event);
+      return;
+    }
+    
     const touch = event.nativeEvent.touches[0];
     const locationX = touch.pageX - gridOffsetRef.current.x;
     const locationY = touch.pageY - gridOffsetRef.current.y;
@@ -209,6 +223,10 @@ export default function GameScreen() {
   }
   
   function handleTouchMove(event: any) {
+    if (activePowerUp) {
+      return;
+    }
+    
     const touch = event.nativeEvent.touches[0];
     const locationX = touch.pageX - gridOffsetRef.current.x;
     const locationY = touch.pageY - gridOffsetRef.current.y;
@@ -273,16 +291,42 @@ export default function GameScreen() {
   }
   
   function handleTouchEnd() {
+    if (activePowerUp) {
+      return;
+    }
+    
     const finalSelection = selectedTilesRef.current;
     console.log('Released with chain length:', finalSelection.length);
-    handleChainRelease(finalSelection);
+    
+    // Clear the line immediately
+    setSelectedTiles([]);
+    selectedTilesRef.current = [];
+    
+    // Queue the chain for processing
+    if (finalSelection.length >= 2) {
+      chainQueueRef.current.push(finalSelection);
+      processChainQueue();
+    }
+  }
+  
+  async function processChainQueue() {
+    if (isProcessingChain || chainQueueRef.current.length === 0) {
+      return;
+    }
+    
+    setIsProcessingChain(true);
+    
+    while (chainQueueRef.current.length > 0) {
+      const chainTiles = chainQueueRef.current.shift()!;
+      await handleChainRelease(chainTiles);
+    }
+    
+    setIsProcessingChain(false);
   }
   
   async function handleChainRelease(chainTiles: SelectedTile[]) {
     if (chainTiles.length < 2) {
       console.log('Chain too short');
-      setSelectedTiles([]);
-      selectedTilesRef.current = [];
       return;
     }
     
@@ -294,16 +338,14 @@ export default function GameScreen() {
         withTiming(10, { duration: 50 }),
         withTiming(0, { duration: 50 })
       );
-      setSelectedTiles([]);
-      selectedTilesRef.current = [];
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
     
-    console.log('Valid chain, resolving with pop/explode animation');
+    console.log('Valid chain, resolving with quick pop/explode animation');
     
-    // Animate tiles popping one by one (wave effect)
-    const tilesToAnimate = chainTiles.slice(0, -1); // All except the last tile
+    // Animate tiles popping one by one (wave effect) - MUCH QUICKER
+    const tilesToAnimate = chainTiles.slice(0, -1);
     const lastTile = chainTiles[chainTiles.length - 1];
     
     // Mark tiles as animating
@@ -316,8 +358,8 @@ export default function GameScreen() {
     });
     setAnimatingTiles(animatingIds);
     
-    // Wait for pop animation to complete (150ms per tile)
-    const animationDuration = tilesToAnimate.length * 150;
+    // Wait for quick pop animation (30ms per tile instead of 150ms)
+    const animationDuration = tilesToAnimate.length * 30;
     await new Promise(resolve => setTimeout(resolve, animationDuration));
     
     // Now resolve the chain
@@ -361,8 +403,6 @@ export default function GameScreen() {
       minTileValue: currentMinTileValue,
     }));
     
-    setSelectedTiles([]);
-    selectedTilesRef.current = [];
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     
     setTimeout(() => {
@@ -370,7 +410,7 @@ export default function GameScreen() {
         console.log('No valid moves, game over');
         handleGameOver(filledGrid, newScore, currentMinTileValue);
       }
-    }, 500);
+    }, 300);
   }
   
   function handleGameOver(grid: any, score: number, minTileValue: number) {
@@ -425,17 +465,109 @@ export default function GameScreen() {
       return;
     }
     
-    // Decrease uses
-    setPowerUps(prev => prev.map(p => 
-      p.id === powerUpId 
-        ? { ...p, usesLeft: p.usesLeft - 1 }
-        : p
-    ));
+    if (powerUpId === 'hint') {
+      // Hint: highlight one valid chain
+      const validChain = findValidChain(gameState.grid);
+      if (validChain) {
+        const highlightIds = new Set<string>();
+        validChain.forEach(tile => {
+          const tileObj = gameState.grid[tile.row][tile.col];
+          if (tileObj) {
+            highlightIds.add(tileObj.id);
+          }
+        });
+        setHighlightedTiles(highlightIds);
+        
+        // Clear highlight after 2 seconds
+        setTimeout(() => {
+          setHighlightedTiles(new Set());
+        }, 2000);
+        
+        // Decrease uses
+        setPowerUps(prev => prev.map(p => 
+          p.id === powerUpId ? { ...p, usesLeft: p.usesLeft - 1 } : p
+        ));
+        
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      }
+    } else if (powerUpId === 'bomb' || powerUpId === 'swap') {
+      // Activate power-up mode
+      setActivePowerUp(powerUpId);
+      setSelectedPowerUpTiles([]);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    } else if (powerUpId === 'shuffle') {
+      // Shuffle: randomly rearrange all tile values
+      const shuffledGrid = shuffleTiles(gameState.grid);
+      setGameState(prev => ({
+        ...prev,
+        grid: shuffledGrid,
+      }));
+      
+      // Decrease uses
+      setPowerUps(prev => prev.map(p => 
+        p.id === powerUpId ? { ...p, usesLeft: p.usesLeft - 1 } : p
+      ));
+      
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+  }
+  
+  function handlePowerUpTileSelection(event: any) {
+    const touch = event.nativeEvent.touches[0];
+    const locationX = touch.pageX - gridOffsetRef.current.x;
+    const locationY = touch.pageY - gridOffsetRef.current.y;
     
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const tile = getTileAtPosition(locationX, locationY);
     
-    // TODO: Implement power-up logic
-    console.log(`Power-up ${powerUpId} used. Uses left: ${powerUp.usesLeft - 1}`);
+    if (!tile) {
+      return;
+    }
+    
+    if (activePowerUp === 'bomb') {
+      // Bomb: delete the tile, apply gravity, spawn new tiles
+      let newGrid = gameState.grid.map(row => [...row]);
+      newGrid[tile.row][tile.col] = null;
+      
+      const afterGravity = applyGravity(newGrid);
+      const filledGrid = spawnNewTilesAtTop(afterGravity, gameState.minTileValue);
+      
+      setGameState(prev => ({
+        ...prev,
+        grid: filledGrid,
+      }));
+      
+      // Decrease uses
+      setPowerUps(prev => prev.map(p => 
+        p.id === 'bomb' ? { ...p, usesLeft: p.usesLeft - 1 } : p
+      ));
+      
+      setActivePowerUp(null);
+      setSelectedPowerUpTiles([]);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    } else if (activePowerUp === 'swap') {
+      const newSelected = [...selectedPowerUpTiles, tile];
+      setSelectedPowerUpTiles(newSelected);
+      
+      if (newSelected.length === 2) {
+        // Swap the two tiles
+        const swappedGrid = swapTiles(gameState.grid, newSelected[0], newSelected[1]);
+        setGameState(prev => ({
+          ...prev,
+          grid: swappedGrid,
+        }));
+        
+        // Decrease uses
+        setPowerUps(prev => prev.map(p => 
+          p.id === 'swap' ? { ...p, usesLeft: p.usesLeft - 1 } : p
+        ));
+        
+        setActivePowerUp(null);
+        setSelectedPowerUpTiles([]);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      } else {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+    }
   }
   
   function handleSettingsPress() {
@@ -463,6 +595,8 @@ export default function GameScreen() {
   const scoreText = `${gameState.score}`;
   const bestScoreText = `${gameState.bestScore}`;
   
+  const powerUpModeText = activePowerUp === 'bomb' ? 'Tap a tile to delete it' : activePowerUp === 'swap' ? `Tap ${selectedPowerUpTiles.length === 0 ? 'first' : 'second'} tile to swap` : '';
+  
   return (
     <View style={styles.container}>
       <Stack.Screen
@@ -483,6 +617,21 @@ export default function GameScreen() {
         </View>
       </View>
       
+      {activePowerUp && (
+        <View style={styles.powerUpModeBar}>
+          <Text style={styles.powerUpModeText}>{powerUpModeText}</Text>
+          <TouchableOpacity
+            onPress={() => {
+              setActivePowerUp(null);
+              setSelectedPowerUpTiles([]);
+            }}
+            style={styles.cancelButton}
+          >
+            <Text style={styles.cancelButtonText}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      
       <View style={styles.gameContainer}>
         <Animated.View
           ref={gridContainerRef}
@@ -491,7 +640,7 @@ export default function GameScreen() {
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
         >
-          {selectedTiles.length > 1 && (
+          {selectedTiles.length > 1 && !activePowerUp && (
             <Svg style={styles.svgOverlay} pointerEvents="none">
               {selectedTiles.map((tile, index) => {
                 if (index === 0) return null;
@@ -528,6 +677,12 @@ export default function GameScreen() {
                   t => t.row === rowIndex && t.col === colIndex
                 );
                 
+                const isHighlighted = highlightedTiles.has(tile.id);
+                
+                const isPowerUpSelected = selectedPowerUpTiles.some(
+                  t => t.row === rowIndex && t.col === colIndex
+                );
+                
                 const isAnimating = animatingTiles.has(tile.id);
                 const animationIndex = selectedTiles.findIndex(
                   t => t.row === rowIndex && t.col === colIndex
@@ -540,10 +695,10 @@ export default function GameScreen() {
                   >
                     <GameTile
                       value={tile.value}
-                      isSelected={isSelected}
+                      isSelected={isSelected || isHighlighted || isPowerUpSelected}
                       size={TILE_SIZE}
                       isAnimating={isAnimating}
-                      animationDelay={animationIndex * 150}
+                      animationDelay={animationIndex * 30}
                     />
                   </View>
                 );
@@ -636,6 +791,30 @@ const styles = StyleSheet.create({
     fontSize: 28,
     color: colors.accent,
     fontWeight: 'bold',
+  },
+  powerUpModeBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    backgroundColor: colors.primary,
+  },
+  powerUpModeText: {
+    fontSize: 16,
+    color: '#FFF',
+    fontWeight: '600',
+  },
+  cancelButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    borderRadius: 8,
+  },
+  cancelButtonText: {
+    fontSize: 14,
+    color: '#FFF',
+    fontWeight: '700',
   },
   gameContainer: {
     flex: 1,
