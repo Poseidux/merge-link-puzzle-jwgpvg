@@ -64,6 +64,7 @@ export default function GameScreen() {
   const [confirmNewGameVisible, setConfirmNewGameVisible] = useState(false);
   
   const gridRef = useRef<View>(null);
+  const gridLayoutRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
   const shakeAnim = useSharedValue(0);
   
   useEffect(() => {
@@ -96,9 +97,11 @@ export default function GameScreen() {
       onPanResponderTerminationRequest: () => false,
       
       onPanResponderGrant: (evt) => {
-        console.log('User started dragging at position:', evt.nativeEvent.locationX, evt.nativeEvent.locationY);
-        const locationX = evt.nativeEvent.locationX;
-        const locationY = evt.nativeEvent.locationY;
+        const locationX = evt.nativeEvent.locationX - GRID_PADDING;
+        const locationY = evt.nativeEvent.locationY - GRID_PADDING;
+        
+        console.log('User started dragging at position (adjusted):', locationX, locationY);
+        
         const tile = getTileAtPosition(locationX, locationY);
         
         if (tile) {
@@ -113,8 +116,9 @@ export default function GameScreen() {
       },
       
       onPanResponderMove: (evt) => {
-        const locationX = evt.nativeEvent.locationX;
-        const locationY = evt.nativeEvent.locationY;
+        const locationX = evt.nativeEvent.locationX - GRID_PADDING;
+        const locationY = evt.nativeEvent.locationY - GRID_PADDING;
+        
         const tile = getTileAtPosition(locationX, locationY);
         
         if (tile && selectedTilesRef.current.length > 0) {
@@ -144,37 +148,49 @@ export default function GameScreen() {
             t => t.row === tile.row && t.col === tile.col
           );
           
-          if (!alreadySelected) {
-            // Check if tile is adjacent to the last tile
-            const rowDiff = Math.abs(tile.row - lastTile.row);
-            const colDiff = Math.abs(tile.col - lastTile.col);
-            const isAdjacent = rowDiff <= 1 && colDiff <= 1 && !(rowDiff === 0 && colDiff === 0);
-            
-            if (isAdjacent) {
-              let canAdd = false;
-              
-              // First two tiles must be the same value
-              if (currentSelection.length === 1) {
-                if (tile.value === currentSelection[0].value) {
-                  canAdd = true;
-                  console.log('Extended chain to second tile (matching first):', tile);
-                }
-              } else {
-                // After first two, can add same value or double
-                const prevValue = lastTile.value;
-                if (tile.value === prevValue || tile.value === prevValue * 2) {
-                  canAdd = true;
-                  console.log('Extended chain (same or double):', tile, 'Chain length now:', currentSelection.length + 1);
-                }
-              }
-              
-              if (canAdd) {
-                const newSelection = [...currentSelection, tile];
-                setSelectedTiles(newSelection);
-                selectedTilesRef.current = newSelection;
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              }
+          if (alreadySelected) {
+            return;
+          }
+          
+          // Check if tile is adjacent to the last tile (8 directions)
+          const rowDiff = Math.abs(tile.row - lastTile.row);
+          const colDiff = Math.abs(tile.col - lastTile.col);
+          const isAdjacent = rowDiff <= 1 && colDiff <= 1 && !(rowDiff === 0 && colDiff === 0);
+          
+          if (!isAdjacent) {
+            return;
+          }
+          
+          // CRITICAL: Apply the exact chain rules
+          let canAdd = false;
+          
+          if (currentSelection.length === 1) {
+            // Rule: First two tiles MUST be identical
+            if (tile.value === currentSelection[0].value) {
+              canAdd = true;
+              console.log('Extended chain to second tile (matching first):', tile.value);
+            } else {
+              console.log('Cannot add tile: First two tiles must be identical. Current:', currentSelection[0].value, 'Attempted:', tile.value);
             }
+          } else {
+            // Rule: After first two, each tile must be SAME or EXACTLY DOUBLE the previous
+            const prevValue = lastTile.value;
+            if (tile.value === prevValue) {
+              canAdd = true;
+              console.log('Extended chain (same value):', tile.value, 'Chain length now:', currentSelection.length + 1);
+            } else if (tile.value === prevValue * 2) {
+              canAdd = true;
+              console.log('Extended chain (double value):', prevValue, '→', tile.value, 'Chain length now:', currentSelection.length + 1);
+            } else {
+              console.log('Cannot add tile: Must be same or double. Previous:', prevValue, 'Attempted:', tile.value);
+            }
+          }
+          
+          if (canAdd) {
+            const newSelection = [...currentSelection, tile];
+            setSelectedTiles(newSelection);
+            selectedTilesRef.current = newSelection;
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           }
         }
       },
@@ -188,47 +204,49 @@ export default function GameScreen() {
   ).current;
   
   function getTileAtPosition(x: number, y: number): SelectedTile | null {
-    // locationX and locationY are already relative to the gridContainer's content area
-    // (the padding is applied to the container, so coordinates start at 0,0 inside the padding)
-    // We don't need to subtract GRID_PADDING
-    
-    // Calculate which tile was touched
-    // Each tile takes up (TILE_SIZE + TILE_GAP) space
+    // x and y are now adjusted (GRID_PADDING already subtracted in panResponder)
+    // Calculate which tile was touched based on tile size and gap
     const col = Math.floor(x / (TILE_SIZE + TILE_GAP));
     const row = Math.floor(y / (TILE_SIZE + TILE_GAP));
     
-    console.log('Touch at x:', x, 'y:', y, '-> row:', row, 'col:', col);
+    console.log('Touch at adjusted x:', x, 'y:', y, '-> row:', row, 'col:', col);
+    
+    // Verify the touch is within grid bounds
+    if (row < 0 || row >= GRID_CONFIG.ROWS || col < 0 || col >= GRID_CONFIG.COLS) {
+      console.log('Touch outside grid bounds');
+      return null;
+    }
     
     // Verify the touch is actually within the tile bounds (not in the gap)
-    if (row >= 0 && row < GRID_CONFIG.ROWS && col >= 0 && col < GRID_CONFIG.COLS) {
-      const tileStartX = col * (TILE_SIZE + TILE_GAP);
-      const tileStartY = row * (TILE_SIZE + TILE_GAP);
-      const tileEndX = tileStartX + TILE_SIZE;
-      const tileEndY = tileStartY + TILE_SIZE;
-      
-      // Check if touch is within the tile (not in the gap between tiles)
-      if (x >= tileStartX && x <= tileEndX && 
-          y >= tileStartY && y <= tileEndY) {
-        const tile = gameState.grid[row][col];
-        if (tile) {
-          return { row, col, value: tile.value };
-        }
+    const tileStartX = col * (TILE_SIZE + TILE_GAP);
+    const tileStartY = row * (TILE_SIZE + TILE_GAP);
+    const tileEndX = tileStartX + TILE_SIZE;
+    const tileEndY = tileStartY + TILE_SIZE;
+    
+    // Check if touch is within the tile (not in the gap between tiles)
+    if (x >= tileStartX && x <= tileEndX && 
+        y >= tileStartY && y <= tileEndY) {
+      const tile = gameState.grid[row][col];
+      if (tile) {
+        return { row, col, value: tile.value };
       }
     }
     
+    console.log('Touch in gap between tiles');
     return null;
   }
   
   function handleChainRelease(chainTiles: SelectedTile[]) {
     if (chainTiles.length < 2) {
-      console.log('Chain too short, canceling');
+      console.log('Chain too short (need at least 2 tiles), canceling');
       setSelectedTiles([]);
       selectedTilesRef.current = [];
       return;
     }
     
+    // Validate the chain using the strict validation function
     if (!isValidChain(chainTiles)) {
-      console.log('Invalid chain, shaking');
+      console.log('Invalid chain, shaking and canceling');
       shakeAnim.value = withSequence(
         withTiming(10, { duration: 50 }),
         withTiming(-10, { duration: 50 }),
@@ -397,10 +415,10 @@ export default function GameScreen() {
                 if (index === 0) return null;
                 const prevTile = selectedTiles[index - 1];
                 
-                const x1 = prevTile.col * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
-                const y1 = prevTile.row * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
-                const x2 = tile.col * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
-                const y2 = tile.row * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
+                const x1 = prevTile.col * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2 + GRID_PADDING;
+                const y1 = prevTile.row * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2 + GRID_PADDING;
+                const x2 = tile.col * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2 + GRID_PADDING;
+                const y2 = tile.row * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2 + GRID_PADDING;
                 
                 return (
                   <Line
