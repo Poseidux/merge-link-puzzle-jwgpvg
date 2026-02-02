@@ -2,7 +2,7 @@
 import { Tile } from '@/types/game';
 
 export const GRID_COLS = 8;
-export const GRID_ROWS = 5;
+export const GRID_ROWS = 11;
 
 export const GRID_CONFIG = {
   COLS: GRID_COLS,
@@ -28,32 +28,58 @@ export function getTileColor(value: number): string {
     512: '#F8B739',
     1024: '#48C9B0',
     2048: '#AF7AC5',
+    4096: '#E74C3C',
+    8192: '#3498DB',
+    16384: '#2ECC71',
   };
   
   return colorMap[value] || '#2C3E50';
 }
 
+// Calculate minimum tile value based on max tile achieved
+// Once 2048 is reached, minimum becomes 4 (no more 2s)
+// Once 4096 is reached, minimum becomes 8 (no more 4s)
+// And so on...
+export function getMinimumTileValue(maxTileValue: number): number {
+  if (maxTileValue >= 16384) return 32;
+  if (maxTileValue >= 8192) return 16;
+  if (maxTileValue >= 4096) return 8;
+  if (maxTileValue >= 2048) return 4;
+  return 2;
+}
+
 // Adaptive weighted randomness for spawning tiles
-// Early game: mostly 2s and 4s
-// As max board value increases, spawn higher values
-export function generateNewTileValue(maxBoardValue: number): number {
+// Respects minimum tile value based on progression
+export function generateNewTileValue(maxBoardValue: number, minTileValue: number): number {
   const random = Math.random();
   
+  // Filter out values below minimum
+  const possibleValues: number[] = [];
+  if (minTileValue <= 2) possibleValues.push(2);
+  if (minTileValue <= 4) possibleValues.push(4);
+  if (minTileValue <= 8) possibleValues.push(8);
+  if (minTileValue <= 16) possibleValues.push(16);
+  
+  // If no valid values (shouldn't happen), default to minTileValue
+  if (possibleValues.length === 0) return minTileValue;
+  
+  // Adaptive weights based on game progression
   if (maxBoardValue < 64) {
-    // Early game: 70% 2s, 25% 4s, 5% 8s
-    if (random < 0.7) return 2;
-    if (random < 0.95) return 4;
-    return 8;
+    // Early game: favor lowest values
+    if (possibleValues.includes(2) && random < 0.7) return 2;
+    if (possibleValues.includes(4) && random < 0.95) return 4;
+    return possibleValues[possibleValues.length - 1];
   } else if (maxBoardValue < 256) {
-    // Mid game: 50% 2s, 30% 4s, 20% 8s
-    if (random < 0.5) return 2;
-    if (random < 0.8) return 4;
-    return 8;
+    // Mid game: balanced distribution
+    if (possibleValues.includes(2) && random < 0.5) return 2;
+    if (possibleValues.includes(4) && random < 0.8) return 4;
+    return possibleValues[possibleValues.length - 1];
   } else {
-    // Late game: 30% 2s, 40% 4s, 30% 8s
-    if (random < 0.3) return 2;
-    if (random < 0.7) return 4;
-    return 8;
+    // Late game: favor higher values
+    if (possibleValues.includes(2) && random < 0.3) return 2;
+    if (possibleValues.includes(4) && random < 0.6) return 4;
+    if (possibleValues.includes(8) && random < 0.85) return 8;
+    return possibleValues[possibleValues.length - 1];
   }
 }
 
@@ -71,6 +97,23 @@ export function getMaxBoardValue(grid: (Tile | null)[][]): number {
   return max;
 }
 
+// Remove tiles below minimum value from grid
+export function removeTilesBelowMinimum(grid: (Tile | null)[][], minValue: number): (Tile | null)[][] {
+  const newGrid = grid.map(row => [...row]);
+  
+  for (let row = 0; row < GRID_ROWS; row++) {
+    for (let col = 0; col < GRID_COLS; col++) {
+      const tile = newGrid[row][col];
+      if (tile && tile.value < minValue) {
+        console.log(`Removing tile with value ${tile.value} at (${row}, ${col}) - below minimum ${minValue}`);
+        newGrid[row][col] = null;
+      }
+    }
+  }
+  
+  return newGrid;
+}
+
 // Create initial grid - always full
 export function createInitialGrid(): (Tile | null)[][] {
   const grid: (Tile | null)[][] = [];
@@ -78,7 +121,7 @@ export function createInitialGrid(): (Tile | null)[][] {
   for (let row = 0; row < GRID_ROWS; row++) {
     const rowArray: (Tile | null)[] = [];
     for (let col = 0; col < GRID_COLS; col++) {
-      const value = generateNewTileValue(0); // Start with low values
+      const value = generateNewTileValue(0, 2); // Start with low values, minimum 2
       rowArray.push({
         id: generateTileId(),
         value,
@@ -167,7 +210,7 @@ export function getHighestValue(tiles: { value: number }[]): number {
 export function resolveChain(
   grid: (Tile | null)[][],
   selectedTiles: { row: number; col: number; value: number }[]
-): { newGrid: (Tile | null)[][]; score: number } {
+): { newGrid: (Tile | null)[][]; score: number; mergedValue: number } {
   const newGrid = grid.map(row => [...row]);
   const lastTile = selectedTiles[selectedTiles.length - 1];
   const highestValue = getHighestValue(selectedTiles);
@@ -190,12 +233,13 @@ export function resolveChain(
     col: lastTile.col,
   };
   
-  return { newGrid, score };
+  return { newGrid, score, mergedValue: newValue };
 }
 
 // Fill empty cells with new tiles (adaptive weighted randomness)
 // Grid should always be full after this
-export function fillEmptyCells(grid: (Tile | null)[][]): (Tile | null)[][] {
+// Respects minimum tile value based on progression
+export function fillEmptyCells(grid: (Tile | null)[][], minTileValue: number): (Tile | null)[][] {
   const newGrid = grid.map(row => [...row]);
   const maxValue = getMaxBoardValue(grid);
   
@@ -204,7 +248,7 @@ export function fillEmptyCells(grid: (Tile | null)[][]): (Tile | null)[][] {
       if (newGrid[row][col] === null) {
         newGrid[row][col] = {
           id: generateTileId(),
-          value: generateNewTileValue(maxValue),
+          value: generateNewTileValue(maxValue, minTileValue),
           row,
           col,
         };
@@ -247,7 +291,7 @@ export function hasValidMoves(grid: (Tile | null)[][]): boolean {
 }
 
 // Ensure valid moves after Continue by spawning low-value tiles
-export function ensureValidMovesAfterContinue(grid: (Tile | null)[][]): (Tile | null)[][] {
+export function ensureValidMovesAfterContinue(grid: (Tile | null)[][], minTileValue: number): (Tile | null)[][] {
   let newGrid = grid.map(row => [...row]);
   let attempts = 0;
   const maxAttempts = 20;
@@ -255,7 +299,7 @@ export function ensureValidMovesAfterContinue(grid: (Tile | null)[][]): (Tile | 
   while (!hasValidMoves(newGrid) && attempts < maxAttempts) {
     const randomRow = Math.floor(Math.random() * GRID_ROWS);
     const randomCol = Math.floor(Math.random() * GRID_COLS);
-    const newValue = Math.random() < 0.7 ? 2 : 4;
+    const newValue = minTileValue;
     
     newGrid[randomRow][randomCol] = {
       id: generateTileId(),

@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Dimensions,
   PanResponder,
+  ScrollView,
 } from 'react-native';
 import { Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -30,6 +31,8 @@ import {
   fillEmptyCells,
   hasValidMoves,
   ensureValidMovesAfterContinue,
+  getMinimumTileValue,
+  removeTilesBelowMinimum,
   GRID_CONFIG,
 } from '@/utils/gameLogic';
 import {
@@ -38,8 +41,9 @@ import {
 } from '@/utils/storage';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
+const SCREEN_HEIGHT = Dimensions.get('window').height;
 const GRID_PADDING = 16;
-const TILE_GAP = 8;
+const TILE_GAP = 6;
 const GRID_WIDTH = SCREEN_WIDTH - GRID_PADDING * 2;
 const TILE_SIZE = (GRID_WIDTH - TILE_GAP * (GRID_CONFIG.COLS - 1)) / GRID_CONFIG.COLS;
 
@@ -50,6 +54,7 @@ export default function GameScreen() {
     bestScore: 0,
     continueUsed: false,
     preGameOverSnapshot: null,
+    minTileValue: 2,
   });
   
   const [selectedTiles, setSelectedTiles] = useState<SelectedTile[]>([]);
@@ -113,6 +118,20 @@ export default function GameScreen() {
         if (tile && selectedTilesRef.current.length > 0) {
           const currentSelection = selectedTilesRef.current;
           const lastTile = currentSelection[currentSelection.length - 1];
+          
+          // Check if this is the previous tile (backtracking)
+          if (currentSelection.length >= 2) {
+            const previousTile = currentSelection[currentSelection.length - 2];
+            if (tile.row === previousTile.row && tile.col === previousTile.col) {
+              // User is backtracking - remove the last tile from chain
+              console.log('Backtracking: removing last tile from chain');
+              const newSelection = currentSelection.slice(0, -1);
+              setSelectedTiles(newSelection);
+              selectedTilesRef.current = newSelection;
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              return;
+            }
+          }
           
           const alreadySelected = currentSelection.some(
             t => t.row === tile.row && t.col === tile.col
@@ -196,8 +215,9 @@ export default function GameScreen() {
     
     console.log('Valid chain, resolving merge');
     const resolveResult = resolveChain(gameState.grid, chainTiles);
-    const newGrid = resolveResult.newGrid;
+    let newGrid = resolveResult.newGrid;
     const score = resolveResult.score;
+    const mergedValue = resolveResult.mergedValue;
     const lastTile = chainTiles[chainTiles.length - 1];
     
     const scoreId = `score_${Date.now()}`;
@@ -208,13 +228,26 @@ export default function GameScreen() {
     const newScore = gameState.score + score;
     const newBestScore = Math.max(newScore, gameState.bestScore);
     
-    const filledGrid = fillEmptyCells(newGrid);
+    // Check if we hit a milestone and need to raise minimum tile value
+    const newMinTileValue = getMinimumTileValue(mergedValue);
+    let currentMinTileValue = gameState.minTileValue;
+    
+    if (newMinTileValue > currentMinTileValue) {
+      console.log(`Milestone reached! Merged value: ${mergedValue}. Raising minimum tile value from ${currentMinTileValue} to ${newMinTileValue}`);
+      currentMinTileValue = newMinTileValue;
+      
+      // Remove all tiles below the new minimum
+      newGrid = removeTilesBelowMinimum(newGrid, newMinTileValue);
+    }
+    
+    const filledGrid = fillEmptyCells(newGrid, currentMinTileValue);
     
     setGameState(prev => ({
       ...prev,
       grid: filledGrid,
       score: newScore,
       bestScore: newBestScore,
+      minTileValue: currentMinTileValue,
     }));
     
     setSelectedTiles([]);
@@ -224,16 +257,16 @@ export default function GameScreen() {
     setTimeout(() => {
       if (!hasValidMoves(filledGrid)) {
         console.log('No valid moves, game over');
-        handleGameOver(filledGrid, newScore);
+        handleGameOver(filledGrid, newScore, currentMinTileValue);
       }
     }, 500);
   }
   
-  function handleGameOver(grid: any, score: number) {
+  function handleGameOver(grid: any, score: number, minTileValue: number) {
     console.log('Game over triggered');
     setGameState(prev => ({
       ...prev,
-      preGameOverSnapshot: { grid, score },
+      preGameOverSnapshot: { grid, score, minTileValue },
     }));
     setGameOverVisible(true);
   }
@@ -247,6 +280,7 @@ export default function GameScreen() {
       bestScore: gameState.bestScore,
       continueUsed: false,
       preGameOverSnapshot: null,
+      minTileValue: 2,
     });
   }
   
@@ -254,12 +288,14 @@ export default function GameScreen() {
     console.log('User used continue');
     if (gameState.preGameOverSnapshot) {
       const restoredGrid = gameState.preGameOverSnapshot.grid;
-      const gridWithMoves = ensureValidMovesAfterContinue(restoredGrid);
+      const minTileValue = gameState.preGameOverSnapshot.minTileValue;
+      const gridWithMoves = ensureValidMovesAfterContinue(restoredGrid, minTileValue);
       
       setGameState(prev => ({
         ...prev,
         grid: gridWithMoves,
         score: prev.preGameOverSnapshot!.score,
+        minTileValue: prev.preGameOverSnapshot!.minTileValue,
         continueUsed: true,
       }));
       setGameOverVisible(false);
@@ -280,6 +316,7 @@ export default function GameScreen() {
       bestScore: gameState.bestScore,
       continueUsed: false,
       preGameOverSnapshot: null,
+      minTileValue: 2,
     });
   }
   
@@ -291,6 +328,7 @@ export default function GameScreen() {
   
   const scoreText = `${gameState.score}`;
   const bestScoreText = `${gameState.bestScore}`;
+  const minTileText = `Min: ${gameState.minTileValue}`;
   
   return (
     <View style={styles.container}>
@@ -313,77 +351,88 @@ export default function GameScreen() {
           <Text style={styles.scoreLabel}>Best</Text>
           <Text style={styles.bestScoreValue}>{bestScoreText}</Text>
         </View>
+        
+        <View style={styles.scoreContainer}>
+          <Text style={styles.minTileLabel}>{minTileText}</Text>
+        </View>
       </View>
       
-      <Animated.View
-        ref={gridRef}
-        style={[styles.gridContainer, shakeStyle]}
-        {...panResponder.panHandlers}
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
       >
-        {selectedTiles.length > 1 && (
-          <Svg style={styles.svgOverlay} pointerEvents="none">
-            {selectedTiles.map((tile, index) => {
-              if (index === 0) return null;
-              const prevTile = selectedTiles[index - 1];
-              
-              const x1 = prevTile.col * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
-              const y1 = prevTile.row * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
-              const x2 = tile.col * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
-              const y2 = tile.row * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
-              
-              return (
-                <Line
-                  key={`line-${index}`}
-                  x1={x1}
-                  y1={y1}
-                  x2={x2}
-                  y2={y2}
-                  stroke={colors.accent}
-                  strokeWidth={6}
-                  strokeLinecap="round"
-                />
-              );
-            })}
-          </Svg>
-        )}
-        
-        {gameState.grid.map((row, rowIndex) => (
-          <View key={rowIndex} style={styles.gridRow}>
-            {row.map((tile, colIndex) => {
-              if (!tile) return null;
-              
-              const isSelected = selectedTiles.some(
-                t => t.row === rowIndex && t.col === colIndex
-              );
-              
-              return (
-                <View
-                  key={tile.id}
-                  style={styles.tileWrapper}
-                >
-                  <GameTile
-                    value={tile.value}
-                    isSelected={isSelected}
-                    size={TILE_SIZE}
+        <Animated.View
+          ref={gridRef}
+          style={[styles.gridContainer, shakeStyle]}
+          {...panResponder.panHandlers}
+        >
+          {selectedTiles.length > 1 && (
+            <Svg style={styles.svgOverlay} pointerEvents="none">
+              {selectedTiles.map((tile, index) => {
+                if (index === 0) return null;
+                const prevTile = selectedTiles[index - 1];
+                
+                const x1 = prevTile.col * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
+                const y1 = prevTile.row * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
+                const x2 = tile.col * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
+                const y2 = tile.row * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
+                
+                return (
+                  <Line
+                    key={`line-${index}`}
+                    x1={x1}
+                    y1={y1}
+                    x2={x2}
+                    y2={y2}
+                    stroke={colors.accent}
+                    strokeWidth={6}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
                   />
-                </View>
-              );
-            })}
-          </View>
-        ))}
-        
-        {floatingScores.map(fs => (
-          <FloatingScore
-            key={fs.id}
-            score={fs.score}
-            x={fs.x}
-            y={fs.y}
-            onComplete={() => {
-              setFloatingScores(prev => prev.filter(s => s.id !== fs.id));
-            }}
-          />
-        ))}
-      </Animated.View>
+                );
+              })}
+            </Svg>
+          )}
+          
+          {gameState.grid.map((row, rowIndex) => (
+            <View key={rowIndex} style={styles.gridRow}>
+              {row.map((tile, colIndex) => {
+                if (!tile) return null;
+                
+                const isSelected = selectedTiles.some(
+                  t => t.row === rowIndex && t.col === colIndex
+                );
+                
+                return (
+                  <View
+                    key={tile.id}
+                    style={styles.tileWrapper}
+                  >
+                    <GameTile
+                      value={tile.value}
+                      isSelected={isSelected}
+                      size={TILE_SIZE}
+                    />
+                  </View>
+                );
+              })}
+            </View>
+          ))}
+          
+          {floatingScores.map(fs => (
+            <FloatingScore
+              key={fs.id}
+              score={fs.score}
+              x={fs.x}
+              y={fs.y}
+              onComplete={() => {
+                setFloatingScores(prev => prev.filter(s => s.id !== fs.id));
+              }}
+            />
+          ))}
+        </Animated.View>
+      </ScrollView>
       
       <TouchableOpacity
         style={styles.newGameButton}
@@ -418,32 +467,43 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-    paddingTop: 8,
   },
   scoreBar: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
   },
   scoreContainer: {
     alignItems: 'center',
   },
   scoreLabel: {
-    fontSize: 14,
+    fontSize: 12,
     color: colors.textSecondary,
     fontWeight: '600',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   scoreValue: {
-    fontSize: 28,
+    fontSize: 24,
     color: colors.text,
     fontWeight: 'bold',
   },
   bestScoreValue: {
-    fontSize: 28,
+    fontSize: 24,
     color: colors.accent,
     fontWeight: 'bold',
+  },
+  minTileLabel: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '600',
+    marginTop: 8,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
   },
   gridContainer: {
     padding: GRID_PADDING,
@@ -470,8 +530,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     marginHorizontal: 24,
     marginBottom: 24,
-    marginTop: 'auto',
-    paddingVertical: 16,
+    marginTop: 12,
+    paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
   },

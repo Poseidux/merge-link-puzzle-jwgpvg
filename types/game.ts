@@ -12,11 +12,13 @@ export interface GameState {
   bestScore: number;
   continueUsed: boolean;
   preGameOverSnapshot: GameSnapshot | null;
+  minTileValue: number; // Progressive minimum tile value
 }
 
 export interface GameSnapshot {
   grid: (Tile | null)[][];
   score: number;
+  minTileValue: number;
 }
 
 export interface SelectedTile {
