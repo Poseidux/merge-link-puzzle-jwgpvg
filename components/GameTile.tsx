@@ -1,49 +1,19 @@
 
-import React, { useEffect } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  Easing,
-} from 'react-native-reanimated';
 import { getTileColor, formatTileValue } from '@/utils/gameLogic';
 
 interface GameTileProps {
   value: number;
   isSelected: boolean;
   size: number;
-  isAnimating?: boolean;
-  animationDelay?: number;
 }
 
-export default function GameTile({ value, isSelected, size, isAnimating = false, animationDelay = 0 }: GameTileProps) {
+export default function GameTile({ value, isSelected, size }: GameTileProps) {
   const tileColorData = getTileColor(value);
   const displayValue = formatTileValue(value);
   const isGlowing = value >= 1024;
-  
-  const opacity = useSharedValue(1);
-  const scale = useSharedValue(1);
-  
-  useEffect(() => {
-    if (isAnimating) {
-      console.log('Starting simultaneous shrink animation');
-      
-      opacity.value = withTiming(0, { duration: 250, easing: Easing.out(Easing.cubic) });
-      scale.value = withTiming(0, { duration: 250, easing: Easing.out(Easing.cubic) });
-    } else {
-      opacity.value = 1;
-      scale.value = 1;
-    }
-  }, [isAnimating]);
-  
-  const animatedStyle = useAnimatedStyle(() => {
-    return {
-      opacity: opacity.value,
-      transform: [{ scale: scale.value }],
-    };
-  });
   
   const getFontSize = () => {
     const baseSize = size * 0.35;
@@ -55,7 +25,7 @@ export default function GameTile({ value, isSelected, size, isAnimating = false,
   const fontSize = getFontSize();
   
   return (
-    <Animated.View
+    <View
       style={[
         styles.tileContainer,
         {
@@ -63,7 +33,6 @@ export default function GameTile({ value, isSelected, size, isAnimating = false,
           height: size,
         },
         isGlowing && styles.glowContainer,
-        animatedStyle,
       ]}
     >
       <LinearGradient
@@ -91,7 +60,7 @@ export default function GameTile({ value, isSelected, size, isAnimating = false,
           {displayValue}
         </Text>
       </LinearGradient>
-    </Animated.View>
+    </View>
   );
 }
 

@@ -9,12 +9,6 @@ import {
 } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSequence,
-  withTiming,
-} from 'react-native-reanimated';
 import Svg, { Line } from 'react-native-svg';
 import { colors } from '@/styles/commonStyles';
 import GameTile from '@/components/GameTile';
@@ -94,14 +88,12 @@ export default function GameScreen() {
     { id: 'shuffle', name: 'Shuffle', icon: 'shuffle', usesLeft: 2, maxUses: 2 },
   ]);
   
-  const [animatingTiles, setAnimatingTiles] = useState<Set<string>>(new Set());
   const [highlightedTiles, setHighlightedTiles] = useState<Set<string>>(new Set());
   const [activePowerUp, setActivePowerUp] = useState<string | null>(null);
   const [selectedPowerUpTiles, setSelectedPowerUpTiles] = useState<SelectedTile[]>([]);
   const [isProcessingChain, setIsProcessingChain] = useState(false);
   const chainQueueRef = useRef<SelectedTile[][]>([]);
   
-  const shakeAnim = useSharedValue(0);
   const gridContainerRef = useRef<View>(null);
   const gridOffsetRef = useRef({ x: 0, y: 0, width: 0, height: 0 });
   
@@ -320,31 +312,13 @@ export default function GameScreen() {
     
     if (!isValidChain(chainTiles)) {
       console.log('Invalid chain');
-      shakeAnim.value = withSequence(
-        withTiming(10, { duration: 50 }),
-        withTiming(-10, { duration: 50 }),
-        withTiming(10, { duration: 50 }),
-        withTiming(0, { duration: 50 })
-      );
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
     
-    console.log('Valid chain, resolving with simultaneous shrink animation');
+    console.log('Valid chain, resolving immediately without animation');
     
-    const tilesToAnimate = chainTiles.slice(0, -1);
     const lastTile = chainTiles[chainTiles.length - 1];
-    
-    const animatingIds = new Set<string>();
-    tilesToAnimate.forEach(tile => {
-      const tileObj = gameState.grid[tile.row][tile.col];
-      if (tileObj) {
-        animatingIds.add(tileObj.id);
-      }
-    });
-    setAnimatingTiles(animatingIds);
-    
-    await new Promise(resolve => setTimeout(resolve, 250));
     
     const resolveResult = resolveChain(gameState.grid, chainTiles);
     let newGrid = resolveResult.newGrid;
@@ -368,8 +342,6 @@ export default function GameScreen() {
       newGrid = removeTilesBelowMinimum(newGrid, newMinTileValue);
     }
     
-    setAnimatingTiles(new Set());
-    
     console.log('Step 1: Applying gravity');
     const afterGravity = applyGravity(newGrid);
     
@@ -391,7 +363,7 @@ export default function GameScreen() {
         console.log('No valid moves, game over');
         handleGameOver(filledGrid, newScore, currentMinTileValue);
       }
-    }, 300);
+    }, 100);
   }
   
   function handleGameOver(grid: any, score: number, minTileValue: number) {
@@ -557,12 +529,6 @@ export default function GameScreen() {
     router.push('/');
   }
   
-  const shakeStyle = useAnimatedStyle(() => {
-    return {
-      transform: [{ translateX: shakeAnim.value }],
-    };
-  });
-  
   const scoreText = `${gameState.score}`;
   const bestScoreText = `${gameState.bestScore}`;
   const minTileText = `Min: ${gameState.minTileValue}`;
@@ -609,9 +575,9 @@ export default function GameScreen() {
       )}
       
       <View style={styles.gameContainer}>
-        <Animated.View
+        <View
           ref={gridContainerRef}
-          style={[styles.gridContainer, shakeStyle]}
+          style={styles.gridContainer}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
@@ -647,7 +613,7 @@ export default function GameScreen() {
           {gameState.grid.map((row, rowIndex) => (
             <View key={rowIndex} style={styles.gridRow}>
               {row.map((tile, colIndex) => {
-                if (!tile) return null;
+                if (!tile) return <View key={`empty-${rowIndex}-${colIndex}`} style={styles.tileWrapper} />;
                 
                 const isSelected = selectedTiles.some(
                   t => t.row === rowIndex && t.col === colIndex
@@ -659,8 +625,6 @@ export default function GameScreen() {
                   t => t.row === rowIndex && t.col === colIndex
                 );
                 
-                const isAnimating = animatingTiles.has(tile.id);
-                
                 return (
                   <View
                     key={tile.id}
@@ -670,8 +634,6 @@ export default function GameScreen() {
                       value={tile.value}
                       isSelected={isSelected || isHighlighted || isPowerUpSelected}
                       size={TILE_SIZE}
-                      isAnimating={isAnimating}
-                      animationDelay={0}
                     />
                   </View>
                 );
@@ -690,7 +652,7 @@ export default function GameScreen() {
               }}
             />
           ))}
-        </Animated.View>
+        </View>
       </View>
       
       <PowerUpBar
@@ -821,6 +783,8 @@ const styles = StyleSheet.create({
     marginBottom: TILE_GAP,
   },
   tileWrapper: {
+    width: TILE_SIZE,
+    height: TILE_SIZE,
     marginRight: TILE_GAP,
     zIndex: 2,
   },
