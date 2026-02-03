@@ -4,7 +4,8 @@ import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-nati
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '@/styles/commonStyles';
-import { loadGameState, SavedGameState } from '@/utils/storage';
+import { loadGameState } from '@/utils/storage';
+import { GameState } from '@/types/game';
 import ConfirmModal from '@/components/ConfirmModal';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -13,43 +14,39 @@ const SCREEN_HEIGHT = Dimensions.get('window').height;
 export default function HomeScreen() {
   const router = useRouter();
   const [hasSavedGame, setHasSavedGame] = useState(false);
-  const [savedGameState, setSavedGameState] = useState<SavedGameState | null>(null);
+  const [savedGameState, setSavedGameState] = useState<GameState | null>(null);
   const [confirmNewGameVisible, setConfirmNewGameVisible] = useState(false);
 
   useEffect(() => {
-    console.log('[Home] HomeScreen mounted, checking for saved game');
+    console.log('HomeScreen mounted, checking for saved game');
     checkForSavedGame();
   }, []);
 
   async function checkForSavedGame() {
-    try {
-      const savedState = await loadGameState();
-      console.log('[Home] Saved game state:', savedState);
-      
-      if (savedState && savedState.grid && savedState.grid.length > 0) {
-        setHasSavedGame(true);
-        setSavedGameState(savedState);
-      } else {
-        setHasSavedGame(false);
-        setSavedGameState(null);
-      }
-    } catch (error) {
-      console.error('[Home] Failed to check for saved game');
-      console.error('[Home] Error:', error instanceof Error ? error.message : String(error));
+    const savedState = await loadGameState();
+    console.log('Saved game state:', savedState);
+    
+    if (savedState && savedState.grid && savedState.grid.length > 0) {
+      setHasSavedGame(true);
+      setSavedGameState(savedState);
+    } else {
       setHasSavedGame(false);
       setSavedGameState(null);
     }
   }
 
   function handleContinue() {
-    console.log('[Home] User tapped Continue button');
+    console.log('User tapped Continue button');
     if (hasSavedGame) {
-      router.push('/game');
+      router.push('/(tabs)/(home)');
+    } else {
+      console.log('No saved game, starting new game');
+      router.push('/(tabs)/(home)');
     }
   }
 
   function handleNewGame() {
-    console.log('[Home] User tapped New Game button');
+    console.log('User tapped New Game button');
     if (hasSavedGame) {
       setConfirmNewGameVisible(true);
     } else {
@@ -58,13 +55,13 @@ export default function HomeScreen() {
   }
 
   function startNewGame() {
-    console.log('[Home] Starting new game');
+    console.log('Starting new game');
     setConfirmNewGameVisible(false);
-    router.push('/game?newGame=true');
+    router.push('/(tabs)/(home)?newGame=true');
   }
 
   const continueButtonOpacity = hasSavedGame ? 1 : 0.5;
-  const continueText = 'Continue';
+  const continueText = hasSavedGame ? 'Continue' : 'Continue';
   const scoreText = savedGameState ? `Score: ${savedGameState.score}` : '';
 
   return (
@@ -77,7 +74,7 @@ export default function HomeScreen() {
       <View style={styles.content}>
         <View style={styles.titleContainer}>
           <Text style={styles.title}>Number</Text>
-          <Text style={styles.title}>Merge</Text>
+          <Text style={styles.title}>Merger</Text>
         </View>
 
         {hasSavedGame && savedGameState && (
@@ -126,7 +123,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 32,
-    paddingTop: 60,
   },
   titleContainer: {
     alignItems: 'center',

@@ -19,42 +19,55 @@ interface PowerUpBarProps {
 }
 
 export default function PowerUpBar({ powerUps, onPowerUpPress, onSettingsPress }: PowerUpBarProps) {
-  function getIconForPowerUp(powerUpId: string): string {
+  const getIconForPowerUp = (powerUpId: string) => {
     const iconMap: { [key: string]: string } = {
-      undo: 'undo',
       hint: 'lightbulb',
       bomb: 'delete',
       swap: 'swap-horiz',
+      shuffle: 'shuffle',
     };
-    return iconMap[powerUpId] || 'help';
-  }
+    return iconMap[powerUpId] || 'star';
+  };
   
   return (
     <View style={styles.container}>
-      {powerUps.map(powerUp => {
-        const isDisabled = powerUp.usesLeft === 0;
-        const opacity = isDisabled ? 0.3 : 1;
-        const usesText = `${powerUp.usesLeft}`;
-        
-        return (
-          <TouchableOpacity
-            key={powerUp.id}
-            style={[styles.powerUpButton, { opacity }]}
-            onPress={() => onPowerUpPress(powerUp.id)}
-            disabled={isDisabled}
-          >
-            <IconSymbol
-              ios_icon_name="circle.fill"
-              android_material_icon_name={getIconForPowerUp(powerUp.id)}
-              size={28}
-              color={colors.text}
-            />
-            <Text style={styles.usesText}>{usesText}</Text>
-          </TouchableOpacity>
-        );
-      })}
-      
-      <TouchableOpacity style={styles.settingsButton} onPress={onSettingsPress}>
+      <View style={styles.powerUpsContainer}>
+        {powerUps.map((powerUp) => {
+          const isDisabled = powerUp.usesLeft === 0;
+          const usesText = `${powerUp.usesLeft}/${powerUp.maxUses}`;
+          const iconName = getIconForPowerUp(powerUp.id);
+          
+          return (
+            <TouchableOpacity
+              key={powerUp.id}
+              style={[
+                styles.powerUpButton,
+                isDisabled && styles.powerUpButtonDisabled,
+              ]}
+              onPress={() => onPowerUpPress(powerUp.id)}
+              disabled={isDisabled}
+            >
+              <IconSymbol
+                ios_icon_name="star.fill"
+                android_material_icon_name={iconName}
+                size={28}
+                color={isDisabled ? colors.textSecondary : colors.primary}
+              />
+              <Text style={[
+                styles.usesText,
+                isDisabled && styles.usesTextDisabled,
+              ]}>
+                {usesText}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      <TouchableOpacity
+        style={styles.settingsButton}
+        onPress={onSettingsPress}
+      >
         <IconSymbol
           ios_icon_name="gear"
           android_material_icon_name="settings"
@@ -69,26 +82,42 @@ export default function PowerUpBar({ powerUps, onPowerUpPress, onSettingsPress }
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
     backgroundColor: colors.background,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  powerUpsContainer: {
+    flexDirection: 'row',
+    flex: 1,
+    justifyContent: 'space-around',
   },
   powerUpButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: colors.cardBackground,
+    minWidth: 60,
+  },
+  powerUpButtonDisabled: {
+    opacity: 0.4,
   },
   usesText: {
     fontSize: 12,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: colors.text,
     marginTop: 4,
   },
+  usesTextDisabled: {
+    color: colors.textSecondary,
+  },
   settingsButton: {
-    alignItems: 'center',
-    justifyContent: 'center',
     padding: 8,
+    marginLeft: 12,
   },
 });

@@ -1,94 +1,57 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
+import { GameState, GameSettings } from '@/types/game';
 
-const GAME_STATE_KEY = '@number_merge_game_state';
+const GAME_STATE_KEY = '@merge_puzzle_game_state';
+const SETTINGS_KEY = '@merge_puzzle_settings';
 
-// Minimal saved state - only plain numbers and essential data
-export interface SavedGameState {
-  grid: number[][]; // Just the values, not full Tile objects
-  score: number;
-  bestScore: number;
-  powerUps: {
-    undo: number;
-    hint: number;
-    bomb: number;
-    swap: number;
-  };
-  spawnProgression: number;
-}
-
-/**
- * Save game state to storage.
- * ONLY call this at safe times:
- * - After a move fully completes (merge + gravity + spawn)
- * - When starting a new game
- * DO NOT call on every render or during drag gestures.
- */
-export async function saveGameState(state: SavedGameState): Promise<void> {
+export async function saveGameState(state: GameState): Promise<void> {
   try {
-    console.log('[Storage] Saving game state - Score:', state.score, 'Platform:', Platform.OS);
+    console.log('Saving game state to storage');
     const jsonValue = JSON.stringify(state);
     await AsyncStorage.setItem(GAME_STATE_KEY, jsonValue);
-    console.log('[Storage] Game state saved successfully');
   } catch (error) {
-    // Log full error details but don't crash
-    console.error('[Storage] FAILED to save game state');
-    console.error('[Storage] Error message:', error instanceof Error ? error.message : String(error));
-    console.error('[Storage] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
-    // Continue running - saving failure should not crash the game
+    console.error('Error saving game state:', error);
   }
 }
 
-/**
- * Load game state from storage.
- * ONLY call this once when the app opens.
- * Returns null if no saved game exists or if loading fails.
- */
-export async function loadGameState(): Promise<SavedGameState | null> {
+export async function loadGameState(): Promise<GameState | null> {
   try {
-    console.log('[Storage] Loading game state from storage - Platform:', Platform.OS);
+    console.log('Loading game state from storage');
     const jsonValue = await AsyncStorage.getItem(GAME_STATE_KEY);
-    
-    if (jsonValue === null) {
-      console.log('[Storage] No saved game state found');
-      return null;
-    }
-    
-    const state = JSON.parse(jsonValue) as SavedGameState;
-    
-    // Validate the loaded state
-    if (!state.grid || !Array.isArray(state.grid) || state.grid.length === 0) {
-      console.error('[Storage] Invalid saved state - grid is missing or empty');
-      return null;
-    }
-    
-    console.log('[Storage] Game state loaded successfully - Score:', state.score);
-    return state;
+    return jsonValue != null ? JSON.parse(jsonValue) : null;
   } catch (error) {
-    // Log full error details but don't crash
-    console.error('[Storage] FAILED to load game state');
-    console.error('[Storage] Error message:', error instanceof Error ? error.message : String(error));
-    console.error('[Storage] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
-    // Return null to start a fresh game instead of crashing
+    console.error('Error loading game state:', error);
     return null;
   }
 }
 
-/**
- * Clear saved game state from storage.
- * Call this when starting a new game.
- */
 export async function clearGameState(): Promise<void> {
   try {
-    console.log('[Storage] Clearing game state from storage');
+    console.log('Clearing game state from storage');
     await AsyncStorage.removeItem(GAME_STATE_KEY);
-    console.log('[Storage] Game state cleared successfully');
   } catch (error) {
-    // Log full error details but don't crash
-    console.error('[Storage] FAILED to clear game state');
-    console.error('[Storage] Error message:', error instanceof Error ? error.message : String(error));
-    console.error('[Storage] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
-    // Continue running - clearing failure should not crash the game
+    console.error('Error clearing game state:', error);
+  }
+}
+
+export async function saveSettings(settings: GameSettings): Promise<void> {
+  try {
+    console.log('Saving settings to storage:', settings);
+    const jsonValue = JSON.stringify(settings);
+    await AsyncStorage.setItem(SETTINGS_KEY, jsonValue);
+  } catch (error) {
+    console.error('Error saving settings:', error);
+  }
+}
+
+export async function loadSettings(): Promise<GameSettings | null> {
+  try {
+    console.log('Loading settings from storage');
+    const jsonValue = await AsyncStorage.getItem(SETTINGS_KEY);
+    return jsonValue != null ? JSON.parse(jsonValue) : null;
+  } catch (error) {
+    console.error('Error loading settings:', error);
+    return null;
   }
 }
