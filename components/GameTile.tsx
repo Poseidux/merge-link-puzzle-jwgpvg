@@ -47,7 +47,7 @@ export default function GameTile({ value, isSelected, size, isAnimating = false,
       opacity.value = 1;
       scale.value = 1;
     }
-  }, [isAnimating, animationDelay]);
+  }, [isAnimating, animationDelay, opacity, scale]);
   
   const animatedStyle = useAnimatedStyle(() => {
     return {
