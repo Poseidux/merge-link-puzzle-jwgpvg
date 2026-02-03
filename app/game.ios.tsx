@@ -44,7 +44,7 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const GRID_PADDING = 16;
 const TILE_GAP = 6;
-const HEADER_HEIGHT = 160;
+const HEADER_HEIGHT = 180;
 const POWERUP_BAR_HEIGHT = 80;
 const BOTTOM_MARGIN = 20;
 
@@ -598,9 +598,9 @@ export default function GameScreen() {
   }
   
   function handleBackToHome() {
-    console.log('[Game] Back to home - navigating to /');
+    console.log('[Game] Back to home - navigating to / with replace');
     setGameMenuVisible(false);
-    router.push('/');
+    router.replace('/');
   }
   
   const scoreText = `${gameState.score}`;
@@ -775,7 +775,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     paddingVertical: 24,
     paddingHorizontal: 20,
-    paddingTop: 80,
+    paddingTop: 100,
     backgroundColor: colors.background,
   },
   scoreContainer: {
