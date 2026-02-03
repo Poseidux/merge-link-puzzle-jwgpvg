@@ -132,11 +132,12 @@ export default function GameScreen() {
   }, []);
   
   useEffect(() => {
-    console.log('GameScreen mounted, checking params:', params);
+    console.log('HomeScreen mounted, checking for saved game');
     if (params.newGame === 'true') {
       console.log('Starting new game from home screen');
       startFreshGame();
     } else {
+      console.log('Loading game state from storage');
       loadSavedData();
     }
   }, [params, startFreshGame, loadSavedData]);
@@ -160,10 +161,15 @@ export default function GameScreen() {
   }, [gameState.grid]);
   
   const getTileAtPosition = useCallback((x: number, y: number): SelectedTile | null => {
+    console.log('Getting tile at position:', x, y);
+    
     const col = Math.floor(x / (TILE_SIZE + TILE_GAP));
     const row = Math.floor(y / (TILE_SIZE + TILE_GAP));
     
+    console.log('Calculated row:', row, 'col:', col);
+    
     if (row < 0 || row >= GRID_CONFIG.ROWS || col < 0 || col >= GRID_CONFIG.COLS) {
+      console.log('Position out of bounds');
       return null;
     }
     
@@ -176,25 +182,34 @@ export default function GameScreen() {
     if (localX >= 0 && localX <= TILE_SIZE && localY >= 0 && localY <= TILE_SIZE) {
       const tile = gameState.grid[row][col];
       if (tile) {
+        console.log('Found tile at', row, col, 'with value', tile.value);
         return { row, col, value: tile.value };
       }
     }
     
+    console.log('No tile at position');
     return null;
   }, [gameState.grid]);
   
   const handlePowerUpTileSelection = useCallback((event: any) => {
+    console.log('Power-up tile selection');
     const touch = event.nativeEvent.touches[0];
     const locationX = touch.pageX - gridOffsetRef.current.x;
     const locationY = touch.pageY - gridOffsetRef.current.y;
     
+    console.log('Touch at pageX:', touch.pageX, 'pageY:', touch.pageY);
+    console.log('Grid offset x:', gridOffsetRef.current.x, 'y:', gridOffsetRef.current.y);
+    console.log('Local position x:', locationX, 'y:', locationY);
+    
     const tile = getTileAtPosition(locationX, locationY);
     
     if (!tile) {
+      console.log('No tile found for power-up selection');
       return;
     }
     
     if (activePowerUp === 'bomb') {
+      console.log('Bomb power-up: removing tile at', tile.row, tile.col);
       let newGrid = gameState.grid.map(row => [...row]);
       newGrid[tile.row][tile.col] = null;
       
@@ -214,10 +229,12 @@ export default function GameScreen() {
       setSelectedPowerUpTiles([]);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     } else if (activePowerUp === 'swap') {
+      console.log('Swap power-up: selecting tile', selectedPowerUpTiles.length + 1);
       const newSelected = [...selectedPowerUpTiles, tile];
       setSelectedPowerUpTiles(newSelected);
       
       if (newSelected.length === 2) {
+        console.log('Swapping tiles');
         const swappedGrid = swapTiles(gameState.grid, newSelected[0], newSelected[1]);
         setGameState(prev => ({
           ...prev,
@@ -238,7 +255,10 @@ export default function GameScreen() {
   }, [activePowerUp, gameState.grid, gameState.minTileValue, selectedPowerUpTiles, getTileAtPosition]);
   
   const handleTouchStart = useCallback((event: any) => {
+    console.log('Touch start event');
+    
     if (activePowerUp) {
+      console.log('Active power-up mode:', activePowerUp);
       handlePowerUpTileSelection(event);
       return;
     }
@@ -247,14 +267,20 @@ export default function GameScreen() {
     const locationX = touch.pageX - gridOffsetRef.current.x;
     const locationY = touch.pageY - gridOffsetRef.current.y;
     
+    console.log('Touch start at pageX:', touch.pageX, 'pageY:', touch.pageY);
+    console.log('Grid offset x:', gridOffsetRef.current.x, 'y:', gridOffsetRef.current.y);
+    console.log('Local position x:', locationX, 'y:', locationY);
+    
     const tile = getTileAtPosition(locationX, locationY);
     
     if (tile) {
-      console.log('User started chain with tile value:', tile.value);
+      console.log('User started chain with tile at', tile.row, tile.col, 'value:', tile.value);
       const newSelection = [tile];
       setSelectedTiles(newSelection);
       selectedTilesRef.current = newSelection;
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } else {
+      console.log('No tile found at touch start position');
     }
   }, [activePowerUp, getTileAtPosition, handlePowerUpTileSelection]);
   
@@ -280,6 +306,7 @@ export default function GameScreen() {
       if (currentSelection.length >= 2) {
         const previousTile = currentSelection[currentSelection.length - 2];
         if (tile.row === previousTile.row && tile.col === previousTile.col) {
+          console.log('User backtracked in chain');
           const newSelection = currentSelection.slice(0, -1);
           setSelectedTiles(newSelection);
           selectedTilesRef.current = newSelection;
@@ -318,6 +345,7 @@ export default function GameScreen() {
       }
       
       if (canAdd) {
+        console.log('Adding tile to chain:', tile.value);
         const newSelection = [...currentSelection, tile];
         setSelectedTiles(newSelection);
         selectedTilesRef.current = newSelection;
@@ -405,6 +433,8 @@ export default function GameScreen() {
   }, [isProcessingChain, gameState.grid, gameState.score, gameState.bestScore, gameState.minTileValue]);
   
   const handleTouchEnd = useCallback(() => {
+    console.log('Touch end event');
+    
     if (activePowerUp) {
       return;
     }
@@ -416,8 +446,11 @@ export default function GameScreen() {
     selectedTilesRef.current = [];
     
     if (finalSelection.length >= 2) {
+      console.log('Processing chain with', finalSelection.length, 'tiles');
       chainQueueRef.current.push(finalSelection);
       processChainQueue();
+    } else {
+      console.log('Chain too short, not processing');
     }
   }, [activePowerUp, processChainQueue]);
   
@@ -570,9 +603,11 @@ export default function GameScreen() {
         <View
           ref={gridContainerRef}
           style={styles.gridContainer}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
+          onStartShouldSetResponder={() => true}
+          onMoveShouldSetResponder={() => true}
+          onResponderGrant={handleTouchStart}
+          onResponderMove={handleTouchMove}
+          onResponderRelease={handleTouchEnd}
         >
           {selectedTiles.length > 1 && !activePowerUp && (
             <Svg style={styles.svgOverlay} pointerEvents="none">
@@ -760,6 +795,7 @@ const styles = StyleSheet.create({
     position: 'relative',
     width: GRID_WIDTH,
     height: GRID_HEIGHT,
+    backgroundColor: 'transparent',
   },
   svgOverlay: {
     position: 'absolute',
