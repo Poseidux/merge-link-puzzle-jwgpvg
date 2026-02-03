@@ -7,9 +7,10 @@ interface GameMenuProps {
   visible: boolean;
   onResumeGame: () => void;
   onBackToHome: () => void;
+  onNewGame: () => void;
 }
 
-export default function GameMenu({ visible, onResumeGame, onBackToHome }: GameMenuProps) {
+export default function GameMenu({ visible, onResumeGame, onBackToHome, onNewGame }: GameMenuProps) {
   return (
     <Modal
       visible={visible}
@@ -22,7 +23,7 @@ export default function GameMenu({ visible, onResumeGame, onBackToHome }: GameMe
         activeOpacity={1}
         onPress={onResumeGame}
       >
-        <View style={styles.menuContainer}>
+        <View style={styles.menuContainer} onStartShouldSetResponder={() => true}>
           <Text style={styles.menuTitle}>Game Menu</Text>
 
           <TouchableOpacity
@@ -30,6 +31,13 @@ export default function GameMenu({ visible, onResumeGame, onBackToHome }: GameMe
             onPress={onResumeGame}
           >
             <Text style={styles.menuButtonText}>Resume Game</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.menuButton, styles.menuButtonSecondary]}
+            onPress={onNewGame}
+          >
+            <Text style={styles.menuButtonTextSecondary}>New Game</Text>
           </TouchableOpacity>
 
           <TouchableOpacity

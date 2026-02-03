@@ -512,7 +512,8 @@ export default function GameScreen() {
   }
   
   function handleNewGame() {
-    console.log('[Game] New game requested');
+    console.log('[Game] New game requested from menu');
+    setGameMenuVisible(false);
     setConfirmNewGameVisible(true);
   }
   
@@ -612,9 +613,9 @@ export default function GameScreen() {
   }
   
   function handleBackToHome() {
-    console.log('[Game] Back to home');
+    console.log('[Game] Back to home - navigating to /');
     setGameMenuVisible(false);
-    router.push('/');
+    router.replace('/');
   }
   
   const scoreText = `${gameState.score}`;
@@ -773,6 +774,7 @@ export default function GameScreen() {
         visible={gameMenuVisible}
         onResumeGame={handleResumeGame}
         onBackToHome={handleBackToHome}
+        onNewGame={handleNewGame}
       />
     </View>
   );

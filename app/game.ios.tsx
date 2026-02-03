@@ -44,7 +44,7 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const GRID_PADDING = 16;
 const TILE_GAP = 6;
-const HEADER_HEIGHT = 120;
+const HEADER_HEIGHT = 140;
 const POWERUP_BAR_HEIGHT = 80;
 const BOTTOM_MARGIN = 20;
 
@@ -499,7 +499,8 @@ export default function GameScreen() {
   }
   
   function handleNewGame() {
-    console.log('[Game] New game requested');
+    console.log('[Game] New game requested from menu');
+    setGameMenuVisible(false);
     setConfirmNewGameVisible(true);
   }
   
@@ -597,9 +598,9 @@ export default function GameScreen() {
   }
   
   function handleBackToHome() {
-    console.log('[Game] Back to home');
+    console.log('[Game] Back to home - navigating to /');
     setGameMenuVisible(false);
-    router.push('/');
+    router.replace('/');
   }
   
   const scoreText = `${gameState.score}`;
@@ -758,6 +759,7 @@ export default function GameScreen() {
         visible={gameMenuVisible}
         onResumeGame={handleResumeGame}
         onBackToHome={handleBackToHome}
+        onNewGame={handleNewGame}
       />
     </View>
   );
@@ -773,7 +775,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     paddingVertical: 24,
     paddingHorizontal: 20,
-    paddingTop: 32,
+    paddingTop: 60,
     backgroundColor: colors.background,
   },
   scoreContainer: {
