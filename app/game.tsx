@@ -44,7 +44,7 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const GRID_PADDING = 20;
 const TILE_GAP = 8;
-const HEADER_HEIGHT = 120;
+const HEADER_HEIGHT = 140;
 const POWERUP_BAR_HEIGHT = 80;
 const BOTTOM_MARGIN = 20;
 
@@ -101,7 +101,6 @@ export default function GameScreen() {
   const gridOffsetRef = useRef({ x: 0, y: 0, width: 0, height: 0 });
   const [gridMeasured, setGridMeasured] = useState(false);
   
-  // Track if we've loaded initial state to prevent re-loading
   const hasLoadedInitialState = useRef(false);
   
   useEffect(() => {
@@ -132,7 +131,6 @@ export default function GameScreen() {
     setSelectedPowerUpTiles([]);
     setGameOverVisible(false);
     
-    // SAFE TIME: Save after starting new game
     const savedState: SavedGameState = {
       grid: gridToNumbers(newGrid),
       score: 0,
@@ -150,7 +148,6 @@ export default function GameScreen() {
       
       if (savedState) {
         console.log('[Game] Rebuilding grid from saved numbers');
-        // Rebuild grid from saved numbers - single source of truth
         const rebuiltGrid = rebuildGridFromNumbers(savedState.grid);
         
         setGameState({
@@ -169,14 +166,12 @@ export default function GameScreen() {
         startFreshGame();
       }
     } catch (error) {
-      // Error already logged in storage.ts, just start fresh game
       console.error('[Game] Failed to load saved game, starting fresh');
       console.error('[Game] Error:', error instanceof Error ? error.message : String(error));
       startFreshGame();
     }
   }, [startFreshGame]);
   
-  // Load saved game ONLY ONCE when app opens
   useEffect(() => {
     if (hasLoadedInitialState.current) {
       return;
@@ -194,8 +189,6 @@ export default function GameScreen() {
       loadSavedData();
     }
   }, [params, startFreshGame, loadSavedData]);
-  
-  // DO NOT save on every render - removed the useEffect that was causing loops
   
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -255,7 +248,6 @@ export default function GameScreen() {
       console.log('[Game] Bomb power-up: removing tile at', tile.row, tile.col);
       let newGrid = removeTile(gameState.grid, tile.row, tile.col);
       
-      // Apply gravity and spawn in one step
       const afterGravity = applyGravity(newGrid);
       const filledGrid = spawnNewTilesAtTop(afterGravity, gameState.spawnProgression);
       
@@ -273,7 +265,6 @@ export default function GameScreen() {
       setSelectedPowerUpTiles([]);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
       
-      // SAFE TIME: Save after power-up completes
       const savedState: SavedGameState = {
         grid: gridToNumbers(filledGrid),
         score: newState.score,
@@ -305,7 +296,6 @@ export default function GameScreen() {
         setSelectedPowerUpTiles([]);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
         
-        // SAFE TIME: Save after power-up completes
         const savedState: SavedGameState = {
           grid: gridToNumbers(swappedGrid),
           score: newState.score,
@@ -457,7 +447,6 @@ export default function GameScreen() {
     
     const lastTile = finalSelection[finalSelection.length - 1];
     
-    // ATOMIC OPERATION: Calculate complete final state in memory
     const result = resolveChainComplete(
       gameState.grid,
       finalSelection,
@@ -472,7 +461,6 @@ export default function GameScreen() {
     const newScore = gameState.score + result.scoreAdded;
     const newBestScore = Math.max(newScore, gameState.bestScore);
     
-    // UPDATE GRID ONCE with final result - no flashing
     const newState: GameState = {
       grid: result.finalGrid,
       score: newScore,
@@ -487,7 +475,6 @@ export default function GameScreen() {
     
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     
-    // SAFE TIME: Save after move fully completes
     const savedState: SavedGameState = {
       grid: gridToNumbers(result.finalGrid),
       score: newScore,
@@ -548,7 +535,6 @@ export default function GameScreen() {
         setGameState(newState);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         
-        // SAFE TIME: Save after undo completes
         const savedState: SavedGameState = {
           grid: gridToNumbers(gameState.previousGrid),
           score: gameState.previousScore,
@@ -585,7 +571,6 @@ export default function GameScreen() {
         setGameState(newState);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         
-        // SAFE TIME: Save after hint completes
         const savedState: SavedGameState = {
           grid: gridToNumbers(gameState.grid),
           score: newState.score,
@@ -615,7 +600,7 @@ export default function GameScreen() {
   function handleBackToHome() {
     console.log('[Game] Back to home - navigating to /');
     setGameMenuVisible(false);
-    router.replace('/');
+    router.push('/');
   }
   
   const scoreText = `${gameState.score}`;
@@ -784,7 +769,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-    paddingTop: Platform.OS === 'android' ? 48 : 0,
+    paddingTop: Platform.OS === 'android' ? 60 : 0,
   },
   scoreBar: {
     flexDirection: 'row',
