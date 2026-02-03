@@ -656,9 +656,20 @@ export default function GameScreen() {
           )}
           
           {gameState.grid.map((row, rowIndex) => (
-            <View key={rowIndex} style={styles.gridRow}>
+            <View key={`row-${rowIndex}`} style={styles.gridRow}>
               {row.map((tile, colIndex) => {
-                if (!tile) return null;
+                // Create a unique key for each position
+                const positionKey = `tile-${rowIndex}-${colIndex}`;
+                
+                // If tile is null, render an empty placeholder
+                if (!tile) {
+                  return (
+                    <View
+                      key={positionKey}
+                      style={[styles.tileWrapper, { width: TILE_SIZE, height: TILE_SIZE }]}
+                    />
+                  );
+                }
                 
                 const isSelected = selectedTiles.some(
                   t => t.row === rowIndex && t.col === colIndex

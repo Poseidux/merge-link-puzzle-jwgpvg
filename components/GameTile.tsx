@@ -12,7 +12,7 @@ import Animated, {
 import { getTileColor, formatTileValue } from '@/utils/gameLogic';
 
 interface GameTileProps {
-  value: number;
+  value: number | undefined | null;
   isSelected: boolean;
   size: number;
   isAnimating?: boolean;
@@ -20,9 +20,12 @@ interface GameTileProps {
 }
 
 export default function GameTile({ value, isSelected, size, isAnimating = false, animationDelay = 0 }: GameTileProps) {
-  const tileColorData = getTileColor(value);
-  const displayValue = formatTileValue(value);
-  const isGlowing = value >= 1024;
+  // Handle invalid values gracefully
+  const safeValue = (value !== undefined && value !== null && typeof value === 'number' && !isNaN(value)) ? value : 2;
+  
+  const tileColorData = getTileColor(safeValue);
+  const displayValue = formatTileValue(safeValue);
+  const isGlowing = safeValue >= 1024;
   
   const opacity = useSharedValue(1);
   const scale = useSharedValue(1);

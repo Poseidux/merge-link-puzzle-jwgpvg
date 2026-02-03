@@ -15,7 +15,13 @@ export function generateTileId(): string {
 }
 
 // Format tile value for display (K for thousands, M for millions)
-export function formatTileValue(value: number): string {
+export function formatTileValue(value: number | undefined | null): string {
+  // Handle undefined, null, or invalid values
+  if (value === undefined || value === null || typeof value !== 'number' || isNaN(value)) {
+    console.warn('formatTileValue received invalid value:', value);
+    return '';
+  }
+  
   if (value >= 1000000) {
     const millions = value / 1000000;
     return millions % 1 === 0 ? `${millions}M` : `${millions.toFixed(1)}M`;
