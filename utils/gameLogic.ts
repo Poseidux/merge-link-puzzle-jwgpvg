@@ -1,7 +1,7 @@
 
 import { Tile } from '@/types/game';
 
-export const GRID_COLS = 5; // Changed from 6 to 5
+export const GRID_COLS = 5;
 export const GRID_ROWS = 8;
 
 export const GRID_CONFIG = {
@@ -127,6 +127,7 @@ export function removeTilesBelowMinimum(grid: (Tile | null)[][], minValue: numbe
 }
 
 export function createInitialGrid(): (Tile | null)[][] {
+  console.log(`Creating initial grid: ${GRID_ROWS} rows x ${GRID_COLS} cols`);
   const grid: (Tile | null)[][] = [];
   
   for (let row = 0; row < GRID_ROWS; row++) {
@@ -143,6 +144,7 @@ export function createInitialGrid(): (Tile | null)[][] {
     grid.push(rowArray);
   }
   
+  console.log(`Initial grid created with ${grid.length} rows and ${grid[0].length} cols`);
   return grid;
 }
 
@@ -214,11 +216,15 @@ export function resolveChain(
   
   console.log('Resolving chain: highest value =', highestValue, ', new value =', newValue, ', score =', score);
   
+  // Clear all tiles in the chain except the last one
   for (let i = 0; i < selectedTiles.length - 1; i++) {
     const tile = selectedTiles[i];
+    console.log(`Clearing tile at (${tile.row}, ${tile.col}) with value ${tile.value}`);
     newGrid[tile.row][tile.col] = null;
   }
   
+  // Place the merged tile at the last position
+  console.log(`Placing merged tile with value ${newValue} at (${lastTile.row}, ${lastTile.col})`);
   newGrid[lastTile.row][lastTile.col] = {
     id: generateTileId(),
     value: newValue,
@@ -236,8 +242,11 @@ export function applyGravity(grid: (Tile | null)[][]): (Tile | null)[][] {
   
   console.log('Applying gravity to grid');
   
+  // Process each column independently
   for (let col = 0; col < GRID_COLS; col++) {
     const tilesInColumn: Tile[] = [];
+    
+    // Collect all non-null tiles in this column from top to bottom
     for (let row = 0; row < GRID_ROWS; row++) {
       const tile = grid[row][col];
       if (tile !== null) {
@@ -245,6 +254,7 @@ export function applyGravity(grid: (Tile | null)[][]): (Tile | null)[][] {
       }
     }
     
+    // Place tiles at the bottom of the column, moving upwards
     let targetRow = GRID_ROWS - 1;
     for (let i = tilesInColumn.length - 1; i >= 0; i--) {
       const tile = tilesInColumn[i];
@@ -268,6 +278,9 @@ export function spawnNewTilesAtTop(grid: (Tile | null)[][], minTileValue: number
   
   console.log('Spawning new tiles at top of columns');
   
+  let spawnedCount = 0;
+  
+  // Fill all empty cells from top to bottom
   for (let col = 0; col < GRID_COLS; col++) {
     for (let row = 0; row < GRID_ROWS; row++) {
       if (newGrid[row][col] === null) {
@@ -278,11 +291,13 @@ export function spawnNewTilesAtTop(grid: (Tile | null)[][], minTileValue: number
           row,
           col,
         };
+        spawnedCount++;
         console.log(`Spawned new tile with value ${newValue} at (${row}, ${col})`);
       }
     }
   }
   
+  console.log(`Total spawned tiles: ${spawnedCount}`);
   return newGrid;
 }
 
@@ -293,11 +308,14 @@ export function fillEmptyCells(grid: (Tile | null)[][], minTileValue: number): (
 }
 
 export function hasValidMoves(grid: (Tile | null)[][]): boolean {
+  console.log('Checking for valid moves on the board');
+  
   for (let row = 0; row < GRID_ROWS; row++) {
     for (let col = 0; col < GRID_COLS; col++) {
       const tile1 = grid[row][col];
       if (!tile1) continue;
       
+      // Check all 8 directions for adjacent matching tiles
       const directions = [
         [-1, -1], [-1, 0], [-1, 1],
         [0, -1],           [0, 1],
@@ -311,6 +329,7 @@ export function hasValidMoves(grid: (Tile | null)[][]): boolean {
         if (newRow >= 0 && newRow < GRID_ROWS && newCol >= 0 && newCol < GRID_COLS) {
           const tile2 = grid[newRow][newCol];
           if (tile2 && tile1.value === tile2.value) {
+            console.log(`Valid move found: (${row}, ${col}) value ${tile1.value} can merge with (${newRow}, ${newCol}) value ${tile2.value}`);
             return true;
           }
         }
@@ -318,6 +337,7 @@ export function hasValidMoves(grid: (Tile | null)[][]): boolean {
     }
   }
   
+  console.log('No valid moves found on the board');
   return false;
 }
 
@@ -326,10 +346,14 @@ export function ensureValidMovesAfterContinue(grid: (Tile | null)[][], minTileVa
   let attempts = 0;
   const maxAttempts = 20;
   
+  console.log('Ensuring valid moves after continue');
+  
   while (!hasValidMoves(newGrid) && attempts < maxAttempts) {
     const randomRow = Math.floor(Math.random() * GRID_ROWS);
     const randomCol = Math.floor(Math.random() * GRID_COLS);
     const newValue = minTileValue;
+    
+    console.log(`Attempt ${attempts + 1}: Placing tile with value ${newValue} at (${randomRow}, ${randomCol})`);
     
     newGrid[randomRow][randomCol] = {
       id: generateTileId(),

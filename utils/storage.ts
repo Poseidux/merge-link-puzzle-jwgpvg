@@ -1,9 +1,9 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { GameState, GameSettings } from '@/types/game';
+import { GameState } from '@/types/game';
+import { GRID_CONFIG } from './gameLogic';
 
-const GAME_STATE_KEY = '@merge_puzzle_game_state';
-const SETTINGS_KEY = '@merge_puzzle_settings';
+const GAME_STATE_KEY = '@game_state';
 
 export async function saveGameState(state: GameState): Promise<void> {
   try {
@@ -19,7 +19,31 @@ export async function loadGameState(): Promise<GameState | null> {
   try {
     console.log('Loading game state from storage');
     const jsonValue = await AsyncStorage.getItem(GAME_STATE_KEY);
-    return jsonValue != null ? JSON.parse(jsonValue) : null;
+    
+    if (jsonValue === null) {
+      console.log('No saved game state found');
+      return null;
+    }
+    
+    const state = JSON.parse(jsonValue) as GameState;
+    console.log('Saved game state:', JSON.stringify(state));
+    
+    // Validate grid dimensions - if mismatch, return null to start fresh
+    if (state.grid.length !== GRID_CONFIG.ROWS) {
+      console.warn(`Grid row mismatch: saved has ${state.grid.length} rows, expected ${GRID_CONFIG.ROWS}. Starting fresh game.`);
+      await clearGameState();
+      return null;
+    }
+    
+    for (let row = 0; row < state.grid.length; row++) {
+      if (state.grid[row].length !== GRID_CONFIG.COLS) {
+        console.warn(`Grid column mismatch at row ${row}: saved has ${state.grid[row].length} cols, expected ${GRID_CONFIG.COLS}. Starting fresh game.`);
+        await clearGameState();
+        return null;
+      }
+    }
+    
+    return state;
   } catch (error) {
     console.error('Error loading game state:', error);
     return null;
@@ -32,26 +56,5 @@ export async function clearGameState(): Promise<void> {
     await AsyncStorage.removeItem(GAME_STATE_KEY);
   } catch (error) {
     console.error('Error clearing game state:', error);
-  }
-}
-
-export async function saveSettings(settings: GameSettings): Promise<void> {
-  try {
-    console.log('Saving settings to storage:', settings);
-    const jsonValue = JSON.stringify(settings);
-    await AsyncStorage.setItem(SETTINGS_KEY, jsonValue);
-  } catch (error) {
-    console.error('Error saving settings:', error);
-  }
-}
-
-export async function loadSettings(): Promise<GameSettings | null> {
-  try {
-    console.log('Loading settings from storage');
-    const jsonValue = await AsyncStorage.getItem(SETTINGS_KEY);
-    return jsonValue != null ? JSON.parse(jsonValue) : null;
-  } catch (error) {
-    console.error('Error loading settings:', error);
-    return null;
   }
 }
