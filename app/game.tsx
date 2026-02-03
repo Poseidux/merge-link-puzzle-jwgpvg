@@ -22,7 +22,7 @@ import { GameState, Tile } from '@/types/game';
 import {
   createInitialGrid,
   isValidChain,
-  resolveChain,
+  resolveChainComplete,
   applyGravity,
   spawnNewTilesAtTop,
   hasValidMoves,
@@ -30,11 +30,14 @@ import {
   findValidChain,
   removeTile,
   swapTiles,
+  rebuildGridFromNumbers,
+  gridToNumbers,
 } from '@/utils/gameLogic';
 import {
   saveGameState,
   loadGameState,
   clearGameState,
+  SavedGameState,
 } from '@/utils/storage';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -98,17 +101,20 @@ export default function GameScreen() {
   const gridOffsetRef = useRef({ x: 0, y: 0, width: 0, height: 0 });
   const [gridMeasured, setGridMeasured] = useState(false);
   
+  // Track if we've loaded initial state to prevent re-loading
+  const hasLoadedInitialState = useRef(false);
+  
   useEffect(() => {
     selectedTilesRef.current = selectedTiles;
   }, [selectedTiles]);
   
   const startFreshGame = useCallback(() => {
-    console.log('Starting fresh game');
+    console.log('[Game] Starting fresh game');
     const newGrid = createInitialGrid();
-    setGameState(prev => ({
+    const newState: GameState = {
       grid: newGrid,
       score: 0,
-      bestScore: prev.bestScore,
+      bestScore: gameState.bestScore,
       powerUps: {
         undo: 2,
         hint: 2,
@@ -118,38 +124,78 @@ export default function GameScreen() {
       previousGrid: null,
       previousScore: 0,
       spawnProgression: 0,
-    }));
+    };
+    
+    setGameState(newState);
     setHighlightedTiles(new Set());
     setActivePowerUp(null);
     setSelectedPowerUpTiles([]);
     setGameOverVisible(false);
-  }, []);
+    
+    // SAFE TIME: Save after starting new game
+    const savedState: SavedGameState = {
+      grid: gridToNumbers(newGrid),
+      score: 0,
+      bestScore: newState.bestScore,
+      powerUps: newState.powerUps,
+      spawnProgression: 0,
+    };
+    saveGameState(savedState);
+  }, [gameState.bestScore]);
   
   const loadSavedData = useCallback(async () => {
-    const savedState = await loadGameState();
-    
-    if (savedState) {
-      console.log('Loaded saved game state');
-      setGameState(savedState);
+    try {
+      console.log('[Game] Loading saved game state');
+      const savedState = await loadGameState();
+      
+      if (savedState) {
+        console.log('[Game] Rebuilding grid from saved numbers');
+        // Rebuild grid from saved numbers - single source of truth
+        const rebuiltGrid = rebuildGridFromNumbers(savedState.grid);
+        
+        setGameState({
+          grid: rebuiltGrid,
+          score: savedState.score,
+          bestScore: savedState.bestScore,
+          powerUps: savedState.powerUps,
+          previousGrid: null,
+          previousScore: 0,
+          spawnProgression: savedState.spawnProgression,
+        });
+        
+        console.log('[Game] Loaded saved game - Score:', savedState.score);
+      } else {
+        console.log('[Game] No saved game found, starting fresh');
+        startFreshGame();
+      }
+    } catch (error) {
+      // Error already logged in storage.ts, just start fresh game
+      console.error('[Game] Failed to load saved game, starting fresh');
+      console.error('[Game] Error:', error instanceof Error ? error.message : String(error));
+      startFreshGame();
     }
-  }, []);
+  }, [startFreshGame]);
   
+  // Load saved game ONLY ONCE when app opens
   useEffect(() => {
-    console.log('GameScreen mounted on platform:', Platform.OS);
+    if (hasLoadedInitialState.current) {
+      return;
+    }
+    
+    hasLoadedInitialState.current = true;
+    console.log('[Game] GameScreen mounted on platform:', Platform.OS);
+    
     if (params.newGame === 'true') {
-      console.log('Starting new game from home screen');
+      console.log('[Game] Starting new game from home screen');
       clearGameState();
       startFreshGame();
     } else {
-      console.log('Loading game state from storage');
+      console.log('[Game] Loading game state from storage');
       loadSavedData();
     }
   }, [params, startFreshGame, loadSavedData]);
   
-  useEffect(() => {
-    console.log('Game state changed, saving to storage');
-    saveGameState(gameState);
-  }, [gameState]);
+  // DO NOT save on every render - removed the useEffect that was causing loops
   
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -157,7 +203,7 @@ export default function GameScreen() {
         gridContainerRef.current.measure((x, y, width, height, pageX, pageY) => {
           gridOffsetRef.current = { x: pageX, y: pageY, width, height };
           setGridMeasured(true);
-          console.log('Grid measured - pageX:', pageX, 'pageY:', pageY);
+          console.log('[Game] Grid measured - pageX:', pageX, 'pageY:', pageY);
         });
       }
     }, 100);
@@ -190,7 +236,7 @@ export default function GameScreen() {
   }, [gameState.grid]);
   
   const handlePowerUpTileSelection = useCallback((event: any) => {
-    console.log('Power-up tile selection');
+    console.log('[Game] Power-up tile selection');
     const touch = event.nativeEvent.touches[0];
     if (!touch) {
       return;
@@ -206,53 +252,75 @@ export default function GameScreen() {
     }
     
     if (activePowerUp === 'bomb') {
-      console.log('Bomb power-up: removing tile at', tile.row, tile.col);
+      console.log('[Game] Bomb power-up: removing tile at', tile.row, tile.col);
       let newGrid = removeTile(gameState.grid, tile.row, tile.col);
       
+      // Apply gravity and spawn in one step
       const afterGravity = applyGravity(newGrid);
       const filledGrid = spawnNewTilesAtTop(afterGravity, gameState.spawnProgression);
       
-      setGameState(prev => ({
-        ...prev,
+      const newState: GameState = {
+        ...gameState,
         grid: filledGrid,
         powerUps: {
-          ...prev.powerUps,
-          bomb: prev.powerUps.bomb - 1,
+          ...gameState.powerUps,
+          bomb: gameState.powerUps.bomb - 1,
         },
-      }));
+      };
       
+      setGameState(newState);
       setActivePowerUp(null);
       setSelectedPowerUpTiles([]);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      
+      // SAFE TIME: Save after power-up completes
+      const savedState: SavedGameState = {
+        grid: gridToNumbers(filledGrid),
+        score: newState.score,
+        bestScore: newState.bestScore,
+        powerUps: newState.powerUps,
+        spawnProgression: newState.spawnProgression,
+      };
+      saveGameState(savedState);
     } else if (activePowerUp === 'swap') {
-      console.log('Swap power-up: selecting tile', selectedPowerUpTiles.length + 1);
+      console.log('[Game] Swap power-up: selecting tile', selectedPowerUpTiles.length + 1);
       const newSelected = [...selectedPowerUpTiles, tile];
       setSelectedPowerUpTiles(newSelected);
       
       if (newSelected.length === 2) {
-        console.log('Swapping tiles');
+        console.log('[Game] Swapping tiles');
         const swappedGrid = swapTiles(gameState.grid, newSelected[0], newSelected[1]);
-        setGameState(prev => ({
-          ...prev,
+        
+        const newState: GameState = {
+          ...gameState,
           grid: swappedGrid,
           powerUps: {
-            ...prev.powerUps,
-            swap: prev.powerUps.swap - 1,
+            ...gameState.powerUps,
+            swap: gameState.powerUps.swap - 1,
           },
-        }));
+        };
         
+        setGameState(newState);
         setActivePowerUp(null);
         setSelectedPowerUpTiles([]);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+        
+        // SAFE TIME: Save after power-up completes
+        const savedState: SavedGameState = {
+          grid: gridToNumbers(swappedGrid),
+          score: newState.score,
+          bestScore: newState.bestScore,
+          powerUps: newState.powerUps,
+          spawnProgression: newState.spawnProgression,
+        };
+        saveGameState(savedState);
       } else {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
     }
-  }, [activePowerUp, gameState.grid, gameState.spawnProgression, selectedPowerUpTiles, getTileAtPosition]);
+  }, [activePowerUp, gameState, selectedPowerUpTiles, getTileAtPosition]);
   
   const handleTouchStart = useCallback((event: any) => {
-    console.log('Touch start - gridMeasured:', gridMeasured, 'activePowerUp:', activePowerUp);
-    
     if (!gridMeasured) {
       if (gridContainerRef.current) {
         gridContainerRef.current.measure((x, y, width, height, pageX, pageY) => {
@@ -279,7 +347,7 @@ export default function GameScreen() {
     const tile = getTileAtPosition(locationX, locationY);
     
     if (tile) {
-      console.log('User started chain with tile at row:', tile.row, 'col:', tile.col, 'value:', tile.value);
+      console.log('[Game] User started chain with tile at row:', tile.row, 'col:', tile.col, 'value:', tile.value);
       const newSelection = [tile];
       setSelectedTiles(newSelection);
       selectedTilesRef.current = newSelection;
@@ -313,7 +381,7 @@ export default function GameScreen() {
       if (currentSelection.length >= 2) {
         const previousTile = currentSelection[currentSelection.length - 2];
         if (tile.row === previousTile.row && tile.col === previousTile.col) {
-          console.log('User backtracked in chain');
+          console.log('[Game] User backtracked in chain');
           const newSelection = currentSelection.slice(0, -1);
           setSelectedTiles(newSelection);
           selectedTilesRef.current = newSelection;
@@ -352,7 +420,7 @@ export default function GameScreen() {
       }
       
       if (canAdd) {
-        console.log('Adding tile to chain - value:', tile.value);
+        console.log('[Game] Adding tile to chain - value:', tile.value);
         const newSelection = [...currentSelection, tile];
         setSelectedTiles(newSelection);
         selectedTilesRef.current = newSelection;
@@ -362,92 +430,100 @@ export default function GameScreen() {
   }, [activePowerUp, getTileAtPosition, gridMeasured]);
   
   const handleTouchEnd = useCallback(() => {
-    console.log('Touch end');
+    console.log('[Game] Touch end');
     
     if (!gridMeasured || activePowerUp) {
       return;
     }
     
     const finalSelection = selectedTilesRef.current;
-    console.log('User released chain with length:', finalSelection.length);
+    console.log('[Game] User released chain with length:', finalSelection.length);
     
     setSelectedTiles([]);
     selectedTilesRef.current = [];
     
     if (finalSelection.length < 2) {
-      console.log('Chain too short');
+      console.log('[Game] Chain too short');
       return;
     }
     
     if (!isValidChain(finalSelection)) {
-      console.log('Invalid chain');
+      console.log('[Game] Invalid chain');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
     
-    console.log('Valid chain, resolving');
+    console.log('[Game] Valid chain, resolving atomically (merge + gravity + spawn)');
     
     const lastTile = finalSelection[finalSelection.length - 1];
     
-    const resolveResult = resolveChain(gameState.grid, finalSelection);
-    let newGrid = resolveResult.newGrid;
-    const scoreAdded = resolveResult.scoreAdded;
-    const finalValue = resolveResult.finalValue;
+    // ATOMIC OPERATION: Calculate complete final state in memory
+    const result = resolveChainComplete(
+      gameState.grid,
+      finalSelection,
+      gameState.spawnProgression
+    );
     
     const scoreId = `score_${Date.now()}`;
     const scoreX = lastTile.col * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
     const scoreY = lastTile.row * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
-    setFloatingScores(prev => [...prev, { id: scoreId, score: scoreAdded, x: scoreX, y: scoreY }]);
+    setFloatingScores(prev => [...prev, { id: scoreId, score: result.scoreAdded, x: scoreX, y: scoreY }]);
     
-    const newScore = gameState.score + scoreAdded;
+    const newScore = gameState.score + result.scoreAdded;
     const newBestScore = Math.max(newScore, gameState.bestScore);
-    const newSpawnProgression = gameState.spawnProgression + 1;
     
-    console.log('Applying gravity');
-    const afterGravity = applyGravity(newGrid);
-    
-    console.log('Spawning new tiles');
-    const filledGrid = spawnNewTilesAtTop(afterGravity, newSpawnProgression);
-    
-    setGameState(prev => ({
-      ...prev,
-      grid: filledGrid,
+    // UPDATE GRID ONCE with final result - no flashing
+    const newState: GameState = {
+      grid: result.finalGrid,
       score: newScore,
       bestScore: newBestScore,
-      spawnProgression: newSpawnProgression,
+      spawnProgression: result.newSpawnProgression,
       previousGrid: gameState.grid,
       previousScore: gameState.score,
-    }));
+      powerUps: gameState.powerUps,
+    };
+    
+    setGameState(newState);
     
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     
+    // SAFE TIME: Save after move fully completes
+    const savedState: SavedGameState = {
+      grid: gridToNumbers(result.finalGrid),
+      score: newScore,
+      bestScore: newBestScore,
+      powerUps: newState.powerUps,
+      spawnProgression: result.newSpawnProgression,
+    };
+    saveGameState(savedState);
+    
     setTimeout(() => {
-      if (!hasValidMoves(filledGrid)) {
-        console.log('No valid moves, game over');
+      if (!hasValidMoves(result.finalGrid)) {
+        console.log('[Game] No valid moves, game over');
         setGameOverVisible(true);
       }
     }, 300);
   }, [activePowerUp, gameState, gridMeasured]);
   
   function handleRestart() {
-    console.log('Restart game');
+    console.log('[Game] Restart game');
     setGameOverVisible(false);
     startFreshGame();
   }
   
   function handleNewGame() {
-    console.log('New game requested');
+    console.log('[Game] New game requested');
     setConfirmNewGameVisible(true);
   }
   
   function confirmNewGame() {
-    console.log('New game confirmed');
+    console.log('[Game] New game confirmed');
     setConfirmNewGameVisible(false);
     startFreshGame();
   }
   
   function handlePowerUpPress(powerUpId: string) {
-    console.log('Power-up pressed:', powerUpId);
+    console.log('[Game] Power-up pressed:', powerUpId);
     
     const usesLeft = gameState.powerUps[powerUpId as keyof typeof gameState.powerUps];
     if (usesLeft === 0) {
@@ -456,18 +532,30 @@ export default function GameScreen() {
     
     if (powerUpId === 'undo') {
       if (gameState.previousGrid) {
-        console.log('Undo: restoring previous grid');
-        setGameState(prev => ({
-          ...prev,
-          grid: prev.previousGrid!,
-          score: prev.previousScore,
+        console.log('[Game] Undo: restoring previous grid');
+        const newState: GameState = {
+          ...gameState,
+          grid: gameState.previousGrid,
+          score: gameState.previousScore,
           powerUps: {
-            ...prev.powerUps,
-            undo: prev.powerUps.undo - 1,
+            ...gameState.powerUps,
+            undo: gameState.powerUps.undo - 1,
           },
           previousGrid: null,
-        }));
+        };
+        
+        setGameState(newState);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        
+        // SAFE TIME: Save after undo completes
+        const savedState: SavedGameState = {
+          grid: gridToNumbers(gameState.previousGrid),
+          score: gameState.previousScore,
+          bestScore: newState.bestScore,
+          powerUps: newState.powerUps,
+          spawnProgression: newState.spawnProgression,
+        };
+        saveGameState(savedState);
       }
     } else if (powerUpId === 'hint') {
       const validChain = findValidChain(gameState.grid);
@@ -485,15 +573,26 @@ export default function GameScreen() {
           setHighlightedTiles(new Set());
         }, 2000);
         
-        setGameState(prev => ({
-          ...prev,
+        const newState: GameState = {
+          ...gameState,
           powerUps: {
-            ...prev.powerUps,
-            hint: prev.powerUps.hint - 1,
+            ...gameState.powerUps,
+            hint: gameState.powerUps.hint - 1,
           },
-        }));
+        };
         
+        setGameState(newState);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        
+        // SAFE TIME: Save after hint completes
+        const savedState: SavedGameState = {
+          grid: gridToNumbers(gameState.grid),
+          score: newState.score,
+          bestScore: newState.bestScore,
+          powerUps: newState.powerUps,
+          spawnProgression: newState.spawnProgression,
+        };
+        saveGameState(savedState);
       }
     } else if (powerUpId === 'bomb' || powerUpId === 'swap') {
       setActivePowerUp(powerUpId);
@@ -503,17 +602,17 @@ export default function GameScreen() {
   }
   
   function handleSettingsPress() {
-    console.log('Settings button pressed');
+    console.log('[Game] Settings button pressed');
     setGameMenuVisible(true);
   }
   
   function handleResumeGame() {
-    console.log('Resume game');
+    console.log('[Game] Resume game');
     setGameMenuVisible(false);
   }
   
   function handleBackToHome() {
-    console.log('Back to home');
+    console.log('[Game] Back to home');
     setGameMenuVisible(false);
     router.push('/');
   }
@@ -555,7 +654,7 @@ export default function GameScreen() {
           <Text style={styles.powerUpModeText}>{powerUpModeText}</Text>
           <TouchableOpacity
             onPress={() => {
-              console.log('Cancelling power-up mode');
+              console.log('[Game] Cancelling power-up mode');
               setActivePowerUp(null);
               setSelectedPowerUpTiles([]);
             }}

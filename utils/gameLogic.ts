@@ -53,6 +53,35 @@ export function createInitialGrid(): Tile[][] {
   return grid;
 }
 
+/**
+ * Rebuild grid from saved numbers.
+ * This ensures the tile.value is the single source of truth.
+ */
+export function rebuildGridFromNumbers(gridNumbers: number[][]): Tile[][] {
+  const grid: Tile[][] = [];
+  for (let r = 0; r < GRID_CONFIG.ROWS; r++) {
+    grid[r] = [];
+    for (let c = 0; c < GRID_CONFIG.COLS; c++) {
+      const value = gridNumbers[r] && gridNumbers[r][c] ? gridNumbers[r][c] : 2;
+      grid[r][c] = {
+        id: generateTileId(),
+        value: value,
+        row: r,
+        col: c,
+      };
+    }
+  }
+  return grid;
+}
+
+/**
+ * Convert grid to plain numbers for saving.
+ * This keeps saved data minimal and consistent.
+ */
+export function gridToNumbers(grid: Tile[][]): number[][] {
+  return grid.map(row => row.map(tile => tile ? tile.value : 0));
+}
+
 export function areTilesAdjacent(tile1: { row: number; col: number }, tile2: { row: number; col: number }): boolean {
   const dr = Math.abs(tile1.row - tile2.row);
   const dc = Math.abs(tile1.col - tile2.col);
@@ -82,6 +111,60 @@ export function isValidChain(chain: { row: number; col: number; value: number }[
   }
   
   return true;
+}
+
+/**
+ * Resolve chain and return the complete final board state.
+ * This calculates merge + gravity + spawn in memory and returns the final result.
+ * The caller should update the grid ONCE with this result to avoid flashing.
+ */
+export function resolveChainComplete(
+  grid: Tile[][],
+  chain: { row: number; col: number; value: number }[],
+  spawnProgression: number
+): { 
+  finalGrid: Tile[][]; 
+  scoreAdded: number; 
+  finalValue: number;
+  newSpawnProgression: number;
+} {
+  // Step 1: Merge
+  const newGrid = grid.map(row => [...row]);
+  
+  let scoreAdded = 0;
+  let highestValue = 0;
+  
+  chain.forEach(tile => {
+    scoreAdded += tile.value;
+    if (tile.value > highestValue) {
+      highestValue = tile.value;
+    }
+  });
+  
+  // Clear all tiles except the last one
+  for (let i = 0; i < chain.length - 1; i++) {
+    const tile = chain[i];
+    newGrid[tile.row][tile.col] = null as any;
+  }
+  
+  const lastTile = chain[chain.length - 1];
+  const finalValue = highestValue * 2;
+  
+  newGrid[lastTile.row][lastTile.col] = {
+    id: generateTileId(),
+    value: finalValue,
+    row: lastTile.row,
+    col: lastTile.col,
+  };
+  
+  // Step 2: Apply gravity
+  const afterGravity = applyGravity(newGrid);
+  
+  // Step 3: Spawn new tiles
+  const newSpawnProgression = spawnProgression + 1;
+  const finalGrid = spawnNewTilesAtTop(afterGravity, newSpawnProgression);
+  
+  return { finalGrid, scoreAdded, finalValue, newSpawnProgression };
 }
 
 export function resolveChain(

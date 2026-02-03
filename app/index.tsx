@@ -4,8 +4,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-nati
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '@/styles/commonStyles';
-import { loadGameState } from '@/utils/storage';
-import { GameState } from '@/types/game';
+import { loadGameState, SavedGameState } from '@/utils/storage';
 import ConfirmModal from '@/components/ConfirmModal';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -14,36 +13,43 @@ const SCREEN_HEIGHT = Dimensions.get('window').height;
 export default function HomeScreen() {
   const router = useRouter();
   const [hasSavedGame, setHasSavedGame] = useState(false);
-  const [savedGameState, setSavedGameState] = useState<GameState | null>(null);
+  const [savedGameState, setSavedGameState] = useState<SavedGameState | null>(null);
   const [confirmNewGameVisible, setConfirmNewGameVisible] = useState(false);
 
   useEffect(() => {
-    console.log('HomeScreen mounted, checking for saved game');
+    console.log('[Home] HomeScreen mounted, checking for saved game');
     checkForSavedGame();
   }, []);
 
   async function checkForSavedGame() {
-    const savedState = await loadGameState();
-    console.log('Saved game state:', savedState);
-    
-    if (savedState && savedState.grid && savedState.grid.length > 0) {
-      setHasSavedGame(true);
-      setSavedGameState(savedState);
-    } else {
+    try {
+      const savedState = await loadGameState();
+      console.log('[Home] Saved game state:', savedState);
+      
+      if (savedState && savedState.grid && savedState.grid.length > 0) {
+        setHasSavedGame(true);
+        setSavedGameState(savedState);
+      } else {
+        setHasSavedGame(false);
+        setSavedGameState(null);
+      }
+    } catch (error) {
+      console.error('[Home] Failed to check for saved game');
+      console.error('[Home] Error:', error instanceof Error ? error.message : String(error));
       setHasSavedGame(false);
       setSavedGameState(null);
     }
   }
 
   function handleContinue() {
-    console.log('User tapped Continue button');
+    console.log('[Home] User tapped Continue button');
     if (hasSavedGame) {
       router.push('/game');
     }
   }
 
   function handleNewGame() {
-    console.log('User tapped New Game button');
+    console.log('[Home] User tapped New Game button');
     if (hasSavedGame) {
       setConfirmNewGameVisible(true);
     } else {
@@ -52,7 +58,7 @@ export default function HomeScreen() {
   }
 
   function startNewGame() {
-    console.log('Starting new game');
+    console.log('[Home] Starting new game');
     setConfirmNewGameVisible(false);
     router.push('/game?newGame=true');
   }
