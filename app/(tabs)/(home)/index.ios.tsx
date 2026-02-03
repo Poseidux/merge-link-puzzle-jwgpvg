@@ -149,9 +149,10 @@ export default function GameScreen() {
     saveGameState(gameState);
   }, [gameState]);
   
+  // Measure grid only once on mount, not on every grid change
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (gridContainerRef.current) {
+      if (gridContainerRef.current && !gridMeasured) {
         gridContainerRef.current.measure((x, y, width, height, pageX, pageY) => {
           gridOffsetRef.current = { x: pageX, y: pageY, width, height };
           setGridMeasured(true);
@@ -161,7 +162,7 @@ export default function GameScreen() {
     }, 200);
     
     return () => clearTimeout(timer);
-  }, [gameState.grid]);
+  }, []); // Empty dependency array - only run once on mount
   
   const getTileAtPosition = useCallback((x: number, y: number): SelectedTile | null => {
     const col = Math.floor(x / (TILE_SIZE + TILE_GAP));
@@ -426,6 +427,7 @@ export default function GameScreen() {
       console.log('Spawning new tiles');
       const filledGrid = spawnNewTilesAtTop(afterGravity, currentMinTileValue);
       
+      // Update state in a single batch to prevent multiple re-renders
       setGameState(prev => ({
         ...prev,
         grid: filledGrid,
@@ -436,6 +438,7 @@ export default function GameScreen() {
       
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       
+      // Check for game over after a short delay
       setTimeout(() => {
         if (!hasValidMoves(filledGrid)) {
           console.log('No valid moves, game over');
