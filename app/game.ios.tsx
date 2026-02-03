@@ -42,11 +42,11 @@ import {
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
-const GRID_PADDING = 20;
-const TILE_GAP = 8;
-const HEADER_HEIGHT = 140;
+const GRID_PADDING = 16;
+const TILE_GAP = 6;
+const HEADER_HEIGHT = 120;
 const POWERUP_BAR_HEIGHT = 80;
-const BOTTOM_MARGIN = 40;
+const BOTTOM_MARGIN = 20;
 
 const AVAILABLE_HEIGHT = SCREEN_HEIGHT - HEADER_HEIGHT - POWERUP_BAR_HEIGHT - BOTTOM_MARGIN - 40;
 const AVAILABLE_WIDTH = SCREEN_WIDTH - GRID_PADDING * 2;
@@ -54,7 +54,7 @@ const AVAILABLE_WIDTH = SCREEN_WIDTH - GRID_PADDING * 2;
 const TILE_SIZE_BY_WIDTH = (AVAILABLE_WIDTH - TILE_GAP * (GRID_CONFIG.COLS - 1)) / GRID_CONFIG.COLS;
 const TILE_SIZE_BY_HEIGHT = (AVAILABLE_HEIGHT - TILE_GAP * (GRID_CONFIG.ROWS - 1)) / GRID_CONFIG.ROWS;
 
-const MAX_TILE_SIZE = 70;
+const MAX_TILE_SIZE = 75;
 const TILE_SIZE = Math.min(TILE_SIZE_BY_WIDTH, TILE_SIZE_BY_HEIGHT, MAX_TILE_SIZE);
 
 const GRID_WIDTH = GRID_CONFIG.COLS * TILE_SIZE + (GRID_CONFIG.COLS - 1) * TILE_GAP;
@@ -101,7 +101,6 @@ export default function GameScreen() {
   const gridOffsetRef = useRef({ x: 0, y: 0, width: 0, height: 0 });
   const [gridMeasured, setGridMeasured] = useState(false);
   
-  // Track if we've loaded initial state to prevent re-loading
   const hasLoadedInitialState = useRef(false);
   
   useEffect(() => {
@@ -132,7 +131,6 @@ export default function GameScreen() {
     setSelectedPowerUpTiles([]);
     setGameOverVisible(false);
     
-    // SAFE TIME: Save after starting new game
     const savedState: SavedGameState = {
       grid: gridToNumbers(newGrid),
       score: 0,
@@ -150,7 +148,6 @@ export default function GameScreen() {
       
       if (savedState) {
         console.log('[Game] Rebuilding grid from saved numbers');
-        // Rebuild grid from saved numbers - single source of truth
         const rebuiltGrid = rebuildGridFromNumbers(savedState.grid);
         
         setGameState({
@@ -169,14 +166,12 @@ export default function GameScreen() {
         startFreshGame();
       }
     } catch (error) {
-      // Error already logged in storage.ts, just start fresh game
       console.error('[Game] Failed to load saved game, starting fresh');
       console.error('[Game] Error:', error instanceof Error ? error.message : String(error));
       startFreshGame();
     }
   }, [startFreshGame]);
   
-  // Load saved game ONLY ONCE when app opens
   useEffect(() => {
     if (hasLoadedInitialState.current) {
       return;
@@ -194,8 +189,6 @@ export default function GameScreen() {
       loadSavedData();
     }
   }, [params, startFreshGame, loadSavedData]);
-  
-  // DO NOT save on every render - removed the useEffect that was causing loops
   
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -255,7 +248,6 @@ export default function GameScreen() {
       console.log('[Game] Bomb power-up: removing tile at', tile.row, tile.col);
       let newGrid = removeTile(gameState.grid, tile.row, tile.col);
       
-      // Apply gravity and spawn in one step
       const afterGravity = applyGravity(newGrid);
       const filledGrid = spawnNewTilesAtTop(afterGravity, gameState.spawnProgression);
       
@@ -273,7 +265,6 @@ export default function GameScreen() {
       setSelectedPowerUpTiles([]);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
       
-      // SAFE TIME: Save after power-up completes
       const savedState: SavedGameState = {
         grid: gridToNumbers(filledGrid),
         score: newState.score,
@@ -305,7 +296,6 @@ export default function GameScreen() {
         setSelectedPowerUpTiles([]);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
         
-        // SAFE TIME: Save after power-up completes
         const savedState: SavedGameState = {
           grid: gridToNumbers(swappedGrid),
           score: newState.score,
@@ -457,7 +447,6 @@ export default function GameScreen() {
     
     const lastTile = finalSelection[finalSelection.length - 1];
     
-    // ATOMIC OPERATION: Calculate complete final state in memory
     const result = resolveChainComplete(
       gameState.grid,
       finalSelection,
@@ -472,7 +461,6 @@ export default function GameScreen() {
     const newScore = gameState.score + result.scoreAdded;
     const newBestScore = Math.max(newScore, gameState.bestScore);
     
-    // UPDATE GRID ONCE with final result - no flashing
     const newState: GameState = {
       grid: result.finalGrid,
       score: newScore,
@@ -487,7 +475,6 @@ export default function GameScreen() {
     
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     
-    // SAFE TIME: Save after move fully completes
     const savedState: SavedGameState = {
       grid: gridToNumbers(result.finalGrid),
       score: newScore,
@@ -547,7 +534,6 @@ export default function GameScreen() {
         setGameState(newState);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         
-        // SAFE TIME: Save after undo completes
         const savedState: SavedGameState = {
           grid: gridToNumbers(gameState.previousGrid),
           score: gameState.previousScore,
@@ -584,7 +570,6 @@ export default function GameScreen() {
         setGameState(newState);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         
-        // SAFE TIME: Save after hint completes
         const savedState: SavedGameState = {
           grid: gridToNumbers(gameState.grid),
           score: newState.score,
@@ -694,8 +679,8 @@ export default function GameScreen() {
                     y1={y1}
                     x2={x2}
                     y2={y2}
-                    stroke={colors.accent}
-                    strokeWidth={4}
+                    stroke="#FFD700"
+                    strokeWidth={5}
                     strokeLinecap="round"
                   />
                 );
@@ -786,53 +771,67 @@ const styles = StyleSheet.create({
   scoreBar: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    paddingVertical: 20,
-    paddingHorizontal: 16,
-    paddingTop: 60,
+    paddingVertical: 24,
+    paddingHorizontal: 20,
+    paddingTop: 32,
     backgroundColor: colors.background,
   },
   scoreContainer: {
     alignItems: 'center',
+    backgroundColor: colors.cardBackground,
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   scoreLabel: {
-    fontSize: 14,
+    fontSize: 13,
     color: colors.textSecondary,
-    fontWeight: '600',
+    fontWeight: '700',
     marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
   scoreValue: {
-    fontSize: 32,
-    color: colors.text,
-    fontWeight: 'bold',
+    fontSize: 36,
+    color: colors.primary,
+    fontWeight: '900',
   },
   bestScoreValue: {
-    fontSize: 32,
+    fontSize: 36,
     color: colors.accent,
-    fontWeight: 'bold',
+    fontWeight: '900',
   },
   powerUpModeBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 24,
-    paddingVertical: 12,
+    paddingVertical: 14,
     backgroundColor: colors.primary,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: 12,
   },
   powerUpModeText: {
     fontSize: 16,
     color: '#FFF',
-    fontWeight: '600',
+    fontWeight: '700',
   },
   cancelButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 6,
+    paddingHorizontal: 18,
+    paddingVertical: 8,
     backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    borderRadius: 8,
+    borderRadius: 10,
   },
   cancelButtonText: {
     fontSize: 14,
     color: '#FFF',
-    fontWeight: '700',
+    fontWeight: '800',
   },
   gameContainer: {
     flex: 1,
