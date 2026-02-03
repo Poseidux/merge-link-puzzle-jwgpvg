@@ -216,8 +216,8 @@ export function resolveChain(
   
   console.log('Resolving chain: highest value =', highestValue, ', new value =', newValue, ', score =', score);
   
-  // Clear all tiles in the chain except the last one
-  for (let i = 0; i < selectedTiles.length - 1; i++) {
+  // Clear ALL tiles in the chain (including the last one)
+  for (let i = 0; i < selectedTiles.length; i++) {
     const tile = selectedTiles[i];
     console.log(`Clearing tile at (${tile.row}, ${tile.col}) with value ${tile.value}`);
     newGrid[tile.row][tile.col] = null;
@@ -236,17 +236,18 @@ export function resolveChain(
 }
 
 export function applyGravity(grid: (Tile | null)[][]): (Tile | null)[][] {
+  console.log('Applying gravity to grid');
+  
+  // Create a new grid filled with nulls
   const newGrid: (Tile | null)[][] = Array.from({ length: GRID_ROWS }, () => 
     Array(GRID_COLS).fill(null)
   );
   
-  console.log('Applying gravity to grid');
-  
   // Process each column independently
   for (let col = 0; col < GRID_COLS; col++) {
+    // Collect all non-null tiles in this column from top to bottom
     const tilesInColumn: Tile[] = [];
     
-    // Collect all non-null tiles in this column from top to bottom
     for (let row = 0; row < GRID_ROWS; row++) {
       const tile = grid[row][col];
       if (tile !== null) {
@@ -254,33 +255,37 @@ export function applyGravity(grid: (Tile | null)[][]): (Tile | null)[][] {
       }
     }
     
-    // Place tiles at the bottom of the column, moving upwards
-    let targetRow = GRID_ROWS - 1;
+    // Place tiles at the bottom of the column, filling from bottom to top
+    let writeRow = GRID_ROWS - 1; // Start at the bottom row
+    
     for (let i = tilesInColumn.length - 1; i >= 0; i--) {
       const tile = tilesInColumn[i];
-      newGrid[targetRow][col] = {
+      newGrid[writeRow][col] = {
         ...tile,
-        row: targetRow,
+        row: writeRow,
         col: col,
       };
-      targetRow--;
+      writeRow--; // Move up one row
     }
     
-    console.log(`Column ${col}: ${tilesInColumn.length} tiles fell down`);
+    if (tilesInColumn.length > 0) {
+      const emptySpaces = GRID_ROWS - tilesInColumn.length;
+      console.log(`Column ${col}: ${tilesInColumn.length} tiles, ${emptySpaces} empty spaces at top (rows 0-${emptySpaces - 1})`);
+    }
   }
   
   return newGrid;
 }
 
 export function spawnNewTilesAtTop(grid: (Tile | null)[][], minTileValue: number): (Tile | null)[][] {
+  console.log('Spawning new tiles at top of columns');
+  
   const newGrid = grid.map(row => [...row]);
   const maxValue = getMaxBoardValue(grid);
   
-  console.log('Spawning new tiles at top of columns');
-  
   let spawnedCount = 0;
   
-  // Fill all empty cells from top to bottom
+  // Fill empty cells from top to bottom in each column
   for (let col = 0; col < GRID_COLS; col++) {
     for (let row = 0; row < GRID_ROWS; row++) {
       if (newGrid[row][col] === null) {
