@@ -47,13 +47,13 @@ import { IconSymbol } from '@/components/IconSymbol';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
-const GRID_PADDING = 24;
-const TILE_GAP = 8;
-const HEADER_HEIGHT = 100;
+const GRID_PADDING = 32;
+const TILE_GAP = 10;
+const HEADER_HEIGHT = 140;
 const POWERUP_BAR_HEIGHT = 70;
 const BOTTOM_BUTTON_HEIGHT = 80;
-const TOP_MARGIN = 20;
-const BOTTOM_MARGIN = 20;
+const TOP_MARGIN = 16;
+const BOTTOM_MARGIN = 16;
 
 const AVAILABLE_HEIGHT = SCREEN_HEIGHT - HEADER_HEIGHT - POWERUP_BAR_HEIGHT - BOTTOM_BUTTON_HEIGHT - TOP_MARGIN - BOTTOM_MARGIN;
 const AVAILABLE_WIDTH = SCREEN_WIDTH - GRID_PADDING * 2;
@@ -61,7 +61,7 @@ const AVAILABLE_WIDTH = SCREEN_WIDTH - GRID_PADDING * 2;
 const TILE_SIZE_BY_WIDTH = (AVAILABLE_WIDTH - TILE_GAP * (GRID_CONFIG.COLS - 1)) / GRID_CONFIG.COLS;
 const TILE_SIZE_BY_HEIGHT = (AVAILABLE_HEIGHT - TILE_GAP * (GRID_CONFIG.ROWS - 1)) / GRID_CONFIG.ROWS;
 
-const MAX_TILE_SIZE = 65;
+const MAX_TILE_SIZE = 72;
 const TILE_SIZE = Math.min(TILE_SIZE_BY_WIDTH, TILE_SIZE_BY_HEIGHT, MAX_TILE_SIZE);
 
 const GRID_WIDTH = GRID_CONFIG.COLS * TILE_SIZE + (GRID_CONFIG.COLS - 1) * TILE_GAP;
@@ -298,11 +298,9 @@ export default function GameScreen() {
     const finalSelection = selectedTilesRef.current;
     console.log('Released with chain length:', finalSelection.length);
     
-    // Clear the line immediately
     setSelectedTiles([]);
     selectedTilesRef.current = [];
     
-    // Queue the chain for processing
     if (finalSelection.length >= 2) {
       chainQueueRef.current.push(finalSelection);
       processChainQueue();
@@ -342,13 +340,11 @@ export default function GameScreen() {
       return;
     }
     
-    console.log('Valid chain, resolving with quick pop/explode animation');
+    console.log('Valid chain, resolving with smooth particle fade animation');
     
-    // Animate tiles popping one by one (wave effect) - MUCH QUICKER
     const tilesToAnimate = chainTiles.slice(0, -1);
     const lastTile = chainTiles[chainTiles.length - 1];
     
-    // Mark tiles as animating
     const animatingIds = new Set<string>();
     tilesToAnimate.forEach(tile => {
       const tileObj = gameState.grid[tile.row][tile.col];
@@ -358,11 +354,9 @@ export default function GameScreen() {
     });
     setAnimatingTiles(animatingIds);
     
-    // Wait for quick pop animation (30ms per tile instead of 150ms)
-    const animationDuration = tilesToAnimate.length * 30;
+    const animationDuration = tilesToAnimate.length * 80;
     await new Promise(resolve => setTimeout(resolve, animationDuration));
     
-    // Now resolve the chain
     const resolveResult = resolveChain(gameState.grid, chainTiles);
     let newGrid = resolveResult.newGrid;
     const score = resolveResult.score;
@@ -385,10 +379,8 @@ export default function GameScreen() {
       newGrid = removeTilesBelowMinimum(newGrid, newMinTileValue);
     }
     
-    // Clear animating tiles
     setAnimatingTiles(new Set());
     
-    // Apply gravity and spawn new tiles
     console.log('Step 1: Applying gravity');
     const afterGravity = applyGravity(newGrid);
     
@@ -466,7 +458,6 @@ export default function GameScreen() {
     }
     
     if (powerUpId === 'hint') {
-      // Hint: highlight one valid chain
       const validChain = findValidChain(gameState.grid);
       if (validChain) {
         const highlightIds = new Set<string>();
@@ -478,12 +469,10 @@ export default function GameScreen() {
         });
         setHighlightedTiles(highlightIds);
         
-        // Clear highlight after 2 seconds
         setTimeout(() => {
           setHighlightedTiles(new Set());
         }, 2000);
         
-        // Decrease uses
         setPowerUps(prev => prev.map(p => 
           p.id === powerUpId ? { ...p, usesLeft: p.usesLeft - 1 } : p
         ));
@@ -491,19 +480,16 @@ export default function GameScreen() {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       }
     } else if (powerUpId === 'bomb' || powerUpId === 'swap') {
-      // Activate power-up mode
       setActivePowerUp(powerUpId);
       setSelectedPowerUpTiles([]);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     } else if (powerUpId === 'shuffle') {
-      // Shuffle: randomly rearrange all tile values
       const shuffledGrid = shuffleTiles(gameState.grid);
       setGameState(prev => ({
         ...prev,
         grid: shuffledGrid,
       }));
       
-      // Decrease uses
       setPowerUps(prev => prev.map(p => 
         p.id === powerUpId ? { ...p, usesLeft: p.usesLeft - 1 } : p
       ));
@@ -524,7 +510,6 @@ export default function GameScreen() {
     }
     
     if (activePowerUp === 'bomb') {
-      // Bomb: delete the tile, apply gravity, spawn new tiles
       let newGrid = gameState.grid.map(row => [...row]);
       newGrid[tile.row][tile.col] = null;
       
@@ -536,7 +521,6 @@ export default function GameScreen() {
         grid: filledGrid,
       }));
       
-      // Decrease uses
       setPowerUps(prev => prev.map(p => 
         p.id === 'bomb' ? { ...p, usesLeft: p.usesLeft - 1 } : p
       ));
@@ -549,14 +533,12 @@ export default function GameScreen() {
       setSelectedPowerUpTiles(newSelected);
       
       if (newSelected.length === 2) {
-        // Swap the two tiles
         const swappedGrid = swapTiles(gameState.grid, newSelected[0], newSelected[1]);
         setGameState(prev => ({
           ...prev,
           grid: swappedGrid,
         }));
         
-        // Decrease uses
         setPowerUps(prev => prev.map(p => 
           p.id === 'swap' ? { ...p, usesLeft: p.usesLeft - 1 } : p
         ));
@@ -594,6 +576,7 @@ export default function GameScreen() {
   
   const scoreText = `${gameState.score}`;
   const bestScoreText = `${gameState.bestScore}`;
+  const minTileText = `Min: ${gameState.minTileValue}`;
   
   const powerUpModeText = activePowerUp === 'bomb' ? 'Tap a tile to delete it' : activePowerUp === 'swap' ? `Tap ${selectedPowerUpTiles.length === 0 ? 'first' : 'second'} tile to swap` : '';
   
@@ -614,6 +597,10 @@ export default function GameScreen() {
         <View style={styles.scoreContainer}>
           <Text style={styles.scoreLabel}>Best</Text>
           <Text style={styles.bestScoreValue}>{bestScoreText}</Text>
+        </View>
+        
+        <View style={styles.scoreContainer}>
+          <Text style={styles.minTileValue}>{minTileText}</Text>
         </View>
       </View>
       
@@ -684,9 +671,7 @@ export default function GameScreen() {
                 );
                 
                 const isAnimating = animatingTiles.has(tile.id);
-                const animationIndex = selectedTiles.findIndex(
-                  t => t.row === rowIndex && t.col === colIndex
-                );
+                const animationIndex = Array.from(animatingTiles).indexOf(tile.id);
                 
                 return (
                   <View
@@ -698,7 +683,7 @@ export default function GameScreen() {
                       isSelected={isSelected || isHighlighted || isPowerUpSelected}
                       size={TILE_SIZE}
                       isAnimating={isAnimating}
-                      animationDelay={animationIndex * 30}
+                      animationDelay={animationIndex * 80}
                     />
                   </View>
                 );
@@ -769,8 +754,9 @@ const styles = StyleSheet.create({
   scoreBar: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    paddingVertical: 16,
+    paddingVertical: 20,
     paddingHorizontal: 16,
+    paddingTop: 32,
     backgroundColor: colors.background,
   },
   scoreContainer: {
@@ -791,6 +777,12 @@ const styles = StyleSheet.create({
     fontSize: 28,
     color: colors.accent,
     fontWeight: 'bold',
+  },
+  minTileValue: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    fontWeight: '600',
+    marginTop: 8,
   },
   powerUpModeBar: {
     flexDirection: 'row',

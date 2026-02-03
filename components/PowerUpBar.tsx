@@ -19,12 +19,23 @@ interface PowerUpBarProps {
 }
 
 export default function PowerUpBar({ powerUps, onPowerUpPress, onSettingsPress }: PowerUpBarProps) {
+  const getIconForPowerUp = (powerUpId: string) => {
+    const iconMap: { [key: string]: string } = {
+      hint: 'lightbulb',
+      bomb: 'delete',
+      swap: 'swap-horiz',
+      shuffle: 'shuffle',
+    };
+    return iconMap[powerUpId] || 'star';
+  };
+  
   return (
     <View style={styles.container}>
       <View style={styles.powerUpsContainer}>
         {powerUps.map((powerUp) => {
           const isDisabled = powerUp.usesLeft === 0;
           const usesText = `${powerUp.usesLeft}/${powerUp.maxUses}`;
+          const iconName = getIconForPowerUp(powerUp.id);
           
           return (
             <TouchableOpacity
@@ -38,8 +49,8 @@ export default function PowerUpBar({ powerUps, onPowerUpPress, onSettingsPress }
             >
               <IconSymbol
                 ios_icon_name="star.fill"
-                android_material_icon_name={powerUp.icon}
-                size={24}
+                android_material_icon_name={iconName}
+                size={28}
                 color={isDisabled ? colors.textSecondary : colors.primary}
               />
               <Text style={[

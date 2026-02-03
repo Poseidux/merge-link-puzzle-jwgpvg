@@ -6,7 +6,6 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
-  withSequence,
   withDelay,
   Easing,
 } from 'react-native-reanimated';
@@ -25,39 +24,32 @@ export default function GameTile({ value, isSelected, size, isAnimating = false,
   const displayValue = formatTileValue(value);
   const isGlowing = value >= 1024;
   
-  const scale = useSharedValue(1);
   const opacity = useSharedValue(1);
+  const scale = useSharedValue(1);
   
   useEffect(() => {
     if (isAnimating) {
-      console.log('Starting quick pop/explode animation with delay:', animationDelay);
-      
-      // Quick pop and explode effect (much faster)
-      scale.value = withDelay(
-        animationDelay,
-        withSequence(
-          withTiming(1.4, { duration: 60, easing: Easing.out(Easing.cubic) }),
-          withTiming(0, { duration: 40, easing: Easing.in(Easing.cubic) })
-        )
-      );
+      console.log('Starting smooth particle fade animation with delay:', animationDelay);
       
       opacity.value = withDelay(
         animationDelay,
-        withSequence(
-          withTiming(1, { duration: 60 }),
-          withTiming(0, { duration: 40 })
-        )
+        withTiming(0, { duration: 300, easing: Easing.out(Easing.ease) })
+      );
+      
+      scale.value = withDelay(
+        animationDelay,
+        withTiming(0.6, { duration: 300, easing: Easing.out(Easing.ease) })
       );
     } else {
-      scale.value = 1;
       opacity.value = 1;
+      scale.value = 1;
     }
   }, [isAnimating, animationDelay]);
   
   const animatedStyle = useAnimatedStyle(() => {
     return {
-      transform: [{ scale: scale.value }],
       opacity: opacity.value,
+      transform: [{ scale: scale.value }],
     };
   });
   
