@@ -1,5 +1,5 @@
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import { StyleSheet } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -21,6 +21,10 @@ export default function FloatingScore({ score, x, y, onComplete }: FloatingScore
   
   const scoreText = `+${score}`;
   
+  const handleComplete = useCallback(() => {
+    onComplete();
+  }, [onComplete]);
+  
   useEffect(() => {
     opacity.value = withSequence(
       withTiming(1, { duration: 100 }),
@@ -29,11 +33,11 @@ export default function FloatingScore({ score, x, y, onComplete }: FloatingScore
     translateY.value = withTiming(-50, { duration: 900 });
     
     const timer = setTimeout(() => {
-      onComplete();
+      handleComplete();
     }, 900);
     
     return () => clearTimeout(timer);
-  }, []);
+  }, [opacity, translateY, handleComplete]);
   
   const animatedStyle = useAnimatedStyle(() => {
     return {
