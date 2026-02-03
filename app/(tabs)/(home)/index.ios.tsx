@@ -6,6 +6,7 @@ import {
   Text,
   TouchableOpacity,
   Dimensions,
+  Platform,
 } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -133,7 +134,7 @@ export default function GameScreen() {
   }, []);
   
   useEffect(() => {
-    console.log('HomeScreen mounted, checking for saved game');
+    console.log('GameScreen mounted on platform:', Platform.OS);
     if (params.newGame === 'true') {
       console.log('Starting new game from home screen');
       startFreshGame();
@@ -154,10 +155,10 @@ export default function GameScreen() {
         gridContainerRef.current.measure((x, y, width, height, pageX, pageY) => {
           gridOffsetRef.current = { x: pageX, y: pageY, width, height };
           setGridMeasured(true);
-          console.log('Grid container measured - pageX:', pageX, 'pageY:', pageY, 'width:', width, 'height:', height);
+          console.log('Grid measured - pageX:', pageX, 'pageY:', pageY, 'width:', width, 'height:', height);
         });
       }
-    }, 100);
+    }, 200);
     
     return () => clearTimeout(timer);
   }, [gameState.grid]);
@@ -190,6 +191,11 @@ export default function GameScreen() {
   const handlePowerUpTileSelection = useCallback((event: any) => {
     console.log('Power-up tile selection');
     const touch = event.nativeEvent.touches[0];
+    if (!touch) {
+      console.log('No touch data available');
+      return;
+    }
+    
     const locationX = touch.pageX - gridOffsetRef.current.x;
     const locationY = touch.pageY - gridOffsetRef.current.y;
     
@@ -247,12 +253,19 @@ export default function GameScreen() {
   }, [activePowerUp, gameState.grid, gameState.minTileValue, selectedPowerUpTiles, getTileAtPosition]);
   
   const handleTouchStart = useCallback((event: any) => {
+    console.log('Touch start - gridMeasured:', gridMeasured, 'activePowerUp:', activePowerUp);
+    
     if (!gridMeasured) {
-      console.log('Grid not measured yet, skipping touch');
+      console.log('Grid not measured yet, measuring now...');
+      if (gridContainerRef.current) {
+        gridContainerRef.current.measure((x, y, width, height, pageX, pageY) => {
+          gridOffsetRef.current = { x: pageX, y: pageY, width, height };
+          setGridMeasured(true);
+          console.log('Grid measured immediately - pageX:', pageX, 'pageY:', pageY);
+        });
+      }
       return;
     }
-    
-    console.log('Touch start event');
     
     if (activePowerUp) {
       console.log('Active power-up mode:', activePowerUp);
@@ -261,6 +274,11 @@ export default function GameScreen() {
     }
     
     const touch = event.nativeEvent.touches[0];
+    if (!touch) {
+      console.log('No touch data in event');
+      return;
+    }
+    
     const locationX = touch.pageX - gridOffsetRef.current.x;
     const locationY = touch.pageY - gridOffsetRef.current.y;
     
@@ -287,6 +305,10 @@ export default function GameScreen() {
     }
     
     const touch = event.nativeEvent.touches[0];
+    if (!touch) {
+      return;
+    }
+    
     const locationX = touch.pageX - gridOffsetRef.current.x;
     const locationY = touch.pageY - gridOffsetRef.current.y;
     
@@ -430,11 +452,11 @@ export default function GameScreen() {
   }, [isProcessingChain, gameState.grid, gameState.score, gameState.bestScore, gameState.minTileValue]);
   
   const handleTouchEnd = useCallback(() => {
+    console.log('Touch end - gridMeasured:', gridMeasured, 'activePowerUp:', activePowerUp);
+    
     if (!gridMeasured) {
       return;
     }
-    
-    console.log('Touch end event');
     
     if (activePowerUp) {
       return;
@@ -590,6 +612,7 @@ export default function GameScreen() {
           <Text style={styles.powerUpModeText}>{powerUpModeText}</Text>
           <TouchableOpacity
             onPress={() => {
+              console.log('Cancelling power-up mode');
               setActivePowerUp(null);
               setSelectedPowerUpTiles([]);
             }}
@@ -604,11 +627,21 @@ export default function GameScreen() {
         <View
           ref={gridContainerRef}
           style={styles.gridContainer}
-          onStartShouldSetResponder={() => true}
-          onMoveShouldSetResponder={() => true}
+          onStartShouldSetResponder={() => {
+            console.log('onStartShouldSetResponder called - returning true');
+            return true;
+          }}
+          onMoveShouldSetResponder={() => {
+            console.log('onMoveShouldSetResponder called - returning true');
+            return true;
+          }}
           onResponderGrant={handleTouchStart}
           onResponderMove={handleTouchMove}
           onResponderRelease={handleTouchEnd}
+          onResponderTerminationRequest={() => {
+            console.log('onResponderTerminationRequest - returning false to keep responder');
+            return false;
+          }}
         >
           {selectedTiles.length > 1 && !activePowerUp && (
             <Svg style={styles.svgOverlay} pointerEvents="none">
