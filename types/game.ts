@@ -7,28 +7,16 @@ export interface Tile {
 }
 
 export interface GameState {
-  grid: (Tile | null)[][];
+  grid: Tile[][];
   score: number;
   bestScore: number;
-  continueUsed: boolean;
-  preGameOverSnapshot: GameSnapshot | null;
-  minTileValue: number; // Progressive minimum tile value
-}
-
-export interface GameSnapshot {
-  grid: (Tile | null)[][];
-  score: number;
-  minTileValue: number;
-}
-
-export interface SelectedTile {
-  row: number;
-  col: number;
-  value: number;
-}
-
-export interface GameSettings {
-  soundEnabled: boolean;
-  hapticsEnabled: boolean;
-  darkMode: boolean;
+  powerUps: {
+    undo: number;
+    hint: number;
+    bomb: number;
+    swap: number;
+  };
+  previousGrid: Tile[][] | null;
+  previousScore: number;
+  spawnProgression: number;
 }

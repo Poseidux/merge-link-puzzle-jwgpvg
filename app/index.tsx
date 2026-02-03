@@ -38,10 +38,7 @@ export default function HomeScreen() {
   function handleContinue() {
     console.log('User tapped Continue button');
     if (hasSavedGame) {
-      router.push('/(tabs)/(home)');
-    } else {
-      console.log('No saved game, starting new game');
-      router.push('/(tabs)/(home)');
+      router.push('/game');
     }
   }
 
@@ -57,11 +54,11 @@ export default function HomeScreen() {
   function startNewGame() {
     console.log('Starting new game');
     setConfirmNewGameVisible(false);
-    router.push('/(tabs)/(home)?newGame=true');
+    router.push('/game?newGame=true');
   }
 
   const continueButtonOpacity = hasSavedGame ? 1 : 0.5;
-  const continueText = hasSavedGame ? 'Continue' : 'Continue';
+  const continueText = 'Continue';
   const scoreText = savedGameState ? `Score: ${savedGameState.score}` : '';
 
   return (
@@ -74,7 +71,7 @@ export default function HomeScreen() {
       <View style={styles.content}>
         <View style={styles.titleContainer}>
           <Text style={styles.title}>Number</Text>
-          <Text style={styles.title}>Merger</Text>
+          <Text style={styles.title}>Merge</Text>
         </View>
 
         {hasSavedGame && savedGameState && (

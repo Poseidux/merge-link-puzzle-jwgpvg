@@ -17,29 +17,19 @@ export default function GameMenu({ visible, onResumeGame, onBackToHome }: GameMe
       animationType="fade"
       onRequestClose={onResumeGame}
     >
-      <TouchableOpacity
-        style={styles.overlay}
-        activeOpacity={1}
-        onPress={onResumeGame}
-      >
+      <View style={styles.overlay}>
         <View style={styles.menuContainer}>
-          <Text style={styles.menuTitle}>Game Menu</Text>
-
-          <TouchableOpacity
-            style={styles.menuButton}
-            onPress={onResumeGame}
-          >
+          <Text style={styles.title}>Game Menu</Text>
+          
+          <TouchableOpacity style={styles.menuButton} onPress={onResumeGame}>
             <Text style={styles.menuButtonText}>Resume Game</Text>
           </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.menuButton, styles.menuButtonSecondary]}
-            onPress={onBackToHome}
-          >
-            <Text style={styles.menuButtonTextSecondary}>Back to Home</Text>
+          
+          <TouchableOpacity style={styles.menuButton} onPress={onBackToHome}>
+            <Text style={styles.menuButtonText}>Back to Home</Text>
           </TouchableOpacity>
         </View>
-      </TouchableOpacity>
+      </View>
     </Modal>
   );
 }
@@ -54,42 +44,29 @@ const styles = StyleSheet.create({
   menuContainer: {
     backgroundColor: colors.background,
     borderRadius: 20,
-    padding: 24,
+    padding: 32,
     width: '80%',
-    maxWidth: 320,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    maxWidth: 400,
+    alignItems: 'center',
   },
-  menuTitle: {
-    fontSize: 24,
-    fontWeight: '800',
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
     color: colors.text,
-    textAlign: 'center',
     marginBottom: 24,
   },
   menuButton: {
     backgroundColor: colors.primary,
     paddingVertical: 16,
-    paddingHorizontal: 24,
+    paddingHorizontal: 32,
     borderRadius: 12,
-    marginBottom: 12,
-  },
-  menuButtonSecondary: {
-    backgroundColor: colors.cardBackground,
+    marginBottom: 16,
+    width: '100%',
+    alignItems: 'center',
   },
   menuButtonText: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: 'bold',
     color: '#FFFFFF',
-    textAlign: 'center',
-  },
-  menuButtonTextSecondary: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.text,
-    textAlign: 'center',
   },
 });

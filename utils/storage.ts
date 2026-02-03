@@ -1,9 +1,8 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GameState } from '@/types/game';
-import { GRID_CONFIG } from './gameLogic';
 
-const GAME_STATE_KEY = '@game_state';
+const GAME_STATE_KEY = '@number_merge_game_state';
 
 export async function saveGameState(state: GameState): Promise<void> {
   try {
@@ -26,22 +25,7 @@ export async function loadGameState(): Promise<GameState | null> {
     }
     
     const state = JSON.parse(jsonValue) as GameState;
-    console.log('Saved game state:', JSON.stringify(state));
-    
-    // Validate grid dimensions - if mismatch, return null to start fresh
-    if (state.grid.length !== GRID_CONFIG.ROWS) {
-      console.warn(`Grid row mismatch: saved has ${state.grid.length} rows, expected ${GRID_CONFIG.ROWS}. Starting fresh game.`);
-      await clearGameState();
-      return null;
-    }
-    
-    for (let row = 0; row < state.grid.length; row++) {
-      if (state.grid[row].length !== GRID_CONFIG.COLS) {
-        console.warn(`Grid column mismatch at row ${row}: saved has ${state.grid[row].length} cols, expected ${GRID_CONFIG.COLS}. Starting fresh game.`);
-        await clearGameState();
-        return null;
-      }
-    }
+    console.log('Loaded game state with score:', state.score);
     
     return state;
   } catch (error) {
