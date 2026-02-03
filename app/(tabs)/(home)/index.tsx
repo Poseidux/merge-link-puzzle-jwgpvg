@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -43,13 +43,12 @@ import {
   saveGameState,
   loadGameState,
 } from '@/utils/storage';
-import { IconSymbol } from '@/components/IconSymbol';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
-const GRID_PADDING = 32;
-const TILE_GAP = 10;
-const HEADER_HEIGHT = 140;
+const GRID_PADDING = 40;
+const TILE_GAP = 12;
+const HEADER_HEIGHT = 180;
 const POWERUP_BAR_HEIGHT = 70;
 const BOTTOM_BUTTON_HEIGHT = 80;
 const TOP_MARGIN = 16;
@@ -61,7 +60,7 @@ const AVAILABLE_WIDTH = SCREEN_WIDTH - GRID_PADDING * 2;
 const TILE_SIZE_BY_WIDTH = (AVAILABLE_WIDTH - TILE_GAP * (GRID_CONFIG.COLS - 1)) / GRID_CONFIG.COLS;
 const TILE_SIZE_BY_HEIGHT = (AVAILABLE_HEIGHT - TILE_GAP * (GRID_CONFIG.ROWS - 1)) / GRID_CONFIG.ROWS;
 
-const MAX_TILE_SIZE = 72;
+const MAX_TILE_SIZE = 85;
 const TILE_SIZE = Math.min(TILE_SIZE_BY_WIDTH, TILE_SIZE_BY_HEIGHT, MAX_TILE_SIZE);
 
 const GRID_WIDTH = GRID_CONFIG.COLS * TILE_SIZE + (GRID_CONFIG.COLS - 1) * TILE_GAP;
@@ -168,14 +167,11 @@ export default function GameScreen() {
     setSelectedPowerUpTiles([]);
   }
   
-  function getTileAtPosition(x: number, y: number): SelectedTile | null {
+  const getTileAtPosition = useCallback((x: number, y: number): SelectedTile | null => {
     const col = Math.floor(x / (TILE_SIZE + TILE_GAP));
     const row = Math.floor(y / (TILE_SIZE + TILE_GAP));
     
-    console.log('getTileAtPosition - x:', x, 'y:', y, 'calculated row:', row, 'col:', col);
-    
     if (row < 0 || row >= GRID_CONFIG.ROWS || col < 0 || col >= GRID_CONFIG.COLS) {
-      console.log('Touch outside grid bounds');
       return null;
     }
     
@@ -188,16 +184,14 @@ export default function GameScreen() {
     if (localX >= 0 && localX <= TILE_SIZE && localY >= 0 && localY <= TILE_SIZE) {
       const tile = gameState.grid[row][col];
       if (tile) {
-        console.log('Selected tile at row:', row, 'col:', col, 'value:', tile.value);
         return { row, col, value: tile.value };
       }
     }
     
-    console.log('Touch in gap between tiles');
     return null;
-  }
+  }, [gameState.grid]);
   
-  function handleTouchStart(event: any) {
+  const handleTouchStart = useCallback((event: any) => {
     if (activePowerUp) {
       handlePowerUpTileSelection(event);
       return;
@@ -207,22 +201,18 @@ export default function GameScreen() {
     const locationX = touch.pageX - gridOffsetRef.current.x;
     const locationY = touch.pageY - gridOffsetRef.current.y;
     
-    console.log('Touch start - pageX:', touch.pageX, 'pageY:', touch.pageY);
-    console.log('Grid offset - x:', gridOffsetRef.current.x, 'y:', gridOffsetRef.current.y);
-    console.log('Relative location - x:', locationX, 'y:', locationY);
-    
     const tile = getTileAtPosition(locationX, locationY);
     
     if (tile) {
-      console.log('Started chain with tile value:', tile.value);
+      console.log('User started chain with tile value:', tile.value);
       const newSelection = [tile];
       setSelectedTiles(newSelection);
       selectedTilesRef.current = newSelection;
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-  }
+  }, [activePowerUp, getTileAtPosition]);
   
-  function handleTouchMove(event: any) {
+  const handleTouchMove = useCallback((event: any) => {
     if (activePowerUp) {
       return;
     }
@@ -288,15 +278,15 @@ export default function GameScreen() {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
     }
-  }
+  }, [activePowerUp, getTileAtPosition]);
   
-  function handleTouchEnd() {
+  const handleTouchEnd = useCallback(() => {
     if (activePowerUp) {
       return;
     }
     
     const finalSelection = selectedTilesRef.current;
-    console.log('Released with chain length:', finalSelection.length);
+    console.log('User released chain with length:', finalSelection.length);
     
     setSelectedTiles([]);
     selectedTilesRef.current = [];
@@ -305,7 +295,7 @@ export default function GameScreen() {
       chainQueueRef.current.push(finalSelection);
       processChainQueue();
     }
-  }
+  }, [activePowerUp]);
   
   async function processChainQueue() {
     if (isProcessingChain || chainQueueRef.current.length === 0) {
@@ -340,7 +330,7 @@ export default function GameScreen() {
       return;
     }
     
-    console.log('Valid chain, resolving with smooth particle fade animation');
+    console.log('Valid chain, resolving with simultaneous shrink animation');
     
     const tilesToAnimate = chainTiles.slice(0, -1);
     const lastTile = chainTiles[chainTiles.length - 1];
@@ -354,8 +344,7 @@ export default function GameScreen() {
     });
     setAnimatingTiles(animatingIds);
     
-    const animationDuration = tilesToAnimate.length * 80;
-    await new Promise(resolve => setTimeout(resolve, animationDuration));
+    await new Promise(resolve => setTimeout(resolve, 250));
     
     const resolveResult = resolveChain(gameState.grid, chainTiles);
     let newGrid = resolveResult.newGrid;
@@ -671,7 +660,6 @@ export default function GameScreen() {
                 );
                 
                 const isAnimating = animatingTiles.has(tile.id);
-                const animationIndex = Array.from(animatingTiles).indexOf(tile.id);
                 
                 return (
                   <View
@@ -683,7 +671,7 @@ export default function GameScreen() {
                       isSelected={isSelected || isHighlighted || isPowerUpSelected}
                       size={TILE_SIZE}
                       isAnimating={isAnimating}
-                      animationDelay={animationIndex * 80}
+                      animationDelay={0}
                     />
                   </View>
                 );
@@ -755,9 +743,9 @@ const styles = StyleSheet.create({
   scoreBar: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    paddingVertical: 20,
+    paddingVertical: 24,
     paddingHorizontal: 16,
-    paddingTop: 32,
+    paddingTop: 48,
     backgroundColor: colors.background,
   },
   scoreContainer: {
@@ -770,17 +758,17 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   scoreValue: {
-    fontSize: 28,
+    fontSize: 32,
     color: colors.text,
     fontWeight: 'bold',
   },
   bestScoreValue: {
-    fontSize: 28,
+    fontSize: 32,
     color: colors.accent,
     fontWeight: 'bold',
   },
   minTileValue: {
-    fontSize: 16,
+    fontSize: 18,
     color: colors.textSecondary,
     fontWeight: '600',
     marginTop: 8,

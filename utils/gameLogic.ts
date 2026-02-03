@@ -1,7 +1,7 @@
 
 import { Tile } from '@/types/game';
 
-export const GRID_COLS = 6;
+export const GRID_COLS = 5; // Changed from 6 to 5
 export const GRID_ROWS = 8;
 
 export const GRID_CONFIG = {

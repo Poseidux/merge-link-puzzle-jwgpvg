@@ -50,7 +50,7 @@ export default function PowerUpBar({ powerUps, onPowerUpPress, onSettingsPress }
               <IconSymbol
                 ios_icon_name="star.fill"
                 android_material_icon_name={iconName}
-                size={28}
+                size={32}
                 color={isDisabled ? colors.textSecondary : colors.primary}
               />
               <Text style={[
@@ -71,7 +71,7 @@ export default function PowerUpBar({ powerUps, onPowerUpPress, onSettingsPress }
         <IconSymbol
           ios_icon_name="gear"
           android_material_icon_name="settings"
-          size={28}
+          size={32}
           color={colors.text}
         />
       </TouchableOpacity>

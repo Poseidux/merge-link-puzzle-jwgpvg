@@ -6,7 +6,6 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
-  withDelay,
   Easing,
 } from 'react-native-reanimated';
 import { getTileColor, formatTileValue } from '@/utils/gameLogic';
@@ -29,22 +28,15 @@ export default function GameTile({ value, isSelected, size, isAnimating = false,
   
   useEffect(() => {
     if (isAnimating) {
-      console.log('Starting smooth particle fade animation with delay:', animationDelay);
+      console.log('Starting simultaneous shrink animation');
       
-      opacity.value = withDelay(
-        animationDelay,
-        withTiming(0, { duration: 300, easing: Easing.out(Easing.ease) })
-      );
-      
-      scale.value = withDelay(
-        animationDelay,
-        withTiming(0.6, { duration: 300, easing: Easing.out(Easing.ease) })
-      );
+      opacity.value = withTiming(0, { duration: 250, easing: Easing.out(Easing.cubic) });
+      scale.value = withTiming(0, { duration: 250, easing: Easing.out(Easing.cubic) });
     } else {
       opacity.value = 1;
       scale.value = 1;
     }
-  }, [isAnimating, animationDelay]);
+  }, [isAnimating]);
   
   const animatedStyle = useAnimatedStyle(() => {
     return {
