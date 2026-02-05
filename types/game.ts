@@ -10,9 +10,15 @@ export interface GameState {
   grid: (Tile | null)[][];
   score: number;
   bestScore: number;
-  continueUsed: boolean;
-  preGameOverSnapshot: GameSnapshot | null;
-  minTileValue: number; // Progressive minimum tile value
+  powerUps: {
+    undo: number;
+    hint: number;
+    bomb: number;
+    swap: number;
+  };
+  previousGrid: (Tile | null)[][] | null;
+  previousScore: number;
+  spawnProgression: number;
 }
 
 export interface GameSnapshot {
@@ -31,4 +37,14 @@ export interface GameSettings {
   soundEnabled: boolean;
   hapticsEnabled: boolean;
   darkMode: boolean;
+  theme: string;
+}
+
+export interface Theme {
+  id: string;
+  name: string;
+  boardBackground: string;
+  emptyCellColor: string;
+  accentColor: string;
+  tileColors: { [key: number]: string[] };
 }

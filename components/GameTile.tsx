@@ -17,6 +17,8 @@ interface GameTileProps {
   size: number;
   isAnimating?: boolean;
   animationDelay?: number;
+  tileColors?: { [key: number]: string[] };
+  accentColor?: string;
 }
 
 // Calculate brightness of a color to determine if text should be dark or light
@@ -29,11 +31,19 @@ function getTextColorForBackground(value: number): string {
   return '#FFFFFF'; // White text for darker backgrounds
 }
 
-export default function GameTile({ value, isSelected, size, isAnimating = false, animationDelay = 0 }: GameTileProps) {
+export default function GameTile({ value, isSelected, size, isAnimating = false, animationDelay = 0, tileColors, accentColor = '#FFD700' }: GameTileProps) {
   // Handle invalid values gracefully
   const safeValue = (value !== undefined && value !== null && typeof value === 'number' && !isNaN(value)) ? value : 2;
   
-  const tileColorData = getTileColor(safeValue);
+  // Use theme colors if provided, otherwise fall back to default
+  let gradientColors: string[];
+  if (tileColors && tileColors[safeValue]) {
+    gradientColors = tileColors[safeValue];
+  } else {
+    const tileColorData = getTileColor(safeValue);
+    gradientColors = tileColorData.gradientColors;
+  }
+  
   const displayValue = formatTileValue(safeValue);
   const isGlowing = safeValue >= 1024;
   const textColor = getTextColorForBackground(safeValue);
@@ -93,7 +103,7 @@ export default function GameTile({ value, isSelected, size, isAnimating = false,
       ]}
     >
       <LinearGradient
-        colors={tileColorData.gradientColors}
+        colors={gradientColors}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={[
@@ -102,7 +112,7 @@ export default function GameTile({ value, isSelected, size, isAnimating = false,
             width: size,
             height: size,
             borderWidth: isSelected ? 4 : 0,
-            borderColor: isSelected ? '#FFD700' : 'transparent',
+            borderColor: isSelected ? accentColor : 'transparent',
           },
         ]}
       >

@@ -7,17 +7,18 @@ import {
   TouchableOpacity,
   Dimensions,
   Platform,
-  ActionSheetIOS,
+  Modal,
 } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import Svg, { Line } from 'react-native-svg';
-import { colors } from '@/styles/commonStyles';
+import { colors, THEMES } from '@/styles/commonStyles';
 import GameTile from '@/components/GameTile';
-import FloatingScore from '@/components/FloatingScore';
+import FloatingScore, { MilestoneBanner } from '@/components/FloatingScore';
 import GameOverModal from '@/components/GameOverModal';
 import ConfirmModal from '@/components/ConfirmModal';
+import SettingsModal from '@/components/SettingsModal';
 import PowerUpBar, { PowerUp } from '@/components/PowerUpBar';
 import GameMenu from '@/components/GameMenu';
 import { GameState, Tile } from '@/types/game';
@@ -36,25 +37,31 @@ import {
   rebuildGridFromNumbers,
   gridToNumbers,
   formatTileValue,
+  getMaxBoardValue,
 } from '@/utils/gameLogic';
 import {
   saveGameState,
   loadGameState,
   clearGameState,
   SavedGameState,
+  saveTheme,
+  loadTheme,
+  saveMilestones,
+  loadMilestones,
+  clearMilestones,
 } from '@/utils/storage';
 
 // Timing constants for game speed (in milliseconds)
 const TIMING = {
-  MOVE_MS: 0,           // Tile movement animation
-  DROP_MS: 0,           // Tile drop animation
-  MERGE_MS: 50,         // Merge animation
-  CHAIN_DELAY_MS: 50,   // Delay between chain steps
-  GAME_OVER_CHECK: 100, // Delay before checking game over
+  MOVE_MS: 0,
+  DROP_MS: 0,
+  MERGE_MS: 50,
+  CHAIN_DELAY_MS: 50,
+  GAME_OVER_CHECK: 100,
 };
 
 // Swipe threshold - lowered for better responsiveness (10-20px)
-const SWIPE_THRESHOLD = 15;
+const SWIPE_THRESHOLD = 12;
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -109,10 +116,15 @@ export default function GameScreen() {
   const [gameOverVisible, setGameOverVisible] = useState(false);
   const [confirmNewGameVisible, setConfirmNewGameVisible] = useState(false);
   const [gameMenuVisible, setGameMenuVisible] = useState(false);
+  const [settingsVisible, setSettingsVisible] = useState(false);
   
   const [highlightedTiles, setHighlightedTiles] = useState<Set<string>>(new Set());
   const [activePowerUp, setActivePowerUp] = useState<string | null>(null);
   const [selectedPowerUpTiles, setSelectedPowerUpTiles] = useState<SelectedTile[]>([]);
+  
+  const [currentTheme, setCurrentTheme] = useState('classic');
+  const [milestonesReached, setMilestonesReached] = useState<Set<number>>(new Set());
+  const [currentMilestone, setCurrentMilestone] = useState<number | null>(null);
   
   const gridContainerRef = useRef<View>(null);
   const gridOffsetRef = useRef({ x: 0, y: 0, width: 0, height: 0 });
@@ -121,9 +133,27 @@ export default function GameScreen() {
   const hasLoadedInitialState = useRef(false);
   const touchStartRef = useRef({ x: 0, y: 0 });
   
+  const theme = THEMES[currentTheme as keyof typeof THEMES] || THEMES.classic;
+  
   useEffect(() => {
     selectedTilesRef.current = selectedTiles;
   }, [selectedTiles]);
+  
+  useEffect(() => {
+    const loadThemeAndMilestones = async () => {
+      const savedTheme = await loadTheme();
+      if (savedTheme && THEMES[savedTheme as keyof typeof THEMES]) {
+        console.log('[Game] Loaded theme:', savedTheme);
+        setCurrentTheme(savedTheme);
+      }
+      
+      const savedMilestones = await loadMilestones();
+      console.log('[Game] Loaded milestones:', Array.from(savedMilestones));
+      setMilestonesReached(savedMilestones);
+    };
+    
+    loadThemeAndMilestones();
+  }, []);
   
   const startFreshGame = useCallback(() => {
     console.log('[Game] Starting fresh game');
@@ -148,6 +178,8 @@ export default function GameScreen() {
     setActivePowerUp(null);
     setSelectedPowerUpTiles([]);
     setGameOverVisible(false);
+    setMilestonesReached(new Set());
+    clearMilestones();
     
     const savedState: SavedGameState = {
       grid: gridToNumbers(newGrid),
@@ -488,6 +520,20 @@ export default function GameScreen() {
     const newScore = gameState.score + result.scoreAdded;
     const newBestScore = Math.max(newScore, gameState.bestScore);
     
+    // Check for milestone
+    const maxTileValue = getMaxBoardValue(result.finalGrid);
+    const milestones = [256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536];
+    const newMilestone = milestones.find(m => m === maxTileValue && !milestonesReached.has(m));
+    
+    if (newMilestone) {
+      console.log('[Game] New milestone reached:', newMilestone);
+      setCurrentMilestone(newMilestone);
+      const updatedMilestones = new Set(milestonesReached);
+      updatedMilestones.add(newMilestone);
+      setMilestonesReached(updatedMilestones);
+      saveMilestones(updatedMilestones);
+    }
+    
     const newState: GameState = {
       grid: result.finalGrid,
       score: newScore,
@@ -517,7 +563,7 @@ export default function GameScreen() {
         setGameOverVisible(true);
       }
     }, TIMING.GAME_OVER_CHECK);
-  }, [activePowerUp, gameState, gridMeasured]);
+  }, [activePowerUp, gameState, gridMeasured, milestonesReached]);
   
   function handleRestart() {
     console.log('[Game] Restart game');
@@ -615,7 +661,7 @@ export default function GameScreen() {
   }
   
   function handleMenuPress() {
-    console.log('[Game] Menu button pressed');
+    console.log('[Game] Menu button pressed - showing Android modal');
     setGameMenuVisible(true);
   }
   
@@ -628,6 +674,17 @@ export default function GameScreen() {
     console.log('[Game] Back to home - navigating to root with replace');
     setGameMenuVisible(false);
     router.replace('/');
+  }
+  
+  function handleSettingsPress() {
+    console.log('[Game] Settings button pressed');
+    setSettingsVisible(true);
+  }
+  
+  function handleThemeChange(themeId: string) {
+    console.log('[Game] Theme changed to:', themeId);
+    setCurrentTheme(themeId);
+    saveTheme(themeId);
   }
   
   const scoreText = formatTileValue(gameState.score);
@@ -643,7 +700,7 @@ export default function GameScreen() {
   ];
   
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.boardBackground }]} edges={['top', 'bottom']}>
       <Stack.Screen
         options={{
           headerShown: false,
@@ -671,13 +728,25 @@ export default function GameScreen() {
           
           <View style={styles.statChip}>
             <Text style={styles.statLabel}>Best</Text>
-            <Text style={styles.statValueAccent}>{bestScoreText}</Text>
+            <Text style={[styles.statValue, { color: theme.accentColor }]}>{bestScoreText}</Text>
           </View>
         </View>
+        
+        <TouchableOpacity
+          style={styles.settingsButton}
+          onPress={handleSettingsPress}
+        >
+          <IconSymbol
+            ios_icon_name="gear"
+            android_material_icon_name="settings"
+            size={24}
+            color={colors.text}
+          />
+        </TouchableOpacity>
       </View>
       
       {activePowerUp && (
-        <View style={styles.powerUpModeBar}>
+        <View style={[styles.powerUpModeBar, { backgroundColor: theme.accentColor }]}>
           <Text style={styles.powerUpModeText}>{powerUpModeText}</Text>
           <TouchableOpacity
             onPress={() => {
@@ -693,7 +762,14 @@ export default function GameScreen() {
       )}
       
       <View style={styles.gameContainer}>
-        <View style={styles.boardCard}>
+        {currentMilestone && (
+          <MilestoneBanner
+            value={currentMilestone}
+            onComplete={() => setCurrentMilestone(null)}
+          />
+        )}
+        
+        <View style={[styles.boardCard, { backgroundColor: theme.boardBackground }]}>
           <View
             ref={gridContainerRef}
             style={styles.gridContainer}
@@ -722,7 +798,7 @@ export default function GameScreen() {
                       y1={y1}
                       x2={x2}
                       y2={y2}
-                      stroke={colors.accent}
+                      stroke={theme.accentColor}
                       strokeWidth={4}
                       strokeLinecap="round"
                     />
@@ -753,6 +829,8 @@ export default function GameScreen() {
                         value={tile.value}
                         isSelected={isSelected || isHighlighted || isPowerUpSelected}
                         size={TILE_SIZE}
+                        tileColors={theme.tileColors}
+                        accentColor={theme.accentColor}
                       />
                     </View>
                   );
@@ -775,11 +853,13 @@ export default function GameScreen() {
         </View>
       </View>
       
-      <PowerUpBar
-        powerUps={powerUps}
-        onPowerUpPress={handlePowerUpPress}
-        onSettingsPress={handleMenuPress}
-      />
+      <View style={{ paddingBottom: insets.bottom + 8 }}>
+        <PowerUpBar
+          powerUps={powerUps}
+          onPowerUpPress={handlePowerUpPress}
+          onSettingsPress={handleSettingsPress}
+        />
+      </View>
       
       <GameOverModal
         visible={gameOverVisible}
@@ -804,6 +884,13 @@ export default function GameScreen() {
         onBackToHome={handleBackToHome}
         onNewGame={handleNewGame}
       />
+      
+      <SettingsModal
+        visible={settingsVisible}
+        currentTheme={currentTheme}
+        onClose={() => setSettingsVisible(false)}
+        onThemeChange={handleThemeChange}
+      />
     </SafeAreaView>
   );
 }
@@ -811,7 +898,6 @@ export default function GameScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -824,7 +910,22 @@ const styles = StyleSheet.create({
   menuButton: {
     position: 'absolute',
     left: 16,
-    top: 12,
+    padding: 8,
+    backgroundColor: colors.cardBackground,
+    borderRadius: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 2,
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  settingsButton: {
+    position: 'absolute',
+    right: 16,
     padding: 8,
     backgroundColor: colors.cardBackground,
     borderRadius: 10,
@@ -870,18 +971,12 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontWeight: '800',
   },
-  statValueAccent: {
-    fontSize: 24,
-    color: colors.accent,
-    fontWeight: '800',
-  },
   powerUpModeBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 12,
-    backgroundColor: colors.primary,
     marginHorizontal: 16,
     marginBottom: 8,
     borderRadius: 12,
@@ -909,7 +1004,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   boardCard: {
-    backgroundColor: colors.cardBackground,
     borderRadius: 16,
     padding: 12,
     shadowColor: '#000',
