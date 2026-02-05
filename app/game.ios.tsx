@@ -518,7 +518,6 @@ export default function GameScreen() {
     const newScore = gameState.score + result.scoreAdded;
     const newBestScore = Math.max(newScore, gameState.bestScore);
     
-    // Check for milestone
     const maxTileValue = getMaxBoardValue(result.finalGrid);
     const milestones = [256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536];
     const newMilestone = milestones.find(m => m === maxTileValue && !milestonesReached.has(m));
@@ -680,10 +679,32 @@ export default function GameScreen() {
   
   const powerUpModeText = activePowerUp === 'bomb' ? 'Tap a tile to remove it' : activePowerUp === 'swap' ? `Tap ${selectedPowerUpTiles.length === 0 ? 'first' : 'second'} tile to swap` : '';
   
-  const powerUps: PowerUp[] = [
-    { id: 'hint', name: 'Hint', icon: 'lightbulb', usesLeft: gameState.powerUps.hint, maxUses: 2 },
-    { id: 'bomb', name: 'Bomb', icon: 'delete', usesLeft: gameState.powerUps.bomb, maxUses: 2 },
-    { id: 'swap', name: 'Swap', icon: 'swap-horiz', usesLeft: gameState.powerUps.swap, maxUses: 2 },
+  const hintUsesLeft = gameState.powerUps.hint;
+  const bombUsesLeft = gameState.powerUps.bomb;
+  const swapUsesLeft = gameState.powerUps.swap;
+  
+  const powerUpsArray: PowerUp[] = [
+    {
+      id: 'hint',
+      name: 'Hint',
+      icon: 'lightbulb',
+      usesLeft: hintUsesLeft,
+      maxUses: 2,
+    },
+    {
+      id: 'bomb',
+      name: 'Bomb',
+      icon: 'delete',
+      usesLeft: bombUsesLeft,
+      maxUses: 2,
+    },
+    {
+      id: 'swap',
+      name: 'Swap',
+      icon: 'swap-horiz',
+      usesLeft: swapUsesLeft,
+      maxUses: 2,
+    },
   ];
   
   return (
@@ -842,7 +863,7 @@ export default function GameScreen() {
       
       <View style={{ paddingBottom: insets.bottom + 8 }}>
         <PowerUpBar
-          powerUps={powerUps}
+          powerUps={powerUpsArray}
           onPowerUpPress={handlePowerUpPress}
           onSettingsPress={handleSettingsPress}
         />
