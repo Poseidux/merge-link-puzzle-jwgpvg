@@ -60,7 +60,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   menuContainer: {
-    backgroundColor: colors.background,
+    backgroundColor: colors.cardBackground,
     borderRadius: 20,
     padding: 24,
     width: '80%',
@@ -86,7 +86,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   menuButtonSecondary: {
-    backgroundColor: colors.cardBackground,
+    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+    borderWidth: 1,
+    borderColor: colors.primary,
   },
   menuButtonText: {
     fontSize: 18,
@@ -97,7 +99,7 @@ const styles = StyleSheet.create({
   menuButtonTextSecondary: {
     fontSize: 18,
     fontWeight: '700',
-    color: colors.text,
+    color: colors.primary,
     textAlign: 'center',
   },
 });

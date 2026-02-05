@@ -19,6 +19,16 @@ interface GameTileProps {
   animationDelay?: number;
 }
 
+// Calculate brightness of a color to determine if text should be dark or light
+function getTextColorForBackground(value: number): string {
+  // For lower values (2-16), use white text
+  // For higher values with lighter gradients, use dark text
+  if (value >= 128) {
+    return '#1C1C1E'; // Dark text for lighter backgrounds
+  }
+  return '#FFFFFF'; // White text for darker backgrounds
+}
+
 export default function GameTile({ value, isSelected, size, isAnimating = false, animationDelay = 0 }: GameTileProps) {
   // Handle invalid values gracefully
   const safeValue = (value !== undefined && value !== null && typeof value === 'number' && !isNaN(value)) ? value : 2;
@@ -26,6 +36,7 @@ export default function GameTile({ value, isSelected, size, isAnimating = false,
   const tileColorData = getTileColor(safeValue);
   const displayValue = formatTileValue(safeValue);
   const isGlowing = safeValue >= 1024;
+  const textColor = getTextColorForBackground(safeValue);
   
   const opacity = useSharedValue(1);
   const scale = useSharedValue(1);
@@ -56,11 +67,15 @@ export default function GameTile({ value, isSelected, size, isAnimating = false,
     };
   });
   
+  // Auto-scale font size based on number of digits
   const getFontSize = () => {
     const baseSize = size * 0.35;
-    if (displayValue.length >= 4) return baseSize * 0.7;
-    if (displayValue.length === 3) return baseSize * 0.85;
-    return baseSize;
+    const digitCount = displayValue.length;
+    
+    if (digitCount >= 5) return baseSize * 0.55; // 5+ digits (e.g., "1000K")
+    if (digitCount === 4) return baseSize * 0.65; // 4 digits (e.g., "1024")
+    if (digitCount === 3) return baseSize * 0.8;  // 3 digits (e.g., "128")
+    return baseSize; // 1-2 digits
   };
   
   const fontSize = getFontSize();
@@ -94,10 +109,14 @@ export default function GameTile({ value, isSelected, size, isAnimating = false,
         <Text 
           style={[
             styles.tileText, 
-            { fontSize }
+            { 
+              fontSize,
+              color: textColor,
+            }
           ]}
           numberOfLines={1}
           adjustsFontSizeToFit
+          minimumFontScale={0.5}
         >
           {displayValue}
         </Text>
@@ -118,21 +137,20 @@ const styles = StyleSheet.create({
     elevation: 12,
   },
   tile: {
-    borderRadius: 14,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 6,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 4,
   },
   tileText: {
-    color: '#FFFFFF',
     fontWeight: '900',
-    textShadowColor: 'rgba(0, 0, 0, 0.4)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 3,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
     letterSpacing: -0.5,
   },
 });

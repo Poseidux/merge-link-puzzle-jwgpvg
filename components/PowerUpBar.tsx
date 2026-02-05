@@ -32,10 +32,10 @@ export default function PowerUpBar({ powerUps, onPowerUpPress, onSettingsPress }
   
   return (
     <View style={styles.container}>
-      <View style={styles.powerUpsContainer}>
+      <View style={styles.powerUpCard}>
         {powerUps.map((powerUp) => {
           const isDisabled = powerUp.usesLeft === 0;
-          const usesText = `${powerUp.usesLeft}/${powerUp.maxUses}`;
+          const usesText = `${powerUp.usesLeft}`;
           const iconData = getIconForPowerUp(powerUp.id);
           
           return (
@@ -47,78 +47,85 @@ export default function PowerUpBar({ powerUps, onPowerUpPress, onSettingsPress }
               ]}
               onPress={() => onPowerUpPress(powerUp.id)}
               disabled={isDisabled}
+              activeOpacity={isDisabled ? 1 : 0.7}
             >
-              <IconSymbol
-                ios_icon_name={iconData.ios}
-                android_material_icon_name={iconData.android}
-                size={28}
-                color={isDisabled ? colors.textSecondary : colors.primary}
-              />
-              <Text style={[
-                styles.usesText,
-                isDisabled && styles.usesTextDisabled,
-              ]}>
-                {usesText}
-              </Text>
+              <View style={styles.iconContainer}>
+                <IconSymbol
+                  ios_icon_name={iconData.ios}
+                  android_material_icon_name={iconData.android}
+                  size={24}
+                  color={isDisabled ? colors.textSecondary : colors.primary}
+                />
+                {powerUp.usesLeft > 0 && (
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>{usesText}</Text>
+                  </View>
+                )}
+              </View>
             </TouchableOpacity>
           );
         })}
       </View>
-
-      <TouchableOpacity
-        style={styles.settingsButton}
-        onPress={onSettingsPress}
-      >
-        <IconSymbol
-          ios_icon_name="gear"
-          android_material_icon_name="settings"
-          size={28}
-          color={colors.text}
-        />
-      </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
+    paddingBottom: 16,
     backgroundColor: colors.background,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
   },
-  powerUpsContainer: {
+  powerUpCard: {
     flexDirection: 'row',
-    flex: 1,
+    backgroundColor: colors.cardBackground,
+    borderRadius: 16,
+    padding: 8,
     justifyContent: 'space-around',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.05)',
   },
   powerUpButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: colors.cardBackground,
-    minWidth: 60,
+    width: 60,
+    height: 60,
+    borderRadius: 12,
+    backgroundColor: 'rgba(102, 126, 234, 0.08)',
   },
   powerUpButtonDisabled: {
-    opacity: 0.4,
+    backgroundColor: 'rgba(142, 142, 147, 0.08)',
+    opacity: 0.5,
   },
-  usesText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.text,
-    marginTop: 4,
+  iconContainer: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  usesTextDisabled: {
-    color: colors.textSecondary,
+  badge: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: colors.accent,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+    borderWidth: 2,
+    borderColor: colors.cardBackground,
   },
-  settingsButton: {
-    padding: 8,
-    marginLeft: 12,
+  badgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
 });

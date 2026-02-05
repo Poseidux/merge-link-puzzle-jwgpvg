@@ -9,6 +9,7 @@ import {
   Platform,
 } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import Svg, { Line } from 'react-native-svg';
 import { colors } from '@/styles/commonStyles';
@@ -19,6 +20,7 @@ import ConfirmModal from '@/components/ConfirmModal';
 import PowerUpBar, { PowerUp } from '@/components/PowerUpBar';
 import GameMenu from '@/components/GameMenu';
 import { GameState, Tile } from '@/types/game';
+import { IconSymbol } from '@/components/IconSymbol';
 import {
   createInitialGrid,
   isValidChain,
@@ -40,15 +42,24 @@ import {
   SavedGameState,
 } from '@/utils/storage';
 
+// Timing constants for game speed (in milliseconds)
+const TIMING = {
+  MOVE_MS: 0,           // Tile movement animation
+  DROP_MS: 0,           // Tile drop animation
+  MERGE_MS: 50,         // Merge animation
+  CHAIN_DELAY_MS: 50,   // Delay between chain steps
+  GAME_OVER_CHECK: 100, // Delay before checking game over
+};
+
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const GRID_PADDING = 20;
 const TILE_GAP = 8;
-const HEADER_HEIGHT = 180;
-const POWERUP_BAR_HEIGHT = 80;
+const HEADER_HEIGHT = 140;
+const POWERUP_BAR_HEIGHT = 100;
 const BOTTOM_MARGIN = 20;
 
-const AVAILABLE_HEIGHT = SCREEN_HEIGHT - HEADER_HEIGHT - POWERUP_BAR_HEIGHT - BOTTOM_MARGIN - 40;
+const AVAILABLE_HEIGHT = SCREEN_HEIGHT - HEADER_HEIGHT - POWERUP_BAR_HEIGHT - BOTTOM_MARGIN - 60;
 const AVAILABLE_WIDTH = SCREEN_WIDTH - GRID_PADDING * 2;
 
 const TILE_SIZE_BY_WIDTH = (AVAILABLE_WIDTH - TILE_GAP * (GRID_CONFIG.COLS - 1)) / GRID_CONFIG.COLS;
@@ -489,7 +500,7 @@ export default function GameScreen() {
         console.log('[Game] No valid moves, game over');
         setGameOverVisible(true);
       }
-    }, 300);
+    }, TIMING.GAME_OVER_CHECK);
   }, [activePowerUp, gameState, gridMeasured]);
   
   function handleRestart() {
@@ -598,9 +609,9 @@ export default function GameScreen() {
   }
   
   function handleBackToHome() {
-    console.log('[Game] Back to home - navigating to / with push');
+    console.log('[Game] Back to home - navigating to root with replace');
     setGameMenuVisible(false);
-    router.push('/');
+    router.replace('/');
   }
   
   const scoreText = `${gameState.score}`;
@@ -616,23 +627,37 @@ export default function GameScreen() {
   ];
   
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <Stack.Screen
         options={{
           headerShown: false,
         }}
       />
       
-      <View style={styles.scoreBar}>
-        <View style={styles.scoreContainer}>
-          <Text style={styles.scoreLabel}>Score</Text>
-          <Text style={styles.scoreValue}>{scoreText}</Text>
+      <View style={styles.header}>
+        <View style={styles.statsRow}>
+          <View style={styles.statChip}>
+            <Text style={styles.statLabel}>Score</Text>
+            <Text style={styles.statValue}>{scoreText}</Text>
+          </View>
+          
+          <View style={styles.statChip}>
+            <Text style={styles.statLabel}>Best</Text>
+            <Text style={styles.statValueAccent}>{bestScoreText}</Text>
+          </View>
         </View>
         
-        <View style={styles.scoreContainer}>
-          <Text style={styles.scoreLabel}>Best</Text>
-          <Text style={styles.bestScoreValue}>{bestScoreText}</Text>
-        </View>
+        <TouchableOpacity
+          style={styles.settingsButton}
+          onPress={handleSettingsPress}
+        >
+          <IconSymbol
+            ios_icon_name="gear"
+            android_material_icon_name="settings"
+            size={24}
+            color={colors.text}
+          />
+        </TouchableOpacity>
       </View>
       
       {activePowerUp && (
@@ -652,83 +677,85 @@ export default function GameScreen() {
       )}
       
       <View style={styles.gameContainer}>
-        <View
-          ref={gridContainerRef}
-          style={styles.gridContainer}
-          onStartShouldSetResponder={() => true}
-          onMoveShouldSetResponder={() => true}
-          onResponderGrant={handleTouchStart}
-          onResponderMove={handleTouchMove}
-          onResponderRelease={handleTouchEnd}
-          onResponderTerminationRequest={() => false}
-        >
-          {selectedTiles.length > 1 && !activePowerUp && (
-            <Svg style={styles.svgOverlay} pointerEvents="none">
-              {selectedTiles.map((tile, index) => {
-                if (index === 0) return null;
-                const prevTile = selectedTiles[index - 1];
-                
-                const x1 = prevTile.col * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
-                const y1 = prevTile.row * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
-                const x2 = tile.col * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
-                const y2 = tile.row * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
-                
-                return (
-                  <Line
-                    key={`line-${index}`}
-                    x1={x1}
-                    y1={y1}
-                    x2={x2}
-                    y2={y2}
-                    stroke={colors.accent}
-                    strokeWidth={4}
-                    strokeLinecap="round"
-                  />
-                );
-              })}
-            </Svg>
-          )}
-          
-          {gameState.grid.map((row, rowIndex) => (
-            <View key={rowIndex} style={styles.gridRow}>
-              {row.map((tile, colIndex) => {
-                const isSelected = selectedTiles.some(
-                  t => t.row === rowIndex && t.col === colIndex
-                );
-                
-                const isHighlighted = highlightedTiles.has(tile.id);
-                
-                const isPowerUpSelected = selectedPowerUpTiles.some(
-                  t => t.row === rowIndex && t.col === colIndex
-                );
-                
-                return (
-                  <View
-                    key={tile.id}
-                    style={styles.tileWrapper}
-                  >
-                    <GameTile
-                      value={tile.value}
-                      isSelected={isSelected || isHighlighted || isPowerUpSelected}
-                      size={TILE_SIZE}
+        <View style={styles.boardCard}>
+          <View
+            ref={gridContainerRef}
+            style={styles.gridContainer}
+            onStartShouldSetResponder={() => true}
+            onMoveShouldSetResponder={() => true}
+            onResponderGrant={handleTouchStart}
+            onResponderMove={handleTouchMove}
+            onResponderRelease={handleTouchEnd}
+            onResponderTerminationRequest={() => false}
+          >
+            {selectedTiles.length > 1 && !activePowerUp && (
+              <Svg style={styles.svgOverlay} pointerEvents="none">
+                {selectedTiles.map((tile, index) => {
+                  if (index === 0) return null;
+                  const prevTile = selectedTiles[index - 1];
+                  
+                  const x1 = prevTile.col * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
+                  const y1 = prevTile.row * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
+                  const x2 = tile.col * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
+                  const y2 = tile.row * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
+                  
+                  return (
+                    <Line
+                      key={`line-${index}`}
+                      x1={x1}
+                      y1={y1}
+                      x2={x2}
+                      y2={y2}
+                      stroke={colors.accent}
+                      strokeWidth={4}
+                      strokeLinecap="round"
                     />
-                  </View>
-                );
-              })}
-            </View>
-          ))}
-          
-          {floatingScores.map(fs => (
-            <FloatingScore
-              key={fs.id}
-              score={fs.score}
-              x={fs.x}
-              y={fs.y}
-              onComplete={() => {
-                setFloatingScores(prev => prev.filter(s => s.id !== fs.id));
-              }}
-            />
-          ))}
+                  );
+                })}
+              </Svg>
+            )}
+            
+            {gameState.grid.map((row, rowIndex) => (
+              <View key={rowIndex} style={styles.gridRow}>
+                {row.map((tile, colIndex) => {
+                  const isSelected = selectedTiles.some(
+                    t => t.row === rowIndex && t.col === colIndex
+                  );
+                  
+                  const isHighlighted = highlightedTiles.has(tile.id);
+                  
+                  const isPowerUpSelected = selectedPowerUpTiles.some(
+                    t => t.row === rowIndex && t.col === colIndex
+                  );
+                  
+                  return (
+                    <View
+                      key={tile.id}
+                      style={styles.tileWrapper}
+                    >
+                      <GameTile
+                        value={tile.value}
+                        isSelected={isSelected || isHighlighted || isPowerUpSelected}
+                        size={TILE_SIZE}
+                      />
+                    </View>
+                  );
+                })}
+              </View>
+            ))}
+            
+            {floatingScores.map(fs => (
+              <FloatingScore
+                key={fs.id}
+                score={fs.score}
+                x={fs.x}
+                y={fs.y}
+                onComplete={() => {
+                  setFloatingScores(prev => prev.filter(s => s.id !== fs.id));
+                }}
+              />
+            ))}
+          </View>
         </View>
       </View>
       
@@ -761,7 +788,7 @@ export default function GameScreen() {
         onBackToHome={handleBackToHome}
         onNewGame={handleNewGame}
       />
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -769,55 +796,89 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-    paddingTop: Platform.OS === 'android' ? 100 : 0,
   },
-  scoreBar: {
+  header: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingVertical: 20,
-    paddingHorizontal: 16,
-    backgroundColor: colors.background,
-  },
-  scoreContainer: {
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    position: 'relative',
   },
-  scoreLabel: {
-    fontSize: 14,
+  statsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  statChip: {
+    backgroundColor: colors.cardBackground,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 12,
+    alignItems: 'center',
+    minWidth: 100,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.05)',
+  },
+  statLabel: {
+    fontSize: 11,
     color: colors.textSecondary,
     fontWeight: '600',
-    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 2,
   },
-  scoreValue: {
-    fontSize: 32,
+  statValue: {
+    fontSize: 24,
     color: colors.text,
-    fontWeight: 'bold',
+    fontWeight: '800',
   },
-  bestScoreValue: {
-    fontSize: 32,
+  statValueAccent: {
+    fontSize: 24,
     color: colors.accent,
-    fontWeight: 'bold',
+    fontWeight: '800',
+  },
+  settingsButton: {
+    position: 'absolute',
+    right: 16,
+    top: 12,
+    padding: 8,
+    backgroundColor: colors.cardBackground,
+    borderRadius: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 2,
   },
   powerUpModeBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     paddingVertical: 12,
     backgroundColor: colors.primary,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    borderRadius: 12,
   },
   powerUpModeText: {
-    fontSize: 16,
+    fontSize: 15,
     color: '#FFF',
     fontWeight: '600',
   },
   cancelButton: {
     paddingHorizontal: 16,
     paddingVertical: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
     borderRadius: 8,
   },
   cancelButtonText: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#FFF',
     fontWeight: '700',
   },
@@ -825,12 +886,24 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingVertical: 8,
+  },
+  boardCard: {
+    backgroundColor: colors.cardBackground,
+    borderRadius: 16,
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.05)',
   },
   gridContainer: {
     position: 'relative',
     width: GRID_WIDTH,
     height: GRID_HEIGHT,
-    backgroundColor: 'transparent',
   },
   svgOverlay: {
     position: 'absolute',
