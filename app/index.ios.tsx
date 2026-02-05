@@ -36,13 +36,8 @@ export default function HomeScreen() {
   }
 
   function handleContinue() {
-    console.log('User tapped Continue button');
-    if (hasSavedGame) {
-      router.push('/(tabs)/(home)');
-    } else {
-      console.log('No saved game, starting new game');
-      router.push('/(tabs)/(home)');
-    }
+    console.log('User tapped Continue button - navigating to /game');
+    router.push('/game');
   }
 
   function handleNewGame() {
@@ -55,9 +50,9 @@ export default function HomeScreen() {
   }
 
   function startNewGame() {
-    console.log('Starting new game');
+    console.log('Starting new game - navigating to /game with newGame=true');
     setConfirmNewGameVisible(false);
-    router.push('/(tabs)/(home)?newGame=true');
+    router.push('/game?newGame=true');
   }
 
   const continueButtonOpacity = hasSavedGame ? 1 : 0.5;
