@@ -591,33 +591,7 @@ export default function GameScreen() {
       return;
     }
     
-    if (powerUpId === 'undo') {
-      if (gameState.previousGrid) {
-        console.log('[Game] Undo: restoring previous grid');
-        const newState: GameState = {
-          ...gameState,
-          grid: gameState.previousGrid,
-          score: gameState.previousScore,
-          powerUps: {
-            ...gameState.powerUps,
-            undo: gameState.powerUps.undo - 1,
-          },
-          previousGrid: null,
-        };
-        
-        setGameState(newState);
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        
-        const savedState: SavedGameState = {
-          grid: gridToNumbers(gameState.previousGrid),
-          score: gameState.previousScore,
-          bestScore: newState.bestScore,
-          powerUps: newState.powerUps,
-          spawnProgression: newState.spawnProgression,
-        };
-        saveGameState(savedState);
-      }
-    } else if (powerUpId === 'hint') {
+    if (powerUpId === 'hint') {
       const validChain = findValidChain(gameState.grid);
       if (validChain) {
         const highlightIds = new Set<string>();
@@ -693,7 +667,6 @@ export default function GameScreen() {
   const powerUpModeText = activePowerUp === 'bomb' ? 'Tap a tile to remove it' : activePowerUp === 'swap' ? `Tap ${selectedPowerUpTiles.length === 0 ? 'first' : 'second'} tile to swap` : '';
   
   const powerUps: PowerUp[] = [
-    { id: 'undo', name: 'Undo', icon: 'undo', usesLeft: gameState.powerUps.undo, maxUses: 2 },
     { id: 'hint', name: 'Hint', icon: 'lightbulb', usesLeft: gameState.powerUps.hint, maxUses: 2 },
     { id: 'bomb', name: 'Bomb', icon: 'delete', usesLeft: gameState.powerUps.bomb, maxUses: 2 },
     { id: 'swap', name: 'Swap', icon: 'swap-horiz', usesLeft: gameState.powerUps.swap, maxUses: 2 },
