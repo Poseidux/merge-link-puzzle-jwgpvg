@@ -56,12 +56,12 @@ export default function PowerUpBar({ powerUps, onPowerUpPress, onSettingsPress }
                   size={24}
                   color={isDisabled ? colors.textSecondary : colors.primary}
                 />
-                {powerUp.usesLeft > 0 && (
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeText}>{usesText}</Text>
-                  </View>
-                )}
               </View>
+              {powerUp.usesLeft > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{usesText}</Text>
+                </View>
+              )}
             </TouchableOpacity>
           );
         })}
@@ -99,20 +99,22 @@ const styles = StyleSheet.create({
     height: 60,
     borderRadius: 12,
     backgroundColor: 'rgba(102, 126, 234, 0.08)',
+    position: 'relative',
+    minWidth: 44,
+    minHeight: 44,
   },
   powerUpButtonDisabled: {
     backgroundColor: 'rgba(142, 142, 147, 0.08)',
     opacity: 0.5,
   },
   iconContainer: {
-    position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
   },
   badge: {
     position: 'absolute',
-    top: -8,
-    right: -8,
+    top: -4,
+    right: -4,
     backgroundColor: colors.accent,
     borderRadius: 10,
     minWidth: 20,
@@ -122,6 +124,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     borderWidth: 2,
     borderColor: colors.cardBackground,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 3,
   },
   badgeText: {
     fontSize: 11,

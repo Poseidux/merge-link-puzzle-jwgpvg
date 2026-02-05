@@ -7,9 +7,10 @@ import {
   TouchableOpacity,
   Dimensions,
   Platform,
+  ActionSheetIOS,
 } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import Svg, { Line } from 'react-native-svg';
 import { colors } from '@/styles/commonStyles';
@@ -34,6 +35,7 @@ import {
   swapTiles,
   rebuildGridFromNumbers,
   gridToNumbers,
+  formatTileValue,
 } from '@/utils/gameLogic';
 import {
   saveGameState,
@@ -50,6 +52,9 @@ const TIMING = {
   CHAIN_DELAY_MS: 50,   // Delay between chain steps
   GAME_OVER_CHECK: 100, // Delay before checking game over
 };
+
+// Swipe threshold - lowered for better responsiveness (10-20px)
+const SWIPE_THRESHOLD = 15;
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -80,6 +85,7 @@ interface SelectedTile {
 export default function GameScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
+  const insets = useSafeAreaInsets();
   
   const [gameState, setGameState] = useState<GameState>({
     grid: createInitialGrid(),
@@ -113,6 +119,7 @@ export default function GameScreen() {
   const [gridMeasured, setGridMeasured] = useState(false);
   
   const hasLoadedInitialState = useRef(false);
+  const touchStartRef = useRef({ x: 0, y: 0 });
   
   useEffect(() => {
     selectedTilesRef.current = selectedTiles;
@@ -345,6 +352,8 @@ export default function GameScreen() {
     const locationX = touch.pageX - gridOffsetRef.current.x;
     const locationY = touch.pageY - gridOffsetRef.current.y;
     
+    touchStartRef.current = { x: locationX, y: locationY };
+    
     const tile = getTileAtPosition(locationX, locationY);
     
     if (tile) {
@@ -368,6 +377,13 @@ export default function GameScreen() {
     
     const locationX = touch.pageX - gridOffsetRef.current.x;
     const locationY = touch.pageY - gridOffsetRef.current.y;
+    
+    const deltaX = Math.abs(locationX - touchStartRef.current.x);
+    const deltaY = Math.abs(locationY - touchStartRef.current.y);
+    
+    if (deltaX < SWIPE_THRESHOLD && deltaY < SWIPE_THRESHOLD && selectedTilesRef.current.length === 0) {
+      return;
+    }
     
     const tile = getTileAtPosition(locationX, locationY);
     
@@ -598,8 +614,8 @@ export default function GameScreen() {
     }
   }
   
-  function handleSettingsPress() {
-    console.log('[Game] Settings button pressed');
+  function handleMenuPress() {
+    console.log('[Game] Menu button pressed');
     setGameMenuVisible(true);
   }
   
@@ -614,8 +630,8 @@ export default function GameScreen() {
     router.replace('/');
   }
   
-  const scoreText = `${gameState.score}`;
-  const bestScoreText = `${gameState.bestScore}`;
+  const scoreText = formatTileValue(gameState.score);
+  const bestScoreText = formatTileValue(gameState.bestScore);
   
   const powerUpModeText = activePowerUp === 'bomb' ? 'Tap a tile to remove it' : activePowerUp === 'swap' ? `Tap ${selectedPowerUpTiles.length === 0 ? 'first' : 'second'} tile to swap` : '';
   
@@ -634,7 +650,19 @@ export default function GameScreen() {
         }}
       />
       
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+        <TouchableOpacity
+          style={styles.menuButton}
+          onPress={handleMenuPress}
+        >
+          <IconSymbol
+            ios_icon_name="line.horizontal.3"
+            android_material_icon_name="menu"
+            size={24}
+            color={colors.text}
+          />
+        </TouchableOpacity>
+        
         <View style={styles.statsRow}>
           <View style={styles.statChip}>
             <Text style={styles.statLabel}>Score</Text>
@@ -646,18 +674,6 @@ export default function GameScreen() {
             <Text style={styles.statValueAccent}>{bestScoreText}</Text>
           </View>
         </View>
-        
-        <TouchableOpacity
-          style={styles.settingsButton}
-          onPress={handleSettingsPress}
-        >
-          <IconSymbol
-            ios_icon_name="gear"
-            android_material_icon_name="settings"
-            size={24}
-            color={colors.text}
-          />
-        </TouchableOpacity>
       </View>
       
       {activePowerUp && (
@@ -762,7 +778,7 @@ export default function GameScreen() {
       <PowerUpBar
         powerUps={powerUps}
         onPowerUpPress={handlePowerUpPress}
-        onSettingsPress={handleSettingsPress}
+        onSettingsPress={handleMenuPress}
       />
       
       <GameOverModal
@@ -805,6 +821,23 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     position: 'relative',
   },
+  menuButton: {
+    position: 'absolute',
+    left: 16,
+    top: 12,
+    padding: 8,
+    backgroundColor: colors.cardBackground,
+    borderRadius: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 2,
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   statsRow: {
     flexDirection: 'row',
     gap: 12,
@@ -841,19 +874,6 @@ const styles = StyleSheet.create({
     fontSize: 24,
     color: colors.accent,
     fontWeight: '800',
-  },
-  settingsButton: {
-    position: 'absolute',
-    right: 16,
-    top: 12,
-    padding: 8,
-    backgroundColor: colors.cardBackground,
-    borderRadius: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
-    elevation: 2,
   },
   powerUpModeBar: {
     flexDirection: 'row',
