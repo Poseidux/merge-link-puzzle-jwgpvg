@@ -11,7 +11,6 @@ export interface SavedGameState {
   score: number;
   bestScore: number;
   powerUps: {
-    undo: number;
     hint: number;
     bomb: number;
     swap: number;
@@ -40,7 +39,19 @@ export async function loadGameState(): Promise<SavedGameState | null> {
   try {
     console.log('[Storage] Loading game state');
     const jsonValue = await AsyncStorage.getItem(GAME_STATE_KEY);
-    return jsonValue != null ? JSON.parse(jsonValue) : null;
+    if (jsonValue != null) {
+      const parsed = JSON.parse(jsonValue);
+      
+      // Migration: Remove undo from old saved states
+      if (parsed.powerUps && 'undo' in parsed.powerUps) {
+        console.log('[Storage] Migrating old save data - removing undo power-up');
+        const { undo, ...restPowerUps } = parsed.powerUps;
+        parsed.powerUps = restPowerUps;
+      }
+      
+      return parsed;
+    }
+    return null;
   } catch (error) {
     console.error('[Storage] Error loading game state:', error);
     return null;

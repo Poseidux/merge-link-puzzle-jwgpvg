@@ -11,7 +11,6 @@ export interface GameState {
   score: number;
   bestScore: number;
   powerUps: {
-    undo: number;
     hint: number;
     bomb: number;
     swap: number;

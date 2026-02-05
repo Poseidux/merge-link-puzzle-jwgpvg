@@ -99,7 +99,6 @@ export default function GameScreen() {
     score: 0,
     bestScore: 0,
     powerUps: {
-      undo: 2,
       hint: 2,
       bomb: 2,
       swap: 2,
@@ -163,7 +162,6 @@ export default function GameScreen() {
       score: 0,
       bestScore: gameState.bestScore,
       powerUps: {
-        undo: 2,
         hint: 2,
         bomb: 2,
         swap: 2,
