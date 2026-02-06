@@ -759,6 +759,10 @@ export default function GameScreen() {
           />
         )}
         
+        {activePowerUp && (
+          <View style={styles.powerUpOverlay} pointerEvents="none" />
+        )}
+        
         <View style={[styles.boardCard, { backgroundColor: theme.boardBackground }]}>
           <View
             ref={gridContainerRef}
@@ -992,10 +996,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 8,
+    position: 'relative',
+  },
+  powerUpOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.15)',
+    zIndex: 0,
   },
   boardCard: {
-    borderRadius: 16,
-    padding: 10,
+    borderRadius: 18,
+    padding: 14,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -1003,6 +1017,7 @@ const styles = StyleSheet.create({
     elevation: 3,
     borderWidth: 1,
     borderColor: 'rgba(0, 0, 0, 0.05)',
+    zIndex: 1,
   },
   gridContainer: {
     position: 'relative',

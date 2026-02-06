@@ -150,7 +150,7 @@ const styles = StyleSheet.create({
     elevation: 12,
   },
   tile: {
-    borderRadius: 12,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
