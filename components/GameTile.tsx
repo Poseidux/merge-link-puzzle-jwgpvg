@@ -21,21 +21,16 @@ interface GameTileProps {
   accentColor?: string;
 }
 
-// Calculate brightness of a color to determine if text should be dark or light
 function getTextColorForBackground(value: number): string {
-  // For lower values (2-16), use white text
-  // For higher values with lighter gradients, use dark text
   if (value >= 128) {
-    return '#1C1C1E'; // Dark text for lighter backgrounds
+    return '#1C1C1E';
   }
-  return '#FFFFFF'; // White text for darker backgrounds
+  return '#FFFFFF';
 }
 
 export default function GameTile({ value, isSelected, size, isAnimating = false, animationDelay = 0, tileColors, accentColor = '#FFD700' }: GameTileProps) {
-  // Handle invalid values gracefully
   const safeValue = (value !== undefined && value !== null && typeof value === 'number' && !isNaN(value)) ? value : 2;
   
-  // Use theme colors if provided, otherwise fall back to default
   let gradientColors: string[];
   if (tileColors && tileColors[safeValue]) {
     gradientColors = tileColors[safeValue];
@@ -77,15 +72,14 @@ export default function GameTile({ value, isSelected, size, isAnimating = false,
     };
   });
   
-  // Auto-scale font size based on number of digits
   const getFontSize = () => {
     const baseSize = size * 0.35;
     const digitCount = displayValue.length;
     
-    if (digitCount >= 5) return baseSize * 0.55; // 5+ digits (e.g., "1000K")
-    if (digitCount === 4) return baseSize * 0.65; // 4 digits (e.g., "1024")
-    if (digitCount === 3) return baseSize * 0.8;  // 3 digits (e.g., "128")
-    return baseSize; // 1-2 digits
+    if (digitCount >= 5) return baseSize * 0.55;
+    if (digitCount === 4) return baseSize * 0.65;
+    if (digitCount === 3) return baseSize * 0.8;
+    return baseSize;
   };
   
   const fontSize = getFontSize();
@@ -99,11 +93,18 @@ export default function GameTile({ value, isSelected, size, isAnimating = false,
           height: size,
         },
         isGlowing && styles.glowContainer,
+        isSelected && {
+          shadowColor: accentColor,
+          shadowOffset: { width: 0, height: 0 },
+          shadowOpacity: 0.9,
+          shadowRadius: 10,
+          elevation: 15,
+        },
         animatedStyle,
       ]}
     >
       <LinearGradient
-        colors={gradientColors}
+        colors={isSelected ? [accentColor, accentColor] : gradientColors}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={[
@@ -111,8 +112,9 @@ export default function GameTile({ value, isSelected, size, isAnimating = false,
           {
             width: size,
             height: size,
-            borderWidth: isSelected ? 4 : 0,
-            borderColor: isSelected ? accentColor : 'transparent',
+            borderWidth: isSelected ? 5 : 0,
+            borderColor: isSelected ? '#FFFFFF' : 'transparent',
+            opacity: isSelected ? 0.95 : 1,
           },
         ]}
       >
@@ -121,7 +123,8 @@ export default function GameTile({ value, isSelected, size, isAnimating = false,
             styles.tileText, 
             { 
               fontSize,
-              color: textColor,
+              color: isSelected ? '#FFFFFF' : textColor,
+              fontWeight: isSelected ? '900' : '900',
             }
           ]}
           numberOfLines={1}

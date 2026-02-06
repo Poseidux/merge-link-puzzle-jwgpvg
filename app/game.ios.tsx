@@ -68,17 +68,17 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const GRID_PADDING = 16;
 const TILE_GAP = 6;
-const HEADER_HEIGHT = 80;
+const HEADER_HEIGHT = 70;
 const POWERUP_BAR_HEIGHT = 80;
-const BOTTOM_MARGIN = 16;
+const BOTTOM_MARGIN = 12;
 
-const AVAILABLE_HEIGHT = SCREEN_HEIGHT - HEADER_HEIGHT - POWERUP_BAR_HEIGHT - BOTTOM_MARGIN - 80;
+const AVAILABLE_HEIGHT = SCREEN_HEIGHT - HEADER_HEIGHT - POWERUP_BAR_HEIGHT - BOTTOM_MARGIN - 60;
 const AVAILABLE_WIDTH = SCREEN_WIDTH - GRID_PADDING * 2;
 
 const TILE_SIZE_BY_WIDTH = (AVAILABLE_WIDTH - TILE_GAP * (GRID_CONFIG.COLS - 1)) / GRID_CONFIG.COLS;
 const TILE_SIZE_BY_HEIGHT = (AVAILABLE_HEIGHT - TILE_GAP * (GRID_CONFIG.ROWS - 1)) / GRID_CONFIG.ROWS;
 
-const MAX_TILE_SIZE = 68;
+const MAX_TILE_SIZE = 72;
 const TILE_SIZE = Math.min(TILE_SIZE_BY_WIDTH, TILE_SIZE_BY_HEIGHT, MAX_TILE_SIZE);
 
 const GRID_WIDTH = GRID_CONFIG.COLS * TILE_SIZE + (GRID_CONFIG.COLS - 1) * TILE_GAP;
@@ -822,7 +822,7 @@ export default function GameScreen() {
         }}
       />
       
-      <View style={[styles.header, { paddingTop: insets.top + 6 }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 3 }]}>
         <TouchableOpacity
           style={styles.menuButton}
           onPress={handleMenuPress}
@@ -1025,7 +1025,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 16,
-    paddingBottom: 8,
+    paddingBottom: 6,
     position: 'relative',
   },
   menuButton: {
@@ -1137,7 +1137,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 8,
   },
   boardCard: {
     borderRadius: 16,
