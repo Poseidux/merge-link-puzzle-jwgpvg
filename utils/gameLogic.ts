@@ -1,7 +1,7 @@
 
 import { Tile } from '@/types/game';
 
-export const GRID_COLS = 5; // Changed from 6 to 5 columns
+export const GRID_COLS = 5;
 export const GRID_ROWS = 8;
 
 export const GRID_CONFIG = {
@@ -9,14 +9,11 @@ export const GRID_CONFIG = {
   ROWS: GRID_ROWS,
 };
 
-// Generate a unique ID for tiles
 export function generateTileId(): string {
   return `tile_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
-// Format tile value for display (K for thousands, M for millions)
 export function formatTileValue(value: number | undefined | null): string {
-  // Handle undefined, null, or invalid values
   if (value === undefined || value === null || typeof value !== 'number' || isNaN(value)) {
     console.warn('formatTileValue received invalid value:', value);
     return '';
@@ -24,34 +21,39 @@ export function formatTileValue(value: number | undefined | null): string {
   
   if (value >= 1000000) {
     const millions = value / 1000000;
-    return millions % 1 === 0 ? `${millions}M` : `${millions.toFixed(1)}M`;
+    if (millions >= 10) {
+      return `${Math.round(millions)}M`;
+    }
+    return `${millions.toFixed(1)}M`;
+  }
+  if (value >= 10000) {
+    return `${Math.round(value / 1000)}K`;
   }
   if (value >= 1000) {
     const thousands = value / 1000;
-    return thousands % 1 === 0 ? `${thousands}K` : `${thousands.toFixed(1)}K`;
+    return `${thousands.toFixed(1)}K`;
   }
   return value.toString();
 }
 
-// Get tile gradient colors based on value - ENHANCED VIBRANT GRADIENTS
 export function getTileColor(value: number): { gradientColors: string[] } {
   const colorMap: { [key: number]: string[] } = {
-    2: ['#667EEA', '#764BA2'],       // Purple gradient
-    4: ['#F093FB', '#F5576C'],       // Pink gradient
-    8: ['#4FACFE', '#00F2FE'],       // Cyan gradient
-    16: ['#43E97B', '#38F9D7'],      // Green gradient
-    32: ['#FA709A', '#FEE140'],      // Pink-yellow gradient
-    64: ['#30CFD0', '#330867'],      // Teal-purple gradient
-    128: ['#A8EDEA', '#FED6E3'],     // Pastel gradient
-    256: ['#FF9A56', '#FF6A88'],     // Orange-pink gradient
-    512: ['#FBC2EB', '#A6C1EE'],     // Lavender gradient
-    1024: ['#FFD89B', '#19547B'],    // Gold-blue gradient
-    2048: ['#FDC830', '#F37335'],    // Gold-orange gradient
-    4096: ['#FF512F', '#DD2476'],    // Red-pink gradient
-    8192: ['#DA22FF', '#9733EE'],    // Purple gradient
-    16384: ['#17EAD9', '#6078EA'],   // Cyan-blue gradient
-    32768: ['#F4D03F', '#16A085'],   // Yellow-teal gradient
-    65536: ['#D66D75', '#E29587'],   // Rose gradient
+    2: ['#667EEA', '#764BA2'],
+    4: ['#F093FB', '#F5576C'],
+    8: ['#4FACFE', '#00F2FE'],
+    16: ['#43E97B', '#38F9D7'],
+    32: ['#FA709A', '#FEE140'],
+    64: ['#30CFD0', '#330867'],
+    128: ['#A8EDEA', '#FED6E3'],
+    256: ['#FF9A56', '#FF6A88'],
+    512: ['#FBC2EB', '#A6C1EE'],
+    1024: ['#FFD89B', '#19547B'],
+    2048: ['#FDC830', '#F37335'],
+    4096: ['#FF512F', '#DD2476'],
+    8192: ['#DA22FF', '#9733EE'],
+    16384: ['#17EAD9', '#6078EA'],
+    32768: ['#F4D03F', '#16A085'],
+    65536: ['#D66D75', '#E29587'],
   };
   
   if (colorMap[value]) {
@@ -68,38 +70,29 @@ export function getTileColor(value: number): { gradientColors: string[] } {
   };
 }
 
+export function getSpawnTiles(maxTile: number): { base: number; double: number } {
+  if (maxTile < 512) return { base: 2, double: 4 };
+  if (maxTile < 1024) return { base: 4, double: 8 };
+  if (maxTile < 2048) return { base: 8, double: 16 };
+  if (maxTile < 4096) return { base: 16, double: 32 };
+  if (maxTile < 8192) return { base: 32, double: 64 };
+  if (maxTile < 16384) return { base: 64, double: 128 };
+  return { base: 128, double: 256 };
+}
+
 export function getMinimumTileValue(maxTileValue: number): number {
-  if (maxTileValue >= 16384) return 32;
-  if (maxTileValue >= 8192) return 16;
-  if (maxTileValue >= 4096) return 8;
-  if (maxTileValue >= 2048) return 4;
-  return 2;
+  const spawnTiles = getSpawnTiles(maxTileValue);
+  return spawnTiles.base;
 }
 
 export function generateNewTileValue(maxBoardValue: number, minTileValue: number): number {
+  const spawnTiles = getSpawnTiles(maxBoardValue);
   const random = Math.random();
   
-  const possibleValues: number[] = [];
-  if (minTileValue <= 2) possibleValues.push(2);
-  if (minTileValue <= 4) possibleValues.push(4);
-  if (minTileValue <= 8) possibleValues.push(8);
-  if (minTileValue <= 16) possibleValues.push(16);
-  
-  if (possibleValues.length === 0) return minTileValue;
-  
-  if (maxBoardValue < 64) {
-    if (possibleValues.includes(2) && random < 0.7) return 2;
-    if (possibleValues.includes(4) && random < 0.95) return 4;
-    return possibleValues[possibleValues.length - 1];
-  } else if (maxBoardValue < 256) {
-    if (possibleValues.includes(2) && random < 0.5) return 2;
-    if (possibleValues.includes(4) && random < 0.8) return 4;
-    return possibleValues[possibleValues.length - 1];
+  if (random < 0.9) {
+    return spawnTiles.base;
   } else {
-    if (possibleValues.includes(2) && random < 0.3) return 2;
-    if (possibleValues.includes(4) && random < 0.6) return 4;
-    if (possibleValues.includes(8) && random < 0.85) return 8;
-    return possibleValues[possibleValues.length - 1];
+    return spawnTiles.double;
   }
 }
 
@@ -351,19 +344,14 @@ export function ensureValidMovesAfterContinue(grid: (Tile | null)[][], minTileVa
   return newGrid;
 }
 
-// POWER-UP FUNCTIONS
-
-// Find one valid chain on the board (for Hint power-up)
 export function findValidChain(grid: (Tile | null)[][]): { row: number; col: number; value: number }[] | null {
   console.log('Finding valid chain for hint');
   
-  // Try to find a chain of at least 3 tiles
   for (let row = 0; row < GRID_ROWS; row++) {
     for (let col = 0; col < GRID_COLS; col++) {
       const tile1 = grid[row][col];
       if (!tile1) continue;
       
-      // Check all 8 directions for adjacent matching tiles
       const directions = [
         [-1, -1], [-1, 0], [-1, 1],
         [0, -1],           [0, 1],
@@ -377,19 +365,17 @@ export function findValidChain(grid: (Tile | null)[][]): { row: number; col: num
         if (newRow >= 0 && newRow < GRID_ROWS && newCol >= 0 && newCol < GRID_COLS) {
           const tile2 = grid[newRow][newCol];
           if (tile2 && tile1.value === tile2.value) {
-            // Found two matching tiles, try to extend the chain
             const chain = [
               { row, col, value: tile1.value },
               { row: newRow, col: newCol, value: tile2.value }
             ];
             
-            // Try to find a third tile
             for (const [dRow2, dCol2] of directions) {
               const newRow2 = newRow + dRow2;
               const newCol2 = newCol + dCol2;
               
               if (newRow2 >= 0 && newRow2 < GRID_ROWS && newCol2 >= 0 && newCol2 < GRID_COLS) {
-                if (newRow2 === row && newCol2 === col) continue; // Skip the first tile
+                if (newRow2 === row && newCol2 === col) continue;
                 
                 const tile3 = grid[newRow2][newCol2];
                 if (tile3 && (tile3.value === tile2.value || tile3.value === tile2.value * 2)) {
@@ -400,7 +386,6 @@ export function findValidChain(grid: (Tile | null)[][]): { row: number; col: num
               }
             }
             
-            // If no third tile, return the pair
             console.log('Found valid pair:', chain.map(t => t.value).join(' → '));
             return chain;
           }
@@ -413,7 +398,6 @@ export function findValidChain(grid: (Tile | null)[][]): { row: number; col: num
   return null;
 }
 
-// Remove a single tile (for Bomb power-up)
 export function removeTile(
   grid: (Tile | null)[][],
   row: number,
@@ -425,7 +409,6 @@ export function removeTile(
   return newGrid;
 }
 
-// Swap two tiles (for Swap power-up)
 export function swapTiles(
   grid: (Tile | null)[][],
   tile1: { row: number; col: number },
@@ -437,7 +420,6 @@ export function swapTiles(
   newGrid[tile1.row][tile1.col] = newGrid[tile2.row][tile2.col];
   newGrid[tile2.row][tile2.col] = temp;
   
-  // Update row/col properties
   if (newGrid[tile1.row][tile1.col]) {
     newGrid[tile1.row][tile1.col] = {
       ...newGrid[tile1.row][tile1.col]!,
@@ -458,11 +440,9 @@ export function swapTiles(
   return newGrid;
 }
 
-// Shuffle all tile values randomly (for Shuffle power-up)
 export function shuffleTiles(grid: (Tile | null)[][]): (Tile | null)[][] {
   const newGrid = grid.map(row => [...row]);
   
-  // Collect all tile values
   const values: number[] = [];
   for (let row = 0; row < GRID_ROWS; row++) {
     for (let col = 0; col < GRID_COLS; col++) {
@@ -473,13 +453,11 @@ export function shuffleTiles(grid: (Tile | null)[][]): (Tile | null)[][] {
     }
   }
   
-  // Shuffle values using Fisher-Yates algorithm
   for (let i = values.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [values[i], values[j]] = [values[j], values[i]];
   }
   
-  // Reassign shuffled values to tiles
   let valueIndex = 0;
   for (let row = 0; row < GRID_ROWS; row++) {
     for (let col = 0; col < GRID_COLS; col++) {
@@ -499,7 +477,6 @@ export function shuffleTiles(grid: (Tile | null)[][]): (Tile | null)[][] {
   return newGrid;
 }
 
-// ATOMIC CHAIN RESOLUTION - Merge + Gravity + Spawn in one operation
 export function resolveChainComplete(
   grid: (Tile | null)[][],
   selectedTiles: { row: number; col: number; value: number }[],
@@ -507,13 +484,10 @@ export function resolveChainComplete(
 ): { finalGrid: (Tile | null)[][]; scoreAdded: number; newSpawnProgression: number } {
   console.log('[GameLogic] Atomic chain resolution starting');
   
-  // Step 1: Resolve chain (merge tiles)
   const { newGrid: afterMerge, score } = resolveChain(grid, selectedTiles);
   
-  // Step 2: Apply gravity
   const afterGravity = applyGravity(afterMerge);
   
-  // Step 3: Spawn new tiles
   const minTileValue = getMinimumTileValue(getMaxBoardValue(afterGravity));
   const finalGrid = spawnNewTilesAtTop(afterGravity, minTileValue);
   
@@ -526,7 +500,6 @@ export function resolveChainComplete(
   };
 }
 
-// Rebuild grid from saved number array (for loading saved games)
 export function rebuildGridFromNumbers(numbersGrid: number[][]): (Tile | null)[][] {
   console.log('[GameLogic] Rebuilding grid from saved numbers');
   return numbersGrid.map((row, r) =>
@@ -539,7 +512,6 @@ export function rebuildGridFromNumbers(numbersGrid: number[][]): (Tile | null)[]
   );
 }
 
-// Convert grid to number array (for saving games)
 export function gridToNumbers(grid: (Tile | null)[][]): number[][] {
   return grid.map((row) => row.map((tile) => tile ? tile.value : 0));
 }

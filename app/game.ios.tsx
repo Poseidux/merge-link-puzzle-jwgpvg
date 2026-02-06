@@ -49,9 +49,11 @@ import {
   saveMilestones,
   loadMilestones,
   clearMilestones,
+  saveLifetimeStats,
+  loadLifetimeStats,
+  LifetimeStats,
 } from '@/utils/storage';
 
-// Timing constants for game speed (in milliseconds)
 const TIMING = {
   MOVE_MS: 0,
   DROP_MS: 0,
@@ -60,8 +62,7 @@ const TIMING = {
   GAME_OVER_CHECK: 100,
 };
 
-// Swipe threshold - lowered for better responsiveness (10-20px)
-const SWIPE_THRESHOLD = 12;
+const SWIPE_THRESHOLD = 10;
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -102,10 +103,12 @@ export default function GameScreen() {
       hint: 2,
       bomb: 2,
       swap: 2,
+      scoreBoost: 1,
     },
     previousGrid: null,
     previousScore: 0,
     spawnProgression: 0,
+    scoreBoostActive: false,
   });
   
   const [selectedTiles, setSelectedTiles] = useState<SelectedTile[]>([]);
@@ -125,12 +128,19 @@ export default function GameScreen() {
   const [milestonesReached, setMilestonesReached] = useState<Set<number>>(new Set());
   const [currentMilestone, setCurrentMilestone] = useState<number | null>(null);
   
+  const [lifetimeStats, setLifetimeStats] = useState<LifetimeStats>({
+    highestTileEver: 0,
+    gamesPlayed: 0,
+    longestChain: 0,
+  });
+  
   const gridContainerRef = useRef<View>(null);
   const gridOffsetRef = useRef({ x: 0, y: 0, width: 0, height: 0 });
   const [gridMeasured, setGridMeasured] = useState(false);
   
   const hasLoadedInitialState = useRef(false);
   const touchStartRef = useRef({ x: 0, y: 0 });
+  const previousTouchRef = useRef({ x: 0, y: 0 });
   
   const theme = THEMES[currentTheme as keyof typeof THEMES] || THEMES.classic;
   
@@ -149,10 +159,21 @@ export default function GameScreen() {
       const savedMilestones = await loadMilestones();
       console.log('[Game] Loaded milestones:', Array.from(savedMilestones));
       setMilestonesReached(savedMilestones);
+      
+      const savedStats = await loadLifetimeStats();
+      console.log('[Game] Loaded lifetime stats:', savedStats);
+      setLifetimeStats(savedStats);
     };
     
     loadThemeAndMilestones();
   }, []);
+  
+  const updateLifetimeStats = useCallback(async (updates: Partial<LifetimeStats>) => {
+    const newStats = { ...lifetimeStats, ...updates };
+    setLifetimeStats(newStats);
+    await saveLifetimeStats(newStats);
+    console.log('[Game] Updated lifetime stats:', newStats);
+  }, [lifetimeStats]);
   
   const startFreshGame = useCallback(() => {
     console.log('[Game] Starting fresh game');
@@ -165,10 +186,12 @@ export default function GameScreen() {
         hint: 2,
         bomb: 2,
         swap: 2,
+        scoreBoost: 1,
       },
       previousGrid: null,
       previousScore: 0,
       spawnProgression: 0,
+      scoreBoostActive: false,
     };
     
     setGameState(newState);
@@ -179,15 +202,18 @@ export default function GameScreen() {
     setMilestonesReached(new Set());
     clearMilestones();
     
+    updateLifetimeStats({ gamesPlayed: lifetimeStats.gamesPlayed + 1 });
+    
     const savedState: SavedGameState = {
       grid: gridToNumbers(newGrid),
       score: 0,
       bestScore: newState.bestScore,
       powerUps: newState.powerUps,
       spawnProgression: 0,
+      scoreBoostActive: false,
     };
     saveGameState(savedState);
-  }, [gameState.bestScore]);
+  }, [gameState.bestScore, lifetimeStats.gamesPlayed, updateLifetimeStats]);
   
   const loadSavedData = useCallback(async () => {
     try {
@@ -206,6 +232,7 @@ export default function GameScreen() {
           previousGrid: null,
           previousScore: 0,
           spawnProgression: savedState.spawnProgression,
+          scoreBoostActive: savedState.scoreBoostActive || false,
         });
         
         console.log('[Game] Loaded saved game - Score:', savedState.score);
@@ -319,6 +346,7 @@ export default function GameScreen() {
         bestScore: newState.bestScore,
         powerUps: newState.powerUps,
         spawnProgression: newState.spawnProgression,
+        scoreBoostActive: newState.scoreBoostActive,
       };
       saveGameState(savedState);
     } else if (activePowerUp === 'swap') {
@@ -350,6 +378,7 @@ export default function GameScreen() {
           bestScore: newState.bestScore,
           powerUps: newState.powerUps,
           spawnProgression: newState.spawnProgression,
+          scoreBoostActive: newState.scoreBoostActive,
         };
         saveGameState(savedState);
       } else {
@@ -383,6 +412,7 @@ export default function GameScreen() {
     const locationY = touch.pageY - gridOffsetRef.current.y;
     
     touchStartRef.current = { x: locationX, y: locationY };
+    previousTouchRef.current = { x: locationX, y: locationY };
     
     const tile = getTileAtPosition(locationX, locationY);
     
@@ -415,66 +445,92 @@ export default function GameScreen() {
       return;
     }
     
-    const tile = getTileAtPosition(locationX, locationY);
+    const prevX = previousTouchRef.current.x;
+    const prevY = previousTouchRef.current.y;
+    const distX = Math.abs(locationX - prevX);
+    const distY = Math.abs(locationY - prevY);
     
-    if (tile && selectedTilesRef.current.length > 0) {
-      const currentSelection = selectedTilesRef.current;
-      const lastTile = currentSelection[currentSelection.length - 1];
-      
-      if (tile.row === lastTile.row && tile.col === lastTile.col) {
-        return;
-      }
-      
-      if (currentSelection.length >= 2) {
-        const previousTile = currentSelection[currentSelection.length - 2];
-        if (tile.row === previousTile.row && tile.col === previousTile.col) {
-          console.log('[Game] User backtracked in chain');
-          const newSelection = currentSelection.slice(0, -1);
-          setSelectedTiles(newSelection);
-          selectedTilesRef.current = newSelection;
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          return;
+    if (distX > TILE_SIZE || distY > TILE_SIZE) {
+      const steps = Math.max(Math.ceil(distX / (TILE_SIZE / 2)), Math.ceil(distY / (TILE_SIZE / 2)));
+      for (let i = 1; i <= steps; i++) {
+        const interpX = prevX + (locationX - prevX) * (i / steps);
+        const interpY = prevY + (locationY - prevY) * (i / steps);
+        const interpTile = getTileAtPosition(interpX, interpY);
+        if (interpTile) {
+          processTileSelection(interpTile);
         }
       }
-      
-      const alreadySelected = currentSelection.some(
-        t => t.row === tile.row && t.col === tile.col
-      );
-      
-      if (alreadySelected) {
-        return;
+    } else {
+      const tile = getTileAtPosition(locationX, locationY);
+      if (tile) {
+        processTileSelection(tile);
       }
-      
-      const rowDiff = Math.abs(tile.row - lastTile.row);
-      const colDiff = Math.abs(tile.col - lastTile.col);
-      const isAdjacent = rowDiff <= 1 && colDiff <= 1;
-      
-      if (!isAdjacent) {
-        return;
-      }
-      
-      let canAdd = false;
-      
-      if (currentSelection.length === 1) {
-        if (tile.value === currentSelection[0].value) {
-          canAdd = true;
-        }
-      } else {
-        const prevValue = lastTile.value;
-        if (tile.value === prevValue || tile.value === prevValue * 2) {
-          canAdd = true;
-        }
-      }
-      
-      if (canAdd) {
-        console.log('[Game] Adding tile to chain - value:', tile.value);
-        const newSelection = [...currentSelection, tile];
+    }
+    
+    previousTouchRef.current = { x: locationX, y: locationY };
+  }, [activePowerUp, getTileAtPosition, gridMeasured]);
+  
+  const processTileSelection = useCallback((tile: SelectedTile) => {
+    if (selectedTilesRef.current.length === 0) {
+      return;
+    }
+    
+    const currentSelection = selectedTilesRef.current;
+    const lastTile = currentSelection[currentSelection.length - 1];
+    
+    if (tile.row === lastTile.row && tile.col === lastTile.col) {
+      return;
+    }
+    
+    if (currentSelection.length >= 2) {
+      const previousTile = currentSelection[currentSelection.length - 2];
+      if (tile.row === previousTile.row && tile.col === previousTile.col) {
+        console.log('[Game] User backtracked in chain');
+        const newSelection = currentSelection.slice(0, -1);
         setSelectedTiles(newSelection);
         selectedTilesRef.current = newSelection;
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        return;
       }
     }
-  }, [activePowerUp, getTileAtPosition, gridMeasured]);
+    
+    const alreadySelected = currentSelection.some(
+      t => t.row === tile.row && t.col === tile.col
+    );
+    
+    if (alreadySelected) {
+      return;
+    }
+    
+    const rowDiff = Math.abs(tile.row - lastTile.row);
+    const colDiff = Math.abs(tile.col - lastTile.col);
+    const isAdjacent = rowDiff <= 1 && colDiff <= 1;
+    
+    if (!isAdjacent) {
+      return;
+    }
+    
+    let canAdd = false;
+    
+    if (currentSelection.length === 1) {
+      if (tile.value === currentSelection[0].value) {
+        canAdd = true;
+      }
+    } else {
+      const prevValue = lastTile.value;
+      if (tile.value === prevValue || tile.value === prevValue * 2) {
+        canAdd = true;
+      }
+    }
+    
+    if (canAdd) {
+      console.log('[Game] Adding tile to chain - value:', tile.value);
+      const newSelection = [...currentSelection, tile];
+      setSelectedTiles(newSelection);
+      selectedTilesRef.current = newSelection;
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  }, []);
   
   const handleTouchEnd = useCallback(() => {
     console.log('[Game] Touch end');
@@ -510,12 +566,18 @@ export default function GameScreen() {
       gameState.spawnProgression
     );
     
+    let scoreToAdd = result.scoreAdded;
+    if (gameState.scoreBoostActive) {
+      console.log('[Game] Score Boost active! Doubling score from', scoreToAdd, 'to', scoreToAdd * 2);
+      scoreToAdd *= 2;
+    }
+    
     const scoreId = `score_${Date.now()}`;
     const scoreX = lastTile.col * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
     const scoreY = lastTile.row * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
-    setFloatingScores(prev => [...prev, { id: scoreId, score: result.scoreAdded, x: scoreX, y: scoreY }]);
+    setFloatingScores(prev => [...prev, { id: scoreId, score: scoreToAdd, x: scoreX, y: scoreY }]);
     
-    const newScore = gameState.score + result.scoreAdded;
+    const newScore = gameState.score + scoreToAdd;
     const newBestScore = Math.max(newScore, gameState.bestScore);
     
     const maxTileValue = getMaxBoardValue(result.finalGrid);
@@ -531,6 +593,17 @@ export default function GameScreen() {
       saveMilestones(updatedMilestones);
     }
     
+    if (maxTileValue > lifetimeStats.highestTileEver) {
+      console.log('[Game] New highest tile ever:', maxTileValue);
+      updateLifetimeStats({ highestTileEver: maxTileValue });
+    }
+    
+    const chainLength = finalSelection.length;
+    if (chainLength > lifetimeStats.longestChain) {
+      console.log('[Game] New longest chain:', chainLength);
+      updateLifetimeStats({ longestChain: chainLength });
+    }
+    
     const newState: GameState = {
       grid: result.finalGrid,
       score: newScore,
@@ -539,6 +612,7 @@ export default function GameScreen() {
       previousGrid: gameState.grid,
       previousScore: gameState.score,
       powerUps: gameState.powerUps,
+      scoreBoostActive: false,
     };
     
     setGameState(newState);
@@ -551,6 +625,7 @@ export default function GameScreen() {
       bestScore: newBestScore,
       powerUps: newState.powerUps,
       spawnProgression: result.newSpawnProgression,
+      scoreBoostActive: false,
     };
     saveGameState(savedState);
     
@@ -560,7 +635,7 @@ export default function GameScreen() {
         setGameOverVisible(true);
       }
     }, TIMING.GAME_OVER_CHECK);
-  }, [activePowerUp, gameState, gridMeasured, milestonesReached]);
+  }, [activePowerUp, gameState, gridMeasured, milestonesReached, lifetimeStats, updateLifetimeStats]);
   
   function handleRestart() {
     console.log('[Game] Restart game');
@@ -621,9 +696,33 @@ export default function GameScreen() {
           bestScore: newState.bestScore,
           powerUps: newState.powerUps,
           spawnProgression: newState.spawnProgression,
+          scoreBoostActive: newState.scoreBoostActive,
         };
         saveGameState(savedState);
       }
+    } else if (powerUpId === 'scoreBoost') {
+      console.log('[Game] Score Boost activated!');
+      const newState: GameState = {
+        ...gameState,
+        scoreBoostActive: true,
+        powerUps: {
+          ...gameState.powerUps,
+          scoreBoost: gameState.powerUps.scoreBoost - 1,
+        },
+      };
+      
+      setGameState(newState);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      
+      const savedState: SavedGameState = {
+        grid: gridToNumbers(gameState.grid),
+        score: newState.score,
+        bestScore: newState.bestScore,
+        powerUps: newState.powerUps,
+        spawnProgression: newState.spawnProgression,
+        scoreBoostActive: true,
+      };
+      saveGameState(savedState);
     } else if (powerUpId === 'bomb' || powerUpId === 'swap') {
       setActivePowerUp(powerUpId);
       setSelectedPowerUpTiles([]);
@@ -682,6 +781,7 @@ export default function GameScreen() {
   const hintUsesLeft = gameState.powerUps.hint;
   const bombUsesLeft = gameState.powerUps.bomb;
   const swapUsesLeft = gameState.powerUps.swap;
+  const scoreBoostUsesLeft = gameState.powerUps.scoreBoost;
   
   const powerUpsArray: PowerUp[] = [
     {
@@ -690,6 +790,13 @@ export default function GameScreen() {
       icon: 'lightbulb',
       usesLeft: hintUsesLeft,
       maxUses: 2,
+    },
+    {
+      id: 'scoreBoost',
+      name: 'x2 Score',
+      icon: 'close',
+      usesLeft: scoreBoostUsesLeft,
+      maxUses: 1,
     },
     {
       id: 'bomb',
@@ -715,7 +822,7 @@ export default function GameScreen() {
         }}
       />
       
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 4 }]}>
         <TouchableOpacity
           style={styles.menuButton}
           onPress={handleMenuPress}
@@ -766,6 +873,12 @@ export default function GameScreen() {
           >
             <Text style={styles.cancelButtonText}>Cancel</Text>
           </TouchableOpacity>
+        </View>
+      )}
+      
+      {gameState.scoreBoostActive && !activePowerUp && (
+        <View style={[styles.scoreBoostBar, { backgroundColor: '#F59E0B' }]}>
+          <Text style={styles.scoreBoostText}>⚡ x2 Score Boost Active! ⚡</Text>
         </View>
       )}
       
@@ -993,6 +1106,21 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#FFF',
     fontWeight: '600',
+  },
+  scoreBoostBar: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    borderRadius: 12,
+  },
+  scoreBoostText: {
+    fontSize: 15,
+    color: '#FFF',
+    fontWeight: '700',
   },
   cancelButton: {
     paddingHorizontal: 16,

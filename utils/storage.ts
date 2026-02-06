@@ -5,6 +5,7 @@ const GAME_STATE_KEY = '@merge_puzzle_game_state';
 const SETTINGS_KEY = '@merge_puzzle_settings';
 const THEME_KEY = '@merge_puzzle_theme';
 const MILESTONES_KEY = '@merge_puzzle_milestones';
+const STATS_KEY = '@merge_puzzle_lifetime_stats';
 
 export interface SavedGameState {
   grid: number[][];
@@ -14,8 +15,10 @@ export interface SavedGameState {
     hint: number;
     bomb: number;
     swap: number;
+    scoreBoost: number;
   };
   spawnProgression: number;
+  scoreBoostActive: boolean;
 }
 
 export interface GameSettings {
@@ -23,6 +26,12 @@ export interface GameSettings {
   hapticsEnabled: boolean;
   darkMode: boolean;
   theme: string;
+}
+
+export interface LifetimeStats {
+  highestTileEver: number;
+  gamesPlayed: number;
+  longestChain: number;
 }
 
 export async function saveGameState(state: SavedGameState): Promise<void> {
@@ -47,6 +56,17 @@ export async function loadGameState(): Promise<SavedGameState | null> {
         console.log('[Storage] Migrating old save data - removing undo power-up');
         const { undo, ...restPowerUps } = parsed.powerUps;
         parsed.powerUps = restPowerUps;
+      }
+      
+      // Migration: Add scoreBoost if missing
+      if (parsed.powerUps && !('scoreBoost' in parsed.powerUps)) {
+        console.log('[Storage] Migrating old save data - adding scoreBoost power-up');
+        parsed.powerUps.scoreBoost = 1;
+      }
+      
+      // Migration: Add scoreBoostActive if missing
+      if (!('scoreBoostActive' in parsed)) {
+        parsed.scoreBoostActive = false;
       }
       
       return parsed;
@@ -138,5 +158,37 @@ export async function clearMilestones(): Promise<void> {
     await AsyncStorage.removeItem(MILESTONES_KEY);
   } catch (error) {
     console.error('[Storage] Error clearing milestones:', error);
+  }
+}
+
+export async function saveLifetimeStats(stats: LifetimeStats): Promise<void> {
+  try {
+    console.log('[Storage] Saving lifetime stats:', stats);
+    const jsonValue = JSON.stringify(stats);
+    await AsyncStorage.setItem(STATS_KEY, jsonValue);
+  } catch (error) {
+    console.error('[Storage] Error saving lifetime stats:', error);
+  }
+}
+
+export async function loadLifetimeStats(): Promise<LifetimeStats> {
+  try {
+    console.log('[Storage] Loading lifetime stats');
+    const jsonValue = await AsyncStorage.getItem(STATS_KEY);
+    if (jsonValue) {
+      return JSON.parse(jsonValue);
+    }
+    return {
+      highestTileEver: 0,
+      gamesPlayed: 0,
+      longestChain: 0,
+    };
+  } catch (error) {
+    console.error('[Storage] Error loading lifetime stats:', error);
+    return {
+      highestTileEver: 0,
+      gamesPlayed: 0,
+      longestChain: 0,
+    };
   }
 }

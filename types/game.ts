@@ -14,10 +14,12 @@ export interface GameState {
     hint: number;
     bomb: number;
     swap: number;
+    scoreBoost: number;
   };
   previousGrid: (Tile | null)[][] | null;
   previousScore: number;
   spawnProgression: number;
+  scoreBoostActive: boolean;
 }
 
 export interface GameSnapshot {
@@ -37,6 +39,12 @@ export interface GameSettings {
   hapticsEnabled: boolean;
   darkMode: boolean;
   theme: string;
+}
+
+export interface LifetimeStats {
+  highestTileEver: number;
+  gamesPlayed: number;
+  longestChain: number;
 }
 
 export interface Theme {

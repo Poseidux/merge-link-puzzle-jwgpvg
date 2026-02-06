@@ -21,11 +21,10 @@ interface PowerUpBarProps {
 export default function PowerUpBar({ powerUps, onPowerUpPress, onSettingsPress }: PowerUpBarProps) {
   const getIconForPowerUp = (powerUpId: string) => {
     const iconMap: { [key: string]: { ios: string; android: string } } = {
-      undo: { ios: 'arrow.uturn.backward', android: 'undo' },
       hint: { ios: 'lightbulb.fill', android: 'lightbulb' },
       bomb: { ios: 'hammer.fill', android: 'delete' },
       swap: { ios: 'arrow.left.arrow.right', android: 'swap-horiz' },
-      shuffle: { ios: 'shuffle', android: 'shuffle' },
+      scoreBoost: { ios: 'multiply.circle.fill', android: 'close' },
     };
     return iconMap[powerUpId] || { ios: 'star.fill', android: 'star' };
   };
@@ -56,6 +55,9 @@ export default function PowerUpBar({ powerUps, onPowerUpPress, onSettingsPress }
                   size={24}
                   color={isDisabled ? colors.textSecondary : colors.primary}
                 />
+                {powerUp.id === 'scoreBoost' && !isDisabled && (
+                  <Text style={styles.x2Label}>x2</Text>
+                )}
               </View>
               {powerUp.usesLeft > 0 && (
                 <View style={styles.badge}>
@@ -110,6 +112,14 @@ const styles = StyleSheet.create({
   iconContainer: {
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
+  },
+  x2Label: {
+    position: 'absolute',
+    bottom: -8,
+    fontSize: 10,
+    fontWeight: '900',
+    color: colors.primary,
   },
   badge: {
     position: 'absolute',
