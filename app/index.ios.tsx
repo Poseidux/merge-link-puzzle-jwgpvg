@@ -1,109 +1,96 @@
 
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
-import { useRouter } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
-import { colors } from '@/styles/commonStyles';
 import { loadGameState } from '@/utils/storage';
 import { GameState } from '@/types/game';
+import { useRouter } from 'expo-router';
 import ConfirmModal from '@/components/ConfirmModal';
+import { LinearGradient } from 'expo-linear-gradient';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
+import { colors } from '@/styles/commonStyles';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
+// VERSION INDICATOR - Update this number when you make changes to verify they're loading
+const APP_VERSION = "v2.0.1";
+
 export default function HomeScreen() {
   const router = useRouter();
   const [hasSavedGame, setHasSavedGame] = useState(false);
-  const [savedGameState, setSavedGameState] = useState<GameState | null>(null);
-  const [confirmNewGameVisible, setConfirmNewGameVisible] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   useEffect(() => {
     console.log('HomeScreen mounted, checking for saved game');
+    console.log(`🚀 APP VERSION: ${APP_VERSION} - If you see this version, your changes loaded!`);
     checkForSavedGame();
   }, []);
 
-  async function checkForSavedGame() {
+  const checkForSavedGame = async () => {
     const savedState = await loadGameState();
-    console.log('Saved game state:', savedState);
-    
-    if (savedState && savedState.grid && savedState.grid.length > 0) {
-      setHasSavedGame(true);
-      setSavedGameState(savedState);
-    } else {
-      setHasSavedGame(false);
-      setSavedGameState(null);
-    }
-  }
+    setHasSavedGame(!!savedState);
+  };
 
-  function handleContinue() {
+  const handleContinue = () => {
     console.log('User tapped Continue button - navigating to /game');
     router.push('/game');
-  }
+  };
 
-  function handleNewGame() {
-    console.log('User tapped New Game button');
+  const handleNewGame = () => {
     if (hasSavedGame) {
-      setConfirmNewGameVisible(true);
+      setShowConfirmModal(true);
     } else {
       startNewGame();
     }
-  }
+  };
 
-  function startNewGame() {
-    console.log('Starting new game - navigating to /game with newGame=true');
-    setConfirmNewGameVisible(false);
+  const startNewGame = () => {
+    console.log('User tapped New Game button - navigating to /game with newGame param');
+    setShowConfirmModal(false);
     router.push('/game?newGame=true');
-  }
-
-  const continueButtonOpacity = hasSavedGame ? 1 : 0.5;
-  const continueText = hasSavedGame ? 'Continue' : 'Continue';
-  const scoreText = savedGameState ? `Score: ${savedGameState.score}` : '';
+  };
 
   return (
     <LinearGradient
-      colors={[colors.primary, colors.accent]}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
+      colors={['#1a1a2e', '#16213e', '#0f3460']}
       style={styles.container}
     >
       <View style={styles.content}>
-        <View style={styles.titleContainer}>
-          <Text style={styles.title}>Number</Text>
-          <Text style={styles.title}>Merger</Text>
-        </View>
-
-        {hasSavedGame && savedGameState && (
-          <View style={styles.savedGameInfo}>
-            <Text style={styles.savedGameText}>{scoreText}</Text>
-          </View>
-        )}
+        <Text style={styles.title}>Merge Link</Text>
+        <Text style={styles.subtitle}>Connect & Merge Numbers</Text>
 
         <View style={styles.buttonContainer}>
-          <TouchableOpacity
-            style={[styles.button, { opacity: continueButtonOpacity }]}
-            onPress={handleContinue}
-            disabled={!hasSavedGame}
-          >
-            <Text style={styles.buttonText}>{continueText}</Text>
-          </TouchableOpacity>
+          {hasSavedGame && (
+            <TouchableOpacity
+              style={[styles.button, styles.primaryButton]}
+              onPress={handleContinue}
+            >
+              <Text style={styles.buttonText}>Continue Game</Text>
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
-            style={styles.button}
+            style={[styles.button, hasSavedGame ? styles.secondaryButton : styles.primaryButton]}
             onPress={handleNewGame}
           >
             <Text style={styles.buttonText}>New Game</Text>
           </TouchableOpacity>
         </View>
+
+        {/* VERSION INDICATOR - Shows at bottom so you can verify changes loaded */}
+        <View style={styles.versionContainer}>
+          <Text style={styles.versionText}>{APP_VERSION}</Text>
+          <Text style={styles.versionSubtext}>
+            If you see this version, your changes loaded successfully!
+          </Text>
+        </View>
       </View>
 
       <ConfirmModal
-        visible={confirmNewGameVisible}
+        visible={showConfirmModal}
         title="Start New Game?"
-        message="Starting a new game will overwrite your current progress. Are you sure?"
-        confirmText="New Game"
-        cancelText="Cancel"
+        message="Your current progress will be lost. Are you sure?"
         onConfirm={startNewGame}
-        onCancel={() => setConfirmNewGameVisible(false)}
+        onCancel={() => setShowConfirmModal(false)}
       />
     </LinearGradient>
   );
@@ -117,54 +104,59 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 32,
-  },
-  titleContainer: {
-    alignItems: 'center',
-    marginBottom: 60,
+    padding: 20,
   },
   title: {
-    fontSize: 56,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 0, height: 4 },
-    textShadowRadius: 8,
-    letterSpacing: 2,
+    fontSize: 48,
+    fontWeight: 'bold',
+    color: '#ffffff',
+    marginBottom: 10,
+    textAlign: 'center',
   },
-  savedGameInfo: {
-    marginBottom: 40,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 12,
-  },
-  savedGameText: {
+  subtitle: {
     fontSize: 18,
-    fontWeight: '700',
-    color: '#FFFFFF',
+    color: '#a8b2d1',
+    marginBottom: 60,
     textAlign: 'center',
   },
   buttonContainer: {
     width: '100%',
     maxWidth: 300,
+    gap: 16,
   },
   button: {
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 18,
+    paddingVertical: 16,
     paddingHorizontal: 32,
-    borderRadius: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  primaryButton: {
+    backgroundColor: '#4CAF50',
+  },
+  secondaryButton: {
+    backgroundColor: '#2196F3',
   },
   buttonText: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: colors.primary,
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  versionContainer: {
+    position: 'absolute',
+    bottom: 40,
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  versionText: {
+    color: '#4CAF50',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  versionSubtext: {
+    color: '#a8b2d1',
+    fontSize: 12,
     textAlign: 'center',
   },
 });
