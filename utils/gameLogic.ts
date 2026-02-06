@@ -2,7 +2,7 @@
 import { Tile } from '@/types/game';
 
 export const GRID_COLS = 5;
-export const GRID_ROWS = 8;
+export const GRID_ROWS = 7;
 
 export const GRID_CONFIG = {
   COLS: GRID_COLS,

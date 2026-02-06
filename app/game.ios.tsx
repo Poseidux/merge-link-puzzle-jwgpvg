@@ -68,17 +68,17 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const GRID_PADDING = 16;
 const TILE_GAP = 6;
-const HEADER_HEIGHT = 70;
-const POWERUP_BAR_HEIGHT = 80;
-const BOTTOM_MARGIN = 12;
+const HEADER_HEIGHT = 60;
+const POWERUP_BAR_HEIGHT = 75;
+const BOTTOM_MARGIN = 8;
 
-const AVAILABLE_HEIGHT = SCREEN_HEIGHT - HEADER_HEIGHT - POWERUP_BAR_HEIGHT - BOTTOM_MARGIN - 60;
+const AVAILABLE_HEIGHT = SCREEN_HEIGHT - HEADER_HEIGHT - POWERUP_BAR_HEIGHT - BOTTOM_MARGIN - 40;
 const AVAILABLE_WIDTH = SCREEN_WIDTH - GRID_PADDING * 2;
 
 const TILE_SIZE_BY_WIDTH = (AVAILABLE_WIDTH - TILE_GAP * (GRID_CONFIG.COLS - 1)) / GRID_CONFIG.COLS;
 const TILE_SIZE_BY_HEIGHT = (AVAILABLE_HEIGHT - TILE_GAP * (GRID_CONFIG.ROWS - 1)) / GRID_CONFIG.ROWS;
 
-const MAX_TILE_SIZE = 72;
+const MAX_TILE_SIZE = 78;
 const TILE_SIZE = Math.min(TILE_SIZE_BY_WIDTH, TILE_SIZE_BY_HEIGHT, MAX_TILE_SIZE);
 
 const GRID_WIDTH = GRID_CONFIG.COLS * TILE_SIZE + (GRID_CONFIG.COLS - 1) * TILE_GAP;
@@ -822,7 +822,7 @@ export default function GameScreen() {
         }}
       />
       
-      <View style={[styles.header, { paddingTop: insets.top + 3 }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 2 }]}>
         <TouchableOpacity
           style={styles.menuButton}
           onPress={handleMenuPress}
@@ -830,7 +830,7 @@ export default function GameScreen() {
           <IconSymbol
             ios_icon_name="line.horizontal.3"
             android_material_icon_name="menu"
-            size={24}
+            size={22}
             color={colors.text}
           />
         </TouchableOpacity>
@@ -854,7 +854,7 @@ export default function GameScreen() {
           <IconSymbol
             ios_icon_name="gear"
             android_material_icon_name="settings"
-            size={24}
+            size={22}
             color={colors.text}
           />
         </TouchableOpacity>
@@ -1024,14 +1024,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 16,
-    paddingBottom: 6,
+    paddingHorizontal: 14,
+    paddingBottom: 4,
     position: 'relative',
   },
   menuButton: {
     position: 'absolute',
-    left: 16,
-    padding: 8,
+    left: 14,
+    padding: 7,
     backgroundColor: colors.cardBackground,
     borderRadius: 10,
     shadowColor: '#000',
@@ -1039,15 +1039,15 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 2,
     elevation: 2,
-    minWidth: 44,
-    minHeight: 44,
+    minWidth: 40,
+    minHeight: 40,
     alignItems: 'center',
     justifyContent: 'center',
   },
   settingsButton: {
     position: 'absolute',
-    right: 16,
-    padding: 8,
+    right: 14,
+    padding: 7,
     backgroundColor: colors.cardBackground,
     borderRadius: 10,
     shadowColor: '#000',
@@ -1055,22 +1055,22 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 2,
     elevation: 2,
-    minWidth: 44,
-    minHeight: 44,
+    minWidth: 40,
+    minHeight: 40,
     alignItems: 'center',
     justifyContent: 'center',
   },
   statsRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 10,
   },
   statChip: {
     backgroundColor: colors.cardBackground,
-    paddingHorizontal: 18,
-    paddingVertical: 8,
-    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 10,
     alignItems: 'center',
-    minWidth: 95,
+    minWidth: 90,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.08,
@@ -1080,15 +1080,15 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(0, 0, 0, 0.05)',
   },
   statLabel: {
-    fontSize: 10,
+    fontSize: 9,
     color: colors.textSecondary,
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginBottom: 2,
+    marginBottom: 1,
   },
   statValue: {
-    fontSize: 22,
+    fontSize: 20,
     color: colors.text,
     fontWeight: '800',
   },
