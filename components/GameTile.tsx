@@ -83,6 +83,7 @@ export default function GameTile({ value, isSelected, size, isAnimating = false,
   };
   
   const fontSize = getFontSize();
+  const borderRadius = size * 0.24;
   
   return (
     <Animated.View
@@ -96,9 +97,9 @@ export default function GameTile({ value, isSelected, size, isAnimating = false,
         isSelected && {
           shadowColor: accentColor,
           shadowOffset: { width: 0, height: 0 },
-          shadowOpacity: 0.9,
-          shadowRadius: 10,
-          elevation: 15,
+          shadowOpacity: 0.95,
+          shadowRadius: 12,
+          elevation: 16,
         },
         animatedStyle,
       ]}
@@ -112,9 +113,10 @@ export default function GameTile({ value, isSelected, size, isAnimating = false,
           {
             width: size,
             height: size,
-            borderWidth: isSelected ? 5 : 0,
+            borderRadius: borderRadius,
+            borderWidth: isSelected ? 4 : 0,
             borderColor: isSelected ? '#FFFFFF' : 'transparent',
-            opacity: isSelected ? 0.95 : 1,
+            opacity: isSelected ? 0.98 : 1,
           },
         ]}
       >
@@ -150,7 +152,6 @@ const styles = StyleSheet.create({
     elevation: 12,
   },
   tile: {
-    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',

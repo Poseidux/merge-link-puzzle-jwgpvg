@@ -66,19 +66,24 @@ const SWIPE_THRESHOLD = 10;
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
-const GRID_PADDING = 16;
-const TILE_GAP = 6;
-const HEADER_HEIGHT = 60;
-const POWERUP_BAR_HEIGHT = 75;
-const BOTTOM_MARGIN = 8;
 
-const AVAILABLE_HEIGHT = SCREEN_HEIGHT - HEADER_HEIGHT - POWERUP_BAR_HEIGHT - BOTTOM_MARGIN - 40;
-const AVAILABLE_WIDTH = SCREEN_WIDTH - GRID_PADDING * 2;
+// Layout constants - optimized for better spacing
+const GRID_PADDING = 18;
+const TILE_GAP = 7;
+const HEADER_HEIGHT = 56;
+const POWERUP_BAR_HEIGHT = 80;
+const BOARD_CARD_PADDING = 16;
+const VERTICAL_SPACING = 12;
+
+// Calculate available space more accurately
+const SAFE_AREA_ESTIMATE = 44; // Typical notch height
+const AVAILABLE_HEIGHT = SCREEN_HEIGHT - HEADER_HEIGHT - POWERUP_BAR_HEIGHT - SAFE_AREA_ESTIMATE - (VERTICAL_SPACING * 3) - (BOARD_CARD_PADDING * 2);
+const AVAILABLE_WIDTH = SCREEN_WIDTH - (GRID_PADDING * 2) - (BOARD_CARD_PADDING * 2);
 
 const TILE_SIZE_BY_WIDTH = (AVAILABLE_WIDTH - TILE_GAP * (GRID_CONFIG.COLS - 1)) / GRID_CONFIG.COLS;
 const TILE_SIZE_BY_HEIGHT = (AVAILABLE_HEIGHT - TILE_GAP * (GRID_CONFIG.ROWS - 1)) / GRID_CONFIG.ROWS;
 
-const MAX_TILE_SIZE = 78;
+const MAX_TILE_SIZE = 72;
 const TILE_SIZE = Math.min(TILE_SIZE_BY_WIDTH, TILE_SIZE_BY_HEIGHT, MAX_TILE_SIZE);
 
 const GRID_WIDTH = GRID_CONFIG.COLS * TILE_SIZE + (GRID_CONFIG.COLS - 1) * TILE_GAP;
@@ -814,6 +819,8 @@ export default function GameScreen() {
     },
   ];
   
+  const headerPaddingTop = insets.top + 4;
+  
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.boardBackground }]} edges={['top', 'bottom']}>
       <Stack.Screen
@@ -822,7 +829,7 @@ export default function GameScreen() {
         }}
       />
       
-      <View style={[styles.header, { paddingTop: insets.top + 2 }]}>
+      <View style={[styles.header, { paddingTop: headerPaddingTop }]}>
         <TouchableOpacity
           style={styles.menuButton}
           onPress={handleMenuPress}
@@ -1028,68 +1035,68 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 14,
-    paddingBottom: 4,
+    paddingHorizontal: 16,
+    paddingBottom: 6,
     position: 'relative',
   },
   menuButton: {
     position: 'absolute',
-    left: 14,
-    padding: 7,
+    left: 16,
+    padding: 8,
     backgroundColor: colors.cardBackground,
-    borderRadius: 10,
+    borderRadius: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
-    elevation: 2,
-    minWidth: 40,
-    minHeight: 40,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+    minWidth: 44,
+    minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
   settingsButton: {
     position: 'absolute',
-    right: 14,
-    padding: 7,
+    right: 16,
+    padding: 8,
     backgroundColor: colors.cardBackground,
-    borderRadius: 10,
+    borderRadius: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
-    elevation: 2,
-    minWidth: 40,
-    minHeight: 40,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+    minWidth: 44,
+    minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
   statsRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 12,
   },
   statChip: {
     backgroundColor: colors.cardBackground,
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 10,
+    paddingHorizontal: 18,
+    paddingVertical: 7,
+    borderRadius: 12,
     alignItems: 'center',
-    minWidth: 90,
+    minWidth: 95,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
     borderWidth: 1,
     borderColor: 'rgba(0, 0, 0, 0.05)',
   },
   statLabel: {
-    fontSize: 9,
+    fontSize: 10,
     color: colors.textSecondary,
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginBottom: 1,
+    marginBottom: 2,
   },
   statValue: {
     fontSize: 20,
@@ -1103,7 +1110,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 10,
     marginHorizontal: 16,
-    marginBottom: 6,
+    marginTop: 4,
+    marginBottom: 4,
     borderRadius: 12,
   },
   powerUpModeText: {
@@ -1118,7 +1126,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 8,
     marginHorizontal: 16,
-    marginBottom: 6,
+    marginTop: 4,
+    marginBottom: 4,
     borderRadius: 12,
   },
   scoreBoostText: {
@@ -1141,7 +1150,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: VERTICAL_SPACING,
     position: 'relative',
   },
   powerUpOverlay: {
@@ -1150,19 +1159,19 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.15)',
+    backgroundColor: 'rgba(0, 0, 0, 0.12)',
     zIndex: 0,
   },
   boardCard: {
-    borderRadius: 18,
-    padding: 14,
+    borderRadius: 20,
+    padding: BOARD_CARD_PADDING,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 5,
+    elevation: 4,
     borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.05)',
+    borderColor: 'rgba(0, 0, 0, 0.06)',
     zIndex: 1,
   },
   gridContainer: {
