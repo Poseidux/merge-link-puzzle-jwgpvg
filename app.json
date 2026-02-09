@@ -43,7 +43,7 @@
       "expo-router",
       "expo-web-browser"
     ],
-    "scheme": "numble",
+    "scheme": "Numble",
     "experiments": {
       "typedRoutes": true
     },
