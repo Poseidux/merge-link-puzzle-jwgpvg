@@ -6,6 +6,7 @@ const SETTINGS_KEY = '@merge_puzzle_settings';
 const THEME_KEY = '@merge_puzzle_theme';
 const MILESTONES_KEY = '@merge_puzzle_milestones';
 const STATS_KEY = '@merge_puzzle_lifetime_stats';
+const CHAIN_HIGHLIGHT_COLOR_KEY = '@merge_puzzle_chain_highlight_color';
 
 export interface SavedGameState {
   grid: number[][];
@@ -123,6 +124,25 @@ export async function loadTheme(): Promise<string | null> {
     return await AsyncStorage.getItem(THEME_KEY);
   } catch (error) {
     console.error('[Storage] Error loading theme:', error);
+    return null;
+  }
+}
+
+export async function saveChainHighlightColor(color: string): Promise<void> {
+  try {
+    console.log('[Storage] Saving chain highlight color:', color);
+    await AsyncStorage.setItem(CHAIN_HIGHLIGHT_COLOR_KEY, color);
+  } catch (error) {
+    console.error('[Storage] Error saving chain highlight color:', error);
+  }
+}
+
+export async function loadChainHighlightColor(): Promise<string | null> {
+  try {
+    console.log('[Storage] Loading chain highlight color');
+    return await AsyncStorage.getItem(CHAIN_HIGHLIGHT_COLOR_KEY);
+  } catch (error) {
+    console.error('[Storage] Error loading chain highlight color:', error);
     return null;
   }
 }

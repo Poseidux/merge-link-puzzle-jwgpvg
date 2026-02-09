@@ -22,9 +22,6 @@ interface GameTileProps {
 }
 
 function getTextColorForBackground(value: number): string {
-  if (value >= 128) {
-    return '#1C1C1E';
-  }
   return '#FFFFFF';
 }
 
@@ -72,17 +69,7 @@ export default function GameTile({ value, isSelected, size, isAnimating = false,
     };
   });
   
-  const getFontSize = () => {
-    const baseSize = size * 0.35;
-    const digitCount = displayValue.length;
-    
-    if (digitCount >= 5) return baseSize * 0.55;
-    if (digitCount === 4) return baseSize * 0.65;
-    if (digitCount === 3) return baseSize * 0.8;
-    return baseSize;
-  };
-  
-  const fontSize = getFontSize();
+  const fontSize = size * 0.35;
   const borderRadius = size * 0.24;
   
   return (
@@ -126,12 +113,10 @@ export default function GameTile({ value, isSelected, size, isAnimating = false,
             { 
               fontSize,
               color: isSelected ? '#FFFFFF' : textColor,
-              fontWeight: isSelected ? '900' : '900',
+              fontWeight: '900',
             }
           ]}
           numberOfLines={1}
-          adjustsFontSizeToFit
-          minimumFontScale={0.5}
         >
           {displayValue}
         </Text>
@@ -162,7 +147,7 @@ const styles = StyleSheet.create({
   },
   tileText: {
     fontWeight: '900',
-    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
     letterSpacing: -0.5,

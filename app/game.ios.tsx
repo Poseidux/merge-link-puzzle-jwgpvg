@@ -52,6 +52,8 @@ import {
   saveLifetimeStats,
   loadLifetimeStats,
   LifetimeStats,
+  saveChainHighlightColor,
+  loadChainHighlightColor,
 } from '@/utils/storage';
 
 const TIMING = {
@@ -130,6 +132,7 @@ export default function GameScreen() {
   const [selectedPowerUpTiles, setSelectedPowerUpTiles] = useState<SelectedTile[]>([]);
   
   const [currentTheme, setCurrentTheme] = useState('classic');
+  const [chainHighlightColor, setChainHighlightColor] = useState('#FFD700');
   const [milestonesReached, setMilestonesReached] = useState<Set<number>>(new Set());
   const [currentMilestone, setCurrentMilestone] = useState<number | null>(null);
   
@@ -159,6 +162,12 @@ export default function GameScreen() {
       if (savedTheme && THEMES[savedTheme as keyof typeof THEMES]) {
         console.log('[Game] Loaded theme:', savedTheme);
         setCurrentTheme(savedTheme);
+      }
+      
+      const savedHighlightColor = await loadChainHighlightColor();
+      if (savedHighlightColor) {
+        console.log('[Game] Loaded chain highlight color:', savedHighlightColor);
+        setChainHighlightColor(savedHighlightColor);
       }
       
       const savedMilestones = await loadMilestones();
@@ -778,6 +787,12 @@ export default function GameScreen() {
     saveTheme(themeId);
   }
   
+  function handleChainHighlightColorChange(color: string) {
+    console.log('[Game] Chain highlight color changed to:', color);
+    setChainHighlightColor(color);
+    saveChainHighlightColor(color);
+  }
+  
   const scoreText = formatTileValue(gameState.score);
   const bestScoreText = formatTileValue(gameState.bestScore);
   
@@ -819,7 +834,7 @@ export default function GameScreen() {
     },
   ];
   
-  const headerPaddingTop = insets.top + 4;
+  const headerPaddingTop = insets.top + 2;
   
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.boardBackground }]} edges={['top', 'bottom']}>
@@ -930,7 +945,7 @@ export default function GameScreen() {
                       y1={y1}
                       x2={x2}
                       y2={y2}
-                      stroke={theme.accentColor}
+                      stroke={chainHighlightColor}
                       strokeWidth={5}
                       strokeLinecap="round"
                     />
@@ -962,7 +977,7 @@ export default function GameScreen() {
                         isSelected={isSelected || isHighlighted || isPowerUpSelected}
                         size={TILE_SIZE}
                         tileColors={theme.tileColors}
-                        accentColor={theme.accentColor}
+                        accentColor={chainHighlightColor}
                       />
                     </View>
                   );
@@ -1020,8 +1035,10 @@ export default function GameScreen() {
       <SettingsModal
         visible={settingsVisible}
         currentTheme={currentTheme}
+        chainHighlightColor={chainHighlightColor}
         onClose={() => setSettingsVisible(false)}
         onThemeChange={handleThemeChange}
+        onChainHighlightColorChange={handleChainHighlightColorChange}
       />
     </SafeAreaView>
   );

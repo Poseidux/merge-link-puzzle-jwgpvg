@@ -1,22 +1,26 @@
 
 import React, { useState, useEffect } from 'react';
 import { View, Text, Modal, TouchableOpacity, Switch, StyleSheet, ScrollView } from 'react-native';
-import { colors, THEMES } from '@/styles/commonStyles';
+import { colors, THEMES, CHAIN_HIGHLIGHT_COLORS } from '@/styles/commonStyles';
 import { loadLifetimeStats, LifetimeStats } from '@/utils/storage';
 import { formatTileValue } from '@/utils/gameLogic';
 
 interface SettingsModalProps {
   visible: boolean;
   currentTheme: string;
+  chainHighlightColor: string;
   onClose: () => void;
   onThemeChange: (themeId: string) => void;
+  onChainHighlightColorChange: (color: string) => void;
 }
 
 export default function SettingsModal({
   visible,
   currentTheme,
+  chainHighlightColor,
   onClose,
   onThemeChange,
+  onChainHighlightColorChange,
 }: SettingsModalProps) {
   const [stats, setStats] = useState<LifetimeStats>({
     highestTileEver: 0,
@@ -94,6 +98,39 @@ export default function SettingsModal({
                         />
                       </View>
                     </View>
+                    {isSelected && (
+                      <View style={styles.checkmark}>
+                        <Text style={styles.checkmarkText}>✓</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            
+            <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Chain Highlight Color</Text>
+            
+            <View style={styles.highlightColorList}>
+              {CHAIN_HIGHLIGHT_COLORS.map((colorOption) => {
+                const isSelected = colorOption.value === chainHighlightColor;
+                return (
+                  <TouchableOpacity
+                    key={colorOption.value}
+                    style={[
+                      styles.colorOption,
+                      isSelected && styles.colorOptionSelected,
+                    ]}
+                    onPress={() => onChainHighlightColorChange(colorOption.value)}
+                  >
+                    <View
+                      style={[
+                        styles.colorSwatch,
+                        { backgroundColor: colorOption.value },
+                      ]}
+                    />
+                    <Text style={[styles.colorName, isSelected && styles.colorNameSelected]}>
+                      {colorOption.name}
+                    </Text>
                     {isSelected && (
                       <View style={styles.checkmark}>
                         <Text style={styles.checkmarkText}>✓</Text>
@@ -210,6 +247,42 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     borderWidth: 1,
     borderColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  highlightColorList: {
+    marginBottom: 8,
+  },
+  colorOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginBottom: 8,
+    backgroundColor: colors.background,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  colorOptionSelected: {
+    backgroundColor: colors.primary + '15',
+    borderColor: colors.primary,
+  },
+  colorSwatch: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 12,
+    borderWidth: 2,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  colorName: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  colorNameSelected: {
+    color: colors.primary,
+    fontWeight: '700',
   },
   checkmark: {
     width: 28,
