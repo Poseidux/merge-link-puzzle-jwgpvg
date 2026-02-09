@@ -69,23 +69,24 @@ const SWIPE_THRESHOLD = 10;
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
-// Layout constants - optimized for better spacing
-const GRID_PADDING = 18;
-const TILE_GAP = 7;
+// Layout constants - optimized for larger board
+const GRID_PADDING = 12;
+const TILE_GAP = 6;
 const HEADER_HEIGHT = 56;
 const POWERUP_BAR_HEIGHT = 80;
-const BOARD_CARD_PADDING = 16;
-const VERTICAL_SPACING = 12;
+const BOARD_CARD_PADDING = 14;
+const VERTICAL_SPACING = 8;
 
 // Calculate available space more accurately
 const SAFE_AREA_ESTIMATE = 44; // Typical notch height
-const AVAILABLE_HEIGHT = SCREEN_HEIGHT - HEADER_HEIGHT - POWERUP_BAR_HEIGHT - SAFE_AREA_ESTIMATE - (VERTICAL_SPACING * 3) - (BOARD_CARD_PADDING * 2);
+const AVAILABLE_HEIGHT = SCREEN_HEIGHT - HEADER_HEIGHT - POWERUP_BAR_HEIGHT - SAFE_AREA_ESTIMATE - (VERTICAL_SPACING * 2) - (BOARD_CARD_PADDING * 2);
 const AVAILABLE_WIDTH = SCREEN_WIDTH - (GRID_PADDING * 2) - (BOARD_CARD_PADDING * 2);
 
 const TILE_SIZE_BY_WIDTH = (AVAILABLE_WIDTH - TILE_GAP * (GRID_CONFIG.COLS - 1)) / GRID_CONFIG.COLS;
 const TILE_SIZE_BY_HEIGHT = (AVAILABLE_HEIGHT - TILE_GAP * (GRID_CONFIG.ROWS - 1)) / GRID_CONFIG.ROWS;
 
-const MAX_TILE_SIZE = 72;
+// Increased MAX_TILE_SIZE to allow larger tiles
+const MAX_TILE_SIZE = 88;
 const TILE_SIZE = Math.min(TILE_SIZE_BY_WIDTH, TILE_SIZE_BY_HEIGHT, MAX_TILE_SIZE);
 
 const GRID_WIDTH = GRID_CONFIG.COLS * TILE_SIZE + (GRID_CONFIG.COLS - 1) * TILE_GAP;
