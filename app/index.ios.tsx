@@ -1,33 +1,50 @@
 
-import { loadGameState } from '@/utils/storage';
-import { GameState } from '@/types/game';
-import { useRouter } from 'expo-router';
-import ConfirmModal from '@/components/ConfirmModal';
-import { LinearGradient } from 'expo-linear-gradient';
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
-import { colors } from '@/styles/commonStyles';
+import { View, Text, TouchableOpacity, StyleSheet, Dimensions, ScrollView } from 'react-native';
+import { useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { colors, THEMES } from '@/styles/commonStyles';
+import { loadGameState, loadLifetimeStats, LifetimeStats } from '@/utils/storage';
+import { formatTileValue } from '@/utils/gameLogic';
+import ConfirmModal from '@/components/ConfirmModal';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
-// VERSION INDICATOR - Update this number when you make changes to verify they're loading
-const APP_VERSION = "v2.0.1";
+const APP_VERSION = "v2.1.0";
 
 export default function HomeScreen() {
   const router = useRouter();
   const [hasSavedGame, setHasSavedGame] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [stats, setStats] = useState<LifetimeStats>({
+    highestTileEver: 0,
+    gamesPlayed: 0,
+    longestChain: 0,
+  });
+  const [bestScore, setBestScore] = useState(0);
+
+  const theme = THEMES.classic;
 
   useEffect(() => {
     console.log('HomeScreen mounted, checking for saved game');
     console.log(`🚀 APP VERSION: ${APP_VERSION} - If you see this version, your changes loaded!`);
     checkForSavedGame();
+    loadStats();
   }, []);
 
   const checkForSavedGame = async () => {
     const savedState = await loadGameState();
-    setHasSavedGame(!!savedState);
+    if (savedState) {
+      setHasSavedGame(true);
+      setBestScore(savedState.bestScore);
+    }
+  };
+
+  const loadStats = async () => {
+    const loadedStats = await loadLifetimeStats();
+    console.log('[Home] Loaded lifetime stats:', loadedStats);
+    setStats(loadedStats);
   };
 
   const handleContinue = () => {
@@ -49,19 +66,49 @@ export default function HomeScreen() {
     router.push('/game?newGame=true');
   };
 
+  const bestScoreText = bestScore > 0 ? formatTileValue(bestScore) : '—';
+  const highestTileText = stats.highestTileEver > 0 ? formatTileValue(stats.highestTileEver) : '—';
+  const gamesPlayedText = stats.gamesPlayed > 0 ? stats.gamesPlayed.toString() : '—';
+
   return (
-    <LinearGradient
-      colors={['#1a1a2e', '#16213e', '#0f3460']}
-      style={styles.container}
-    >
-      <View style={styles.content}>
-        <Text style={styles.title}>Merge Link</Text>
-        <Text style={styles.subtitle}>Connect & Merge Numbers</Text>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.boardBackground }]} edges={['top', 'bottom']}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.header}>
+          <Text style={[styles.title, { color: theme.accentColor }]}>Merge Link</Text>
+          <Text style={styles.subtitle}>Connect & Merge Numbers</Text>
+        </View>
+
+        <View style={styles.statsSection}>
+          <Text style={styles.sectionTitle}>Quick Stats</Text>
+          <View style={styles.statsCard}>
+            <View style={styles.statItem}>
+              <Text style={styles.statLabel}>Best Score</Text>
+              <Text style={[styles.statValue, { color: theme.accentColor }]}>{bestScoreText}</Text>
+            </View>
+            
+            <View style={styles.statDivider} />
+            
+            <View style={styles.statItem}>
+              <Text style={styles.statLabel}>Highest Tile</Text>
+              <Text style={[styles.statValue, { color: theme.accentColor }]}>{highestTileText}</Text>
+            </View>
+            
+            <View style={styles.statDivider} />
+            
+            <View style={styles.statItem}>
+              <Text style={styles.statLabel}>Games Played</Text>
+              <Text style={[styles.statValue, { color: theme.accentColor }]}>{gamesPlayedText}</Text>
+            </View>
+          </View>
+        </View>
 
         <View style={styles.buttonContainer}>
           {hasSavedGame && (
             <TouchableOpacity
-              style={[styles.button, styles.primaryButton]}
+              style={[styles.button, styles.primaryButton, { backgroundColor: theme.accentColor }]}
               onPress={handleContinue}
             >
               <Text style={styles.buttonText}>Continue Game</Text>
@@ -69,30 +116,31 @@ export default function HomeScreen() {
           )}
 
           <TouchableOpacity
-            style={[styles.button, hasSavedGame ? styles.secondaryButton : styles.primaryButton]}
+            style={[
+              styles.button, 
+              hasSavedGame ? styles.secondaryButton : [styles.primaryButton, { backgroundColor: theme.accentColor }]
+            ]}
             onPress={handleNewGame}
           >
             <Text style={styles.buttonText}>New Game</Text>
           </TouchableOpacity>
         </View>
 
-        {/* VERSION INDICATOR - Shows at bottom so you can verify changes loaded */}
         <View style={styles.versionContainer}>
-          <Text style={styles.versionText}>{APP_VERSION}</Text>
-          <Text style={styles.versionSubtext}>
-            If you see this version, your changes loaded successfully!
-          </Text>
+          <Text style={[styles.versionText, { color: theme.accentColor }]}>{APP_VERSION}</Text>
         </View>
-      </View>
+      </ScrollView>
 
       <ConfirmModal
         visible={showConfirmModal}
         title="Start New Game?"
         message="Your current progress will be lost. Are you sure?"
+        confirmText="New Game"
+        cancelText="Cancel"
         onConfirm={startNewGame}
         onCancel={() => setShowConfirmModal(false)}
       />
-    </LinearGradient>
+    </SafeAreaView>
   );
 }
 
@@ -100,63 +148,104 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+  scrollContent: {
+    flexGrow: 1,
     padding: 20,
+    paddingTop: 40,
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: 40,
   },
   title: {
     fontSize: 48,
-    fontWeight: 'bold',
-    color: '#ffffff',
-    marginBottom: 10,
+    fontWeight: '800',
+    marginBottom: 8,
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: 18,
-    color: '#a8b2d1',
-    marginBottom: 60,
+    fontSize: 16,
+    color: colors.textSecondary,
     textAlign: 'center',
-  },
-  buttonContainer: {
-    width: '100%',
-    maxWidth: 300,
-    gap: 16,
-  },
-  button: {
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  primaryButton: {
-    backgroundColor: '#4CAF50',
-  },
-  secondaryButton: {
-    backgroundColor: '#2196F3',
-  },
-  buttonText: {
-    color: '#ffffff',
-    fontSize: 18,
     fontWeight: '600',
   },
-  versionContainer: {
-    position: 'absolute',
-    bottom: 40,
+  statsSection: {
+    marginBottom: 32,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    marginBottom: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  statsCard: {
+    backgroundColor: colors.cardBackground,
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 5,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.06)',
+  },
+  statItem: {
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  statDivider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: 8,
+  },
+  statLabel: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  statValue: {
+    fontSize: 28,
+    fontWeight: '800',
+  },
+  buttonContainer: {
+    gap: 16,
+    marginBottom: 24,
+  },
+  button: {
+    paddingVertical: 18,
+    paddingHorizontal: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  primaryButton: {
+    backgroundColor: colors.primary,
+  },
+  secondaryButton: {
+    backgroundColor: colors.cardBackground,
+    borderWidth: 2,
+    borderColor: colors.border,
+  },
+  buttonText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  versionContainer: {
+    alignItems: 'center',
+    paddingVertical: 20,
   },
   versionText: {
-    color: '#4CAF50',
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  versionSubtext: {
-    color: '#a8b2d1',
-    fontSize: 12,
-    textAlign: 'center',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

@@ -709,7 +709,7 @@ export default function GameScreen() {
     },
   ];
   
-  const headerPaddingTop = insets.top + 2;
+  const headerPaddingTop = insets.top;
   
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.boardBackground }]} edges={['top', 'bottom']}>
