@@ -1,3 +1,4 @@
+
 {
   "expo": {
     "name": "Numble",
@@ -16,7 +17,14 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.Natively",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "numble"
+            ]
+          }
+        ]
       }
     },
     "android": {
@@ -36,7 +44,7 @@
       "expo-router",
       "expo-web-browser"
     ],
-    "scheme": "Numble",
+    "scheme": "numble",
     "experiments": {
       "typedRoutes": true
     },
