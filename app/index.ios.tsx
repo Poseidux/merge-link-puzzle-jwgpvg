@@ -48,8 +48,8 @@ export default function HomeScreen() {
   };
 
   const handleContinue = () => {
-    console.log('User tapped Continue button - navigating to /game');
-    router.push('/game');
+    console.log('User tapped Continue button - navigating to /game with replace');
+    router.replace('/game');
   };
 
   const handleNewGame = () => {
@@ -61,9 +61,9 @@ export default function HomeScreen() {
   };
 
   const startNewGame = () => {
-    console.log('User tapped New Game button - navigating to /game with newGame param');
+    console.log('User tapped New Game button - navigating to /game with newGame param and replace');
     setShowConfirmModal(false);
-    router.push('/game?newGame=true');
+    router.replace('/game?newGame=true');
   };
 
   const bestScoreText = bestScore > 0 ? formatTileValue(bestScore) : '—';

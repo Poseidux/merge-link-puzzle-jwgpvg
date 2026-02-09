@@ -85,9 +85,14 @@ export default function RootLayout() {
         >
           <WidgetProvider>
             <GestureHandlerRootView>
-            <Stack>
-              <Stack.Screen name="index" options={{ headerShown: false }} />
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack
+              screenOptions={{
+                gestureEnabled: false,
+              }}
+            >
+              <Stack.Screen name="index" options={{ headerShown: false, gestureEnabled: false }} />
+              <Stack.Screen name="(tabs)" options={{ headerShown: false, gestureEnabled: false }} />
+              <Stack.Screen name="game" options={{ headerShown: false, gestureEnabled: false }} />
             </Stack>
             <SystemBars style={"auto"} />
             </GestureHandlerRootView>

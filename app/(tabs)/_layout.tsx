@@ -9,10 +9,11 @@ export default function TabLayout() {
       screenOptions={{
         headerShown: false,
         animation: 'none',
+        gestureEnabled: false,
       }}
     >
-      <Stack.Screen key="home" name="(home)" />
-      <Stack.Screen key="profile" name="profile" />
+      <Stack.Screen key="home" name="(home)" options={{ gestureEnabled: false }} />
+      <Stack.Screen key="profile" name="profile" options={{ gestureEnabled: false }} />
     </Stack>
   );
 }
