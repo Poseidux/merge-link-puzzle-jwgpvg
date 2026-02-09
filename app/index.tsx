@@ -111,7 +111,7 @@ export default function HomeScreen() {
               style={[styles.button, styles.primaryButton, { backgroundColor: theme.accentColor }]}
               onPress={handleContinue}
             >
-              <Text style={styles.buttonText}>Continue Game</Text>
+              <Text style={styles.primaryButtonText}>Continue Game</Text>
             </TouchableOpacity>
           )}
 
@@ -122,7 +122,7 @@ export default function HomeScreen() {
             ]}
             onPress={handleNewGame}
           >
-            <Text style={styles.buttonText}>New Game</Text>
+            <Text style={hasSavedGame ? styles.secondaryButtonText : styles.primaryButtonText}>New Game</Text>
           </TouchableOpacity>
         </View>
 
@@ -235,8 +235,13 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.border,
   },
-  buttonText: {
+  primaryButtonText: {
     color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  secondaryButtonText: {
+    color: colors.text,
     fontSize: 18,
     fontWeight: '700',
   },

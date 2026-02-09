@@ -190,7 +190,7 @@ export default function GameScreen() {
   }, [lifetimeStats]);
   
   const startFreshGame = useCallback(() => {
-    console.log('[Game] Starting fresh game');
+    console.log('[Game] Starting fresh game - preserving best score:', gameState.bestScore);
     const newGrid = createInitialGrid();
     const newState: GameState = {
       grid: newGrid,
@@ -249,7 +249,7 @@ export default function GameScreen() {
           scoreBoostActive: savedState.scoreBoostActive || false,
         });
         
-        console.log('[Game] Loaded saved game - Score:', savedState.score);
+        console.log('[Game] Loaded saved game - Score:', savedState.score, 'Best:', savedState.bestScore);
       } else {
         console.log('[Game] No saved game found, starting fresh');
         startFreshGame();
@@ -834,10 +834,10 @@ export default function GameScreen() {
     },
   ];
   
-  const headerPaddingTop = insets.top;
+  const headerPaddingTop = insets.top + 2;
   
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.boardBackground }]} edges={['top', 'bottom']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.boardBackground }]} edges={[]}>
       <Stack.Screen
         options={{
           headerShown: false,
