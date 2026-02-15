@@ -7,6 +7,8 @@ const THEME_KEY = '@merge_puzzle_theme';
 const MILESTONES_KEY = '@merge_puzzle_milestones';
 const STATS_KEY = '@merge_puzzle_lifetime_stats';
 const CHAIN_HIGHLIGHT_COLOR_KEY = '@merge_puzzle_chain_highlight_color';
+const OWNED_THEMES_KEY = '@merge_puzzle_owned_themes';
+const OWNED_COLORS_KEY = '@merge_puzzle_owned_colors';
 
 export interface SavedGameState {
   grid: number[][];
@@ -210,5 +212,56 @@ export async function loadLifetimeStats(): Promise<LifetimeStats> {
       gamesPlayed: 0,
       longestChain: 0,
     };
+  }
+}
+
+// Shop ownership functions
+export async function saveOwnedThemes(themeIds: string[]): Promise<void> {
+  try {
+    console.log('[Storage] Saving owned themes:', themeIds);
+    const jsonValue = JSON.stringify(themeIds);
+    await AsyncStorage.setItem(OWNED_THEMES_KEY, jsonValue);
+  } catch (error) {
+    console.error('[Storage] Error saving owned themes:', error);
+  }
+}
+
+export async function loadOwnedThemes(): Promise<string[]> {
+  try {
+    console.log('[Storage] Loading owned themes');
+    const jsonValue = await AsyncStorage.getItem(OWNED_THEMES_KEY);
+    if (jsonValue) {
+      return JSON.parse(jsonValue);
+    }
+    // Default: user owns Classic theme
+    return ['classic'];
+  } catch (error) {
+    console.error('[Storage] Error loading owned themes:', error);
+    return ['classic'];
+  }
+}
+
+export async function saveOwnedColors(colorNames: string[]): Promise<void> {
+  try {
+    console.log('[Storage] Saving owned colors:', colorNames);
+    const jsonValue = JSON.stringify(colorNames);
+    await AsyncStorage.setItem(OWNED_COLORS_KEY, jsonValue);
+  } catch (error) {
+    console.error('[Storage] Error saving owned colors:', error);
+  }
+}
+
+export async function loadOwnedColors(): Promise<string[]> {
+  try {
+    console.log('[Storage] Loading owned colors');
+    const jsonValue = await AsyncStorage.getItem(OWNED_COLORS_KEY);
+    if (jsonValue) {
+      return JSON.parse(jsonValue);
+    }
+    // Default: user owns Gold
+    return ['Gold'];
+  } catch (error) {
+    console.error('[Storage] Error loading owned colors:', error);
+    return ['Gold'];
   }
 }

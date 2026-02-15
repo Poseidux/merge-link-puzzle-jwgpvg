@@ -1006,6 +1006,7 @@ export default function GameScreen() {
           powerUps={powerUpsArray}
           onPowerUpPress={handlePowerUpPress}
           onSettingsPress={handleSettingsPress}
+          activeTheme={theme}
         />
       </View>
       

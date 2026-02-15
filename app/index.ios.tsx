@@ -7,6 +7,7 @@ import { colors, THEMES } from '@/styles/commonStyles';
 import { loadGameState, loadLifetimeStats, LifetimeStats } from '@/utils/storage';
 import { formatTileValue } from '@/utils/gameLogic';
 import ConfirmModal from '@/components/ConfirmModal';
+import { IconSymbol } from '@/components/IconSymbol';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -66,6 +67,11 @@ export default function HomeScreen() {
     router.replace('/game?newGame=true');
   };
 
+  const handleShop = () => {
+    console.log('User tapped Shop button - navigating to /shop');
+    router.push('/shop');
+  };
+
   const bestScoreText = bestScore > 0 ? formatTileValue(bestScore) : '—';
   const highestTileText = stats.highestTileEver > 0 ? formatTileValue(stats.highestTileEver) : '—';
   const gamesPlayedText = stats.gamesPlayed > 0 ? stats.gamesPlayed.toString() : '—';
@@ -123,6 +129,19 @@ export default function HomeScreen() {
             onPress={handleNewGame}
           >
             <Text style={hasSavedGame ? styles.secondaryButtonText : styles.primaryButtonText}>New Game</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.button, styles.shopButton]}
+            onPress={handleShop}
+          >
+            <IconSymbol
+              ios_icon_name="cart.fill"
+              android_material_icon_name="shopping-cart"
+              size={20}
+              color={colors.primary}
+            />
+            <Text style={styles.shopButtonText}>Shop</Text>
           </TouchableOpacity>
         </View>
 
@@ -242,6 +261,18 @@ const styles = StyleSheet.create({
   },
   secondaryButtonText: {
     color: colors.text,
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  shopButton: {
+    backgroundColor: colors.cardBackground,
+    borderWidth: 2,
+    borderColor: colors.primary,
+    flexDirection: 'row',
+    gap: 10,
+  },
+  shopButtonText: {
+    color: colors.primary,
     fontSize: 18,
     fontWeight: '700',
   },
