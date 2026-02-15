@@ -25,7 +25,7 @@ export default function HomeScreen() {
   });
   const [bestScore, setBestScore] = useState(0);
 
-  const theme = THEMES.classic;
+  const theme = THEMES.theme_classic;
 
   useEffect(() => {
     console.log('HomeScreen mounted, checking for saved game');
