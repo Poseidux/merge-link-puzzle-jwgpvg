@@ -83,12 +83,11 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <Text style={[styles.title, { color: theme.accentColor }]}>Merge Link</Text>
+          <Text style={[styles.title, { color: theme.accentColor }]}>Numble</Text>
           <Text style={styles.subtitle}>Connect & Merge Numbers</Text>
         </View>
 
         <View style={styles.statsSection}>
-          <Text style={styles.sectionTitle}>Quick Stats</Text>
           <View style={styles.statsCard}>
             <View style={styles.statItem}>
               <Text style={styles.statLabel}>Best Score</Text>
@@ -190,14 +189,6 @@ const styles = StyleSheet.create({
   },
   statsSection: {
     marginBottom: 32,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.textSecondary,
-    marginBottom: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
   },
   statsCard: {
     backgroundColor: colors.cardBackground,
