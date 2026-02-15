@@ -1,9 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, Modal, TouchableOpacity, Switch, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, Modal, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { colors, THEMES, CHAIN_HIGHLIGHT_COLORS } from '@/styles/commonStyles';
-import { loadLifetimeStats, LifetimeStats } from '@/utils/storage';
+import { loadLifetimeStats, LifetimeStats, loadOwnedThemes, loadOwnedColors } from '@/utils/storage';
 import { formatTileValue } from '@/utils/gameLogic';
+import { useRouter } from 'expo-router';
 
 interface SettingsModalProps {
   visible: boolean;
@@ -22,11 +23,14 @@ export default function SettingsModal({
   onThemeChange,
   onChainHighlightColorChange,
 }: SettingsModalProps) {
+  const router = useRouter();
   const [stats, setStats] = useState<LifetimeStats>({
     highestTileEver: 0,
     gamesPlayed: 0,
     longestChain: 0,
   });
+  const [ownedThemes, setOwnedThemes] = useState<string[]>(['theme_classic']);
+  const [ownedColors, setOwnedColors] = useState<string[]>(['chain_gold']);
   
   useEffect(() => {
     if (visible) {
@@ -34,12 +38,53 @@ export default function SettingsModal({
         console.log('[SettingsModal] Loaded stats:', loadedStats);
         setStats(loadedStats);
       });
+      
+      loadOwnedThemes().then(themes => {
+        console.log('[SettingsModal] Loaded owned themes:', themes);
+        setOwnedThemes(themes);
+      });
+      
+      loadOwnedColors().then(colors => {
+        console.log('[SettingsModal] Loaded owned colors:', colors);
+        setOwnedColors(colors);
+      });
     }
   }, [visible]);
   
   const highestTileText = stats.highestTileEver > 0 ? formatTileValue(stats.highestTileEver) : '—';
   const gamesPlayedText = stats.gamesPlayed.toString();
   const longestChainText = stats.longestChain > 0 ? stats.longestChain.toString() : '—';
+  
+  const handleThemePress = (themeId: string, isOwned: boolean, price: number) => {
+    if (!isOwned && price > 0) {
+      console.log('[SettingsModal] Theme not owned, navigating to Shop');
+      onClose();
+      router.push('/shop');
+      return;
+    }
+    
+    if (isOwned) {
+      console.log('[SettingsModal] Equipping owned theme:', themeId);
+      onThemeChange(themeId);
+    }
+  };
+  
+  const handleColorPress = (colorId: string, isOwned: boolean, price: number) => {
+    if (!isOwned && price > 0) {
+      console.log('[SettingsModal] Color not owned, navigating to Shop');
+      onClose();
+      router.push('/shop');
+      return;
+    }
+    
+    if (isOwned) {
+      console.log('[SettingsModal] Equipping owned color:', colorId);
+      const colorObj = CHAIN_HIGHLIGHT_COLORS.find(c => c.id === colorId);
+      if (colorObj) {
+        onChainHighlightColorChange(colorObj.value);
+      }
+    }
+  };
   
   return (
     <Modal
@@ -57,20 +102,32 @@ export default function SettingsModal({
             
             <View style={styles.themeList}>
               {Object.values(THEMES).map((theme) => {
+                const isOwned = ownedThemes.includes(theme.id);
                 const isSelected = theme.id === currentTheme;
+                const isFree = theme.price === 0;
+                const canSelect = isOwned || isFree;
+                const priceText = `$${theme.price.toFixed(2)}`;
+                
                 return (
                   <TouchableOpacity
                     key={theme.id}
                     style={[
                       styles.themeOption,
                       isSelected && styles.themeOptionSelected,
+                      !canSelect && styles.themeOptionLocked,
                     ]}
-                    onPress={() => onThemeChange(theme.id)}
+                    onPress={() => handleThemePress(theme.id, canSelect, theme.price)}
+                    disabled={!canSelect && isSelected}
                   >
                     <View style={styles.themeInfo}>
-                      <Text style={[styles.themeName, isSelected && styles.themeNameSelected]}>
-                        {theme.name}
-                      </Text>
+                      <View style={styles.themeNameRow}>
+                        <Text style={[styles.themeName, isSelected && styles.themeNameSelected]}>
+                          {theme.name}
+                        </Text>
+                        {!canSelect && (
+                          <Text style={styles.priceTag}>{priceText}</Text>
+                        )}
+                      </View>
                       <View style={styles.themePreview}>
                         <View
                           style={[
@@ -98,9 +155,14 @@ export default function SettingsModal({
                         />
                       </View>
                     </View>
-                    {isSelected && (
+                    {isSelected && canSelect && (
                       <View style={styles.checkmark}>
                         <Text style={styles.checkmarkText}>✓</Text>
+                      </View>
+                    )}
+                    {!canSelect && !isSelected && (
+                      <View style={styles.lockIcon}>
+                        <Text style={styles.lockText}>🔒</Text>
                       </View>
                     )}
                   </TouchableOpacity>
@@ -112,15 +174,22 @@ export default function SettingsModal({
             
             <View style={styles.highlightColorList}>
               {CHAIN_HIGHLIGHT_COLORS.map((colorOption) => {
+                const isOwned = ownedColors.includes(colorOption.id);
                 const isSelected = colorOption.value === chainHighlightColor;
+                const isFree = colorOption.price === 0;
+                const canSelect = isOwned || isFree;
+                const priceText = `$${colorOption.price.toFixed(2)}`;
+                
                 return (
                   <TouchableOpacity
-                    key={colorOption.value}
+                    key={colorOption.id}
                     style={[
                       styles.colorOption,
                       isSelected && styles.colorOptionSelected,
+                      !canSelect && styles.colorOptionLocked,
                     ]}
-                    onPress={() => onChainHighlightColorChange(colorOption.value)}
+                    onPress={() => handleColorPress(colorOption.id, canSelect, colorOption.price)}
+                    disabled={!canSelect && isSelected}
                   >
                     <View
                       style={[
@@ -128,12 +197,22 @@ export default function SettingsModal({
                         { backgroundColor: colorOption.value },
                       ]}
                     />
-                    <Text style={[styles.colorName, isSelected && styles.colorNameSelected]}>
-                      {colorOption.name}
-                    </Text>
-                    {isSelected && (
+                    <View style={styles.colorInfo}>
+                      <Text style={[styles.colorName, isSelected && styles.colorNameSelected]}>
+                        {colorOption.name}
+                      </Text>
+                      {!canSelect && (
+                        <Text style={styles.priceTagSmall}>{priceText}</Text>
+                      )}
+                    </View>
+                    {isSelected && canSelect && (
                       <View style={styles.checkmark}>
                         <Text style={styles.checkmarkText}>✓</Text>
+                      </View>
+                    )}
+                    {!canSelect && !isSelected && (
+                      <View style={styles.lockIcon}>
+                        <Text style={styles.lockText}>🔒</Text>
                       </View>
                     )}
                   </TouchableOpacity>
@@ -224,18 +303,35 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary + '15',
     borderColor: colors.primary,
   },
+  themeOptionLocked: {
+    opacity: 0.6,
+  },
   themeInfo: {
     flex: 1,
+  },
+  themeNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
   },
   themeName: {
     fontSize: 18,
     fontWeight: '600',
     color: colors.text,
-    marginBottom: 8,
   },
   themeNameSelected: {
     color: colors.primary,
     fontWeight: '700',
+  },
+  priceTag: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.warning,
+    backgroundColor: colors.warning + '20',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
   },
   themePreview: {
     flexDirection: 'row',
@@ -266,6 +362,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary + '15',
     borderColor: colors.primary,
   },
+  colorOptionLocked: {
+    opacity: 0.6,
+  },
   colorSwatch: {
     width: 32,
     height: 32,
@@ -274,8 +373,13 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: 'rgba(0, 0, 0, 0.1)',
   },
-  colorName: {
+  colorInfo: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  colorName: {
     fontSize: 16,
     fontWeight: '600',
     color: colors.text,
@@ -283,6 +387,15 @@ const styles = StyleSheet.create({
   colorNameSelected: {
     color: colors.primary,
     fontWeight: '700',
+  },
+  priceTagSmall: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.warning,
+    backgroundColor: colors.warning + '20',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
   },
   checkmark: {
     width: 28,
@@ -297,6 +410,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
     color: '#FFFFFF',
+  },
+  lockIcon: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 12,
+  },
+  lockText: {
+    fontSize: 18,
   },
   statsContainer: {
     backgroundColor: colors.background,

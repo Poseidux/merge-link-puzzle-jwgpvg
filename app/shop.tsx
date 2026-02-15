@@ -15,61 +15,15 @@ import {
   saveChainHighlightColor,
 } from '@/utils/storage';
 import { IconSymbol } from '@/components/IconSymbol';
-import { formatTileValue } from '@/utils/gameLogic';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
-// Pricing for themes and colors
-const THEME_PRICES: { [key: string]: number } = {
-  classic: 0,
-  ocean: 500,
-  sunset: 500,
-  forest: 500,
-  midnight: 750,
-  candy: 500,
-  neon: 750,
-  autumn: 500,
-  arctic: 500,
-  volcano: 750,
-  aurora: 1000,
-  coralreef: 1000,
-  desertdusk: 1000,
-  royalvelvet: 1000,
-  sakura: 1000,
-  copperteal: 1000,
-  prismpop: 1000,
-  icefire: 1000,
-  retroarcade: 1000,
-  monochromeglass: 1000,
-  lagoon: 1000,
-  tropical: 1000,
-  spring: 750,
-  sorbet: 750,
-  sunrise: 750,
-  cottoncandy: 750,
-};
-
-const COLOR_PRICES: { [key: string]: number } = {
-  'Gold': 0,
-  'Electric Blue': 200,
-  'Hot Pink': 200,
-  'Lime Green': 200,
-  'Orange': 200,
-  'Purple': 200,
-  'Crimson': 300,
-  'Turquoise': 300,
-  'Amber': 300,
-  'Neon Green': 300,
-  'Magenta': 300,
-  'Cyan': 300,
-};
-
 export default function ShopScreen() {
   const router = useRouter();
-  const [ownedThemes, setOwnedThemes] = useState<string[]>(['classic']);
-  const [ownedColors, setOwnedColors] = useState<string[]>(['Gold']);
-  const [equippedTheme, setEquippedTheme] = useState<string>('classic');
-  const [equippedColor, setEquippedColor] = useState<string>('Gold');
+  const [ownedThemes, setOwnedThemes] = useState<string[]>(['theme_classic']);
+  const [ownedColors, setOwnedColors] = useState<string[]>(['chain_gold']);
+  const [equippedTheme, setEquippedTheme] = useState<string>('theme_classic');
+  const [equippedColor, setEquippedColor] = useState<string>('#FFD700');
   const [activeTab, setActiveTab] = useState<'themes' | 'colors'>('themes');
 
   useEffect(() => {
@@ -79,16 +33,16 @@ export default function ShopScreen() {
 
   const loadOwnership = async () => {
     const themes = await loadOwnedThemes();
-    const colors = await loadOwnedColors();
+    const colorIds = await loadOwnedColors();
     const currentTheme = await loadTheme();
     const currentColor = await loadChainHighlightColor();
     
     setOwnedThemes(themes);
-    setOwnedColors(colors);
-    setEquippedTheme(currentTheme || 'classic');
-    setEquippedColor(currentColor || 'Gold');
+    setOwnedColors(colorIds);
+    setEquippedTheme(currentTheme || 'theme_classic');
+    setEquippedColor(currentColor || '#FFD700');
     
-    console.log('[Shop] Loaded ownership:', { themes, colors, currentTheme, currentColor });
+    console.log('[Shop] Loaded ownership:', { themes, colorIds, currentTheme, currentColor });
   };
 
   const handleBuyTheme = async (themeId: string) => {
@@ -107,27 +61,22 @@ export default function ShopScreen() {
     console.log(`[Shop] Theme ${themeId} equipped`);
   };
 
-  const handleBuyColor = async (colorName: string) => {
-    console.log(`User tapped Buy for color: ${colorName}`);
-    const updatedOwned = [...ownedColors, colorName];
+  const handleBuyColor = async (colorId: string) => {
+    console.log(`User tapped Buy for color: ${colorId}`);
+    const updatedOwned = [...ownedColors, colorId];
     setOwnedColors(updatedOwned);
     await saveOwnedColors(updatedOwned);
-    console.log(`[Shop] Color ${colorName} purchased`);
+    console.log(`[Shop] Color ${colorId} purchased`);
   };
 
-  const handleEquipColor = async (colorName: string) => {
-    console.log(`User tapped Equip for color: ${colorName}`);
-    const colorObj = CHAIN_HIGHLIGHT_COLORS.find(c => c.name === colorName);
+  const handleEquipColor = async (colorId: string) => {
+    console.log(`User tapped Equip for color: ${colorId}`);
+    const colorObj = CHAIN_HIGHLIGHT_COLORS.find(c => c.id === colorId);
     if (colorObj) {
-      setEquippedColor(colorName);
+      setEquippedColor(colorObj.value);
       await saveChainHighlightColor(colorObj.value);
-      console.log(`[Shop] Color ${colorName} equipped`);
+      console.log(`[Shop] Color ${colorId} equipped`);
     }
-  };
-
-  const handleBack = () => {
-    console.log('User tapped Back button - navigating to home');
-    router.back();
   };
 
   const themesList = Object.values(THEMES);
@@ -176,9 +125,9 @@ export default function ShopScreen() {
             {themesList.map((theme) => {
               const isOwned = ownedThemes.includes(theme.id);
               const isEquipped = equippedTheme === theme.id;
-              const price = THEME_PRICES[theme.id] || 0;
-              const priceText = formatTileValue(price);
-              const statusText = isEquipped ? 'Equipped' : (isOwned ? 'Owned' : `${priceText}`);
+              const price = theme.price;
+              const priceText = price === 0 ? 'Free' : `$${price.toFixed(2)}`;
+              const statusText = isEquipped ? 'Equipped' : (isOwned ? 'Owned' : priceText);
               
               return (
                 <View key={theme.id} style={styles.itemCard}>
@@ -238,14 +187,14 @@ export default function ShopScreen() {
         {activeTab === 'colors' && (
           <View style={styles.grid}>
             {colorsList.map((colorObj) => {
-              const isOwned = ownedColors.includes(colorObj.name);
-              const isEquipped = equippedColor === colorObj.name;
-              const price = COLOR_PRICES[colorObj.name] || 0;
-              const priceText = formatTileValue(price);
-              const statusText = isEquipped ? 'Equipped' : (isOwned ? 'Owned' : `${priceText}`);
+              const isOwned = ownedColors.includes(colorObj.id);
+              const isEquipped = equippedColor === colorObj.value;
+              const price = colorObj.price;
+              const priceText = price === 0 ? 'Free' : `$${price.toFixed(2)}`;
+              const statusText = isEquipped ? 'Equipped' : (isOwned ? 'Owned' : priceText);
               
               return (
-                <View key={colorObj.name} style={styles.itemCard}>
+                <View key={colorObj.id} style={styles.itemCard}>
                   <View style={[styles.colorPreview, { backgroundColor: colorObj.value }]} />
                   
                   <Text style={styles.itemName}>{colorObj.name}</Text>
@@ -254,7 +203,7 @@ export default function ShopScreen() {
                     {!isOwned && (
                       <TouchableOpacity
                         style={[styles.actionButton, styles.buyButton]}
-                        onPress={() => handleBuyColor(colorObj.name)}
+                        onPress={() => handleBuyColor(colorObj.id)}
                       >
                         <IconSymbol
                           ios_icon_name="cart.fill"
@@ -269,7 +218,7 @@ export default function ShopScreen() {
                     {isOwned && !isEquipped && (
                       <TouchableOpacity
                         style={[styles.actionButton, styles.equipButton]}
-                        onPress={() => handleEquipColor(colorObj.name)}
+                        onPress={() => handleEquipColor(colorObj.id)}
                       >
                         <Text style={styles.equipButtonText}>Equip</Text>
                       </TouchableOpacity>

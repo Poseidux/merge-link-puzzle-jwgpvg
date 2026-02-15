@@ -123,7 +123,17 @@ export async function saveTheme(themeId: string): Promise<void> {
 export async function loadTheme(): Promise<string | null> {
   try {
     console.log('[Storage] Loading theme');
-    return await AsyncStorage.getItem(THEME_KEY);
+    const themeId = await AsyncStorage.getItem(THEME_KEY);
+    
+    // Migration: Convert old theme IDs to new format
+    if (themeId && !themeId.startsWith('theme_')) {
+      const newThemeId = `theme_${themeId}`;
+      console.log(`[Storage] Migrating theme ID from ${themeId} to ${newThemeId}`);
+      await saveTheme(newThemeId);
+      return newThemeId;
+    }
+    
+    return themeId;
   } catch (error) {
     console.error('[Storage] Error loading theme:', error);
     return null;
@@ -215,7 +225,7 @@ export async function loadLifetimeStats(): Promise<LifetimeStats> {
   }
 }
 
-// Shop ownership functions
+// Shop ownership functions with migration support
 export async function saveOwnedThemes(themeIds: string[]): Promise<void> {
   try {
     console.log('[Storage] Saving owned themes:', themeIds);
@@ -231,20 +241,29 @@ export async function loadOwnedThemes(): Promise<string[]> {
     console.log('[Storage] Loading owned themes');
     const jsonValue = await AsyncStorage.getItem(OWNED_THEMES_KEY);
     if (jsonValue) {
-      return JSON.parse(jsonValue);
+      const themes = JSON.parse(jsonValue);
+      // Migration: Convert old theme IDs to new format
+      const migratedThemes = themes.map((id: string) => 
+        id.startsWith('theme_') ? id : `theme_${id}`
+      );
+      if (JSON.stringify(themes) !== JSON.stringify(migratedThemes)) {
+        console.log('[Storage] Migrating owned themes to new ID format');
+        await saveOwnedThemes(migratedThemes);
+      }
+      return migratedThemes;
     }
     // Default: user owns Classic theme
-    return ['classic'];
+    return ['theme_classic'];
   } catch (error) {
     console.error('[Storage] Error loading owned themes:', error);
-    return ['classic'];
+    return ['theme_classic'];
   }
 }
 
-export async function saveOwnedColors(colorNames: string[]): Promise<void> {
+export async function saveOwnedColors(colorIds: string[]): Promise<void> {
   try {
-    console.log('[Storage] Saving owned colors:', colorNames);
-    const jsonValue = JSON.stringify(colorNames);
+    console.log('[Storage] Saving owned colors:', colorIds);
+    const jsonValue = JSON.stringify(colorIds);
     await AsyncStorage.setItem(OWNED_COLORS_KEY, jsonValue);
   } catch (error) {
     console.error('[Storage] Error saving owned colors:', error);
@@ -256,12 +275,24 @@ export async function loadOwnedColors(): Promise<string[]> {
     console.log('[Storage] Loading owned colors');
     const jsonValue = await AsyncStorage.getItem(OWNED_COLORS_KEY);
     if (jsonValue) {
-      return JSON.parse(jsonValue);
+      const colors = JSON.parse(jsonValue);
+      // Migration: Convert old color names to new IDs
+      const migratedColors = colors.map((nameOrId: string) => {
+        if (nameOrId.startsWith('chain_')) return nameOrId;
+        // Convert name to ID format
+        const normalized = nameOrId.toLowerCase().replace(/\s+/g, '');
+        return `chain_${normalized}`;
+      });
+      if (JSON.stringify(colors) !== JSON.stringify(migratedColors)) {
+        console.log('[Storage] Migrating owned colors to new ID format');
+        await saveOwnedColors(migratedColors);
+      }
+      return migratedColors;
     }
     // Default: user owns Gold
-    return ['Gold'];
+    return ['chain_gold'];
   } catch (error) {
     console.error('[Storage] Error loading owned colors:', error);
-    return ['Gold'];
+    return ['chain_gold'];
   }
 }
