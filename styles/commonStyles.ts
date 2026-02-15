@@ -29,7 +29,7 @@ export const CHAIN_HIGHLIGHT_COLORS = [
 ];
 
 export const THEMES = {
-  classic: {
+  theme_classic: {
     id: 'theme_classic',
     name: 'Classic',
     price: 0,
@@ -55,7 +55,7 @@ export const THEMES = {
       65536: ['#6366F1', '#818CF8'],
     },
   },
-  ocean: {
+  theme_ocean: {
     id: 'theme_ocean',
     name: 'Ocean',
     price: 0.99,
@@ -81,7 +81,7 @@ export const THEMES = {
       65536: ['#D01F1F', '#FF9090'],
     },
   },
-  sunset: {
+  theme_sunset: {
     id: 'theme_sunset',
     name: 'Sunset',
     price: 0.99,
@@ -107,7 +107,7 @@ export const THEMES = {
       65536: ['#060BE4', '#2E0BFF'],
     },
   },
-  forest: {
+  theme_forest: {
     id: 'theme_forest',
     name: 'Forest',
     price: 0.99,
@@ -133,7 +133,7 @@ export const THEMES = {
       65536: ['#AA1062', '#FF2E22'],
     },
   },
-  midnight: {
+  theme_midnight: {
     id: 'theme_midnight',
     name: 'Midnight',
     price: 0.99,
@@ -159,7 +159,7 @@ export const THEMES = {
       65536: ['#AA1002', '#FF3B8F'],
     },
   },
-  candy: {
+  theme_candy: {
     id: 'theme_candy',
     name: 'Candy',
     price: 0.99,
@@ -185,7 +185,7 @@ export const THEMES = {
       65536: ['#0A00E4', '#2E0BFF'],
     },
   },
-  neon: {
+  theme_neon: {
     id: 'theme_neon',
     name: 'Neon',
     price: 0.99,
@@ -211,7 +211,7 @@ export const THEMES = {
       65536: ['#6B0B0B', '#FF9090'],
     },
   },
-  autumn: {
+  theme_autumn: {
     id: 'theme_autumn',
     name: 'Autumn',
     price: 0.99,
@@ -237,7 +237,7 @@ export const THEMES = {
       65536: ['#0F1A7A', '#2DE5FF'],
     },
   },
-  arctic: {
+  theme_arctic: {
     id: 'theme_arctic',
     name: 'Arctic',
     price: 0.99,
@@ -263,7 +263,7 @@ export const THEMES = {
       65536: ['#8A0032', '#FF008F'],
     },
   },
-  volcano: {
+  theme_volcano: {
     id: 'theme_volcano',
     name: 'Volcano',
     price: 0.99,
@@ -289,7 +289,7 @@ export const THEMES = {
       65536: ['#0F6B6A', '#2DFFFB'],
     },
   },
-  aurora: {
+  theme_aurora: {
     id: 'theme_aurora',
     name: 'Aurora',
     price: 0.99,
@@ -315,9 +315,9 @@ export const THEMES = {
       65536: ['#AA1F1F', '#FF9090'],
     },
   },
-  coralreef: {
+  theme_coralreef: {
     id: 'theme_coralreef',
-    name: 'CoralReef',
+    name: 'Coral Reef',
     price: 0.99,
     boardBackground: '#0A1828',
     emptyCellColor: '#152838',
@@ -341,9 +341,9 @@ export const THEMES = {
       65536: ['#AA1062', '#FF2E22'],
     },
   },
-  desertdusk: {
+  theme_desertdusk: {
     id: 'theme_desertdusk',
-    name: 'DesertDusk',
+    name: 'Desert Dusk',
     price: 0.99,
     boardBackground: '#3B2010',
     emptyCellColor: '#4A2818',
@@ -367,9 +367,9 @@ export const THEMES = {
       65536: ['#060BE4', '#2E0BFF'],
     },
   },
-  royalvelvet: {
+  theme_royalvelvet: {
     id: 'theme_royalvelvet',
-    name: 'RoyalVelvet',
+    name: 'Royal Velvet',
     price: 0.99,
     boardBackground: '#0A0E1A',
     emptyCellColor: '#12162A',
@@ -393,7 +393,7 @@ export const THEMES = {
       65536: ['#AA1002', '#FF3B8F'],
     },
   },
-  sakura: {
+  theme_sakura: {
     id: 'theme_sakura',
     name: 'Sakura',
     price: 0.99,
@@ -419,9 +419,9 @@ export const THEMES = {
       65536: ['#0A00E4', '#2E0BFF'],
     },
   },
-  copperteal: {
+  theme_copperteal: {
     id: 'theme_copperteal',
-    name: 'CopperTeal',
+    name: 'Copper Teal',
     price: 0.99,
     boardBackground: '#2A1A15',
     emptyCellColor: '#3A2520',
@@ -445,9 +445,9 @@ export const THEMES = {
       65536: ['#0B8A0A', '#2DFFE0'],
     },
   },
-  prismpop: {
+  theme_prismpop: {
     id: 'theme_prismpop',
-    name: 'PrismPop',
+    name: 'Prism Pop',
     price: 0.99,
     boardBackground: '#0F1020',
     emptyCellColor: '#1A1A30',
@@ -471,9 +471,9 @@ export const THEMES = {
       65536: ['#6B0B0B', '#FF9090'],
     },
   },
-  icefire: {
+  theme_icefire: {
     id: 'theme_icefire',
-    name: 'Icefire',
+    name: 'Ice Fire',
     price: 0.99,
     boardBackground: '#0F1F2F',
     emptyCellColor: '#1A2A3A',
@@ -497,9 +497,9 @@ export const THEMES = {
       65536: ['#AA0B0B', '#FF3B3B'],
     },
   },
-  retroarcade: {
+  theme_retroarcade: {
     id: 'theme_retroarcade',
-    name: 'RetroArcade',
+    name: 'Retro Arcade',
     price: 0.99,
     boardBackground: '#0A0A15',
     emptyCellColor: '#15151F',
@@ -523,9 +523,9 @@ export const THEMES = {
       65536: ['#6B0B0B', '#FF9090'],
     },
   },
-  monochromeglass: {
+  theme_monochromeglass: {
     id: 'theme_monochromeglass',
-    name: 'MonochromeGlass',
+    name: 'Monochrome Glass',
     price: 0.99,
     boardBackground: '#0F0F0F',
     emptyCellColor: '#1A1A1A',
@@ -549,7 +549,7 @@ export const THEMES = {
       65536: ['#A2A2A2', '#E7E7E7'],
     },
   },
-  lagoon: {
+  theme_lagoon: {
     id: 'theme_lagoon',
     name: 'Lagoon',
     price: 0.99,
@@ -575,7 +575,7 @@ export const THEMES = {
       65536: ['#00C853', '#6BFF2E'],
     },
   },
-  tropical: {
+  theme_tropical: {
     id: 'theme_tropical',
     name: 'Tropical',
     price: 0.99,
@@ -601,7 +601,7 @@ export const THEMES = {
       65536: ['#D1FF2E', '#FFF05A'],
     },
   },
-  spring: {
+  theme_spring: {
     id: 'theme_spring',
     name: 'Spring',
     price: 0.99,
@@ -627,7 +627,7 @@ export const THEMES = {
       65536: ['#2DFFB6', '#6BFFF0'],
     },
   },
-  sorbet: {
+  theme_sorbet: {
     id: 'theme_sorbet',
     name: 'Sorbet',
     price: 0.99,
@@ -653,7 +653,7 @@ export const THEMES = {
       65536: ['#6BFF2E', '#B6FF4A'],
     },
   },
-  sunrise: {
+  theme_sunrise: {
     id: 'theme_sunrise',
     name: 'Sunrise',
     price: 0.99,
@@ -679,9 +679,9 @@ export const THEMES = {
       65536: ['#FF8F2E', '#FF7A2E'],
     },
   },
-  cottoncandy: {
+  theme_cottoncandy: {
     id: 'theme_cottoncandy',
-    name: 'CottonCandy',
+    name: 'Cotton Candy',
     price: 0.99,
     boardBackground: '#FFF0FF',
     emptyCellColor: '#FFE0FF',
