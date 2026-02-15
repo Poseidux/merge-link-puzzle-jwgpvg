@@ -9,7 +9,7 @@ import {
   Platform,
   Modal,
 } from 'react-native';
-import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
+import { Stack, useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import Svg, { Line } from 'react-native-svg';
@@ -127,7 +127,7 @@ export default function GameScreen() {
   const [activePowerUp, setActivePowerUp] = useState<string | null>(null);
   const [selectedPowerUpTiles, setSelectedPowerUpTiles] = useState<SelectedTile[]>([]);
   
-  const [currentTheme, setCurrentTheme] = useState('classic');
+  const [currentTheme, setCurrentTheme] = useState('theme_classic');
   const [chainHighlightColor, setChainHighlightColor] = useState('#FFD700');
   const [milestonesReached, setMilestonesReached] = useState<Set<number>>(new Set());
   const [currentMilestone, setCurrentMilestone] = useState<number | null>(null);
@@ -139,32 +139,42 @@ export default function GameScreen() {
   const hasLoadedInitialState = useRef(false);
   const touchStartRef = useRef({ x: 0, y: 0 });
   
-  const theme = THEMES[currentTheme as keyof typeof THEMES] || THEMES.classic;
+  const theme = THEMES[currentTheme as keyof typeof THEMES] || THEMES.theme_classic;
   
   useEffect(() => {
     selectedTilesRef.current = selectedTiles;
   }, [selectedTiles]);
   
+  // Load theme and chain color on mount and when screen gains focus
+  useFocusEffect(
+    useCallback(() => {
+      const loadEquippedItems = async () => {
+        const savedTheme = await loadTheme();
+        const savedHighlightColor = await loadChainHighlightColor();
+        
+        if (savedTheme && THEMES[savedTheme as keyof typeof THEMES]) {
+          console.log('[Game] Loaded equipped theme:', savedTheme);
+          setCurrentTheme(savedTheme);
+        }
+        
+        if (savedHighlightColor) {
+          console.log('[Game] Loaded equipped chain highlight color:', savedHighlightColor);
+          setChainHighlightColor(savedHighlightColor);
+        }
+      };
+      
+      loadEquippedItems();
+    }, [])
+  );
+  
   useEffect(() => {
-    const loadThemeAndMilestones = async () => {
-      const savedTheme = await loadTheme();
-      if (savedTheme && THEMES[savedTheme as keyof typeof THEMES]) {
-        console.log('[Game] Loaded theme:', savedTheme);
-        setCurrentTheme(savedTheme);
-      }
-      
-      const savedHighlightColor = await loadChainHighlightColor();
-      if (savedHighlightColor) {
-        console.log('[Game] Loaded chain highlight color:', savedHighlightColor);
-        setChainHighlightColor(savedHighlightColor);
-      }
-      
+    const loadMilestonesData = async () => {
       const savedMilestones = await loadMilestones();
       console.log('[Game] Loaded milestones:', Array.from(savedMilestones));
       setMilestonesReached(savedMilestones);
     };
     
-    loadThemeAndMilestones();
+    loadMilestonesData();
   }, []);
   
   const startFreshGame = useCallback(() => {
@@ -666,15 +676,17 @@ export default function GameScreen() {
   }
   
   function handleThemeChange(themeId: string) {
-    console.log('[Game] Theme changed to:', themeId);
+    console.log('[Game] Theme change requested:', themeId);
     setCurrentTheme(themeId);
     saveTheme(themeId);
+    console.log('[Game] Theme state updated and saved to storage');
   }
   
   function handleChainHighlightColorChange(color: string) {
-    console.log('[Game] Chain highlight color changed to:', color);
+    console.log('[Game] Chain highlight color change requested:', color);
     setChainHighlightColor(color);
     saveChainHighlightColor(color);
+    console.log('[Game] Chain highlight color state updated and saved to storage');
   }
   
   const scoreText = formatTileValue(gameState.score);

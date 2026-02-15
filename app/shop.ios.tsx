@@ -27,7 +27,7 @@ export default function ShopScreen() {
   const [activeTab, setActiveTab] = useState<'themes' | 'colors'>('themes');
 
   useEffect(() => {
-    console.log('Shop screen mounted, loading ownership data');
+    console.log('[Shop] Screen mounted, loading ownership data');
     loadOwnership();
   }, []);
 
@@ -46,8 +46,7 @@ export default function ShopScreen() {
   };
 
   const handleBuyTheme = async (themeId: string) => {
-    console.log(`User tapped Buy for theme: ${themeId}`);
-    // In a real app, this would deduct currency. For now, just grant ownership.
+    console.log(`[Shop] User tapped Buy for theme: ${themeId}`);
     const updatedOwned = [...ownedThemes, themeId];
     setOwnedThemes(updatedOwned);
     await saveOwnedThemes(updatedOwned);
@@ -55,14 +54,14 @@ export default function ShopScreen() {
   };
 
   const handleEquipTheme = async (themeId: string) => {
-    console.log(`User tapped Equip for theme: ${themeId}`);
+    console.log(`[Shop] User tapped Equip for theme: ${themeId}`);
     setEquippedTheme(themeId);
     await saveTheme(themeId);
-    console.log(`[Shop] Theme ${themeId} equipped`);
+    console.log(`[Shop] Theme ${themeId} equipped and saved to storage`);
   };
 
   const handleBuyColor = async (colorId: string) => {
-    console.log(`User tapped Buy for color: ${colorId}`);
+    console.log(`[Shop] User tapped Buy for color: ${colorId}`);
     const updatedOwned = [...ownedColors, colorId];
     setOwnedColors(updatedOwned);
     await saveOwnedColors(updatedOwned);
@@ -70,12 +69,12 @@ export default function ShopScreen() {
   };
 
   const handleEquipColor = async (colorId: string) => {
-    console.log(`User tapped Equip for color: ${colorId}`);
+    console.log(`[Shop] User tapped Equip for color: ${colorId}`);
     const colorObj = CHAIN_HIGHLIGHT_COLORS.find(c => c.id === colorId);
     if (colorObj) {
       setEquippedColor(colorObj.value);
       await saveChainHighlightColor(colorObj.value);
-      console.log(`[Shop] Color ${colorId} equipped`);
+      console.log(`[Shop] Color ${colorId} (${colorObj.value}) equipped and saved to storage`);
     }
   };
 
