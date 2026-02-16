@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Dimensions, ActivityIndicator, Alert } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, THEMES, CHAIN_HIGHLIGHT_COLORS } from '@/styles/commonStyles';
@@ -15,8 +15,18 @@ import {
   saveChainHighlightColor,
 } from '@/utils/storage';
 import { IconSymbol } from '@/components/IconSymbol';
+import Purchases, { PurchasesPackage, CustomerInfo } from 'react-native-purchases';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
+
+interface ProductWithPrice {
+  productId: string;
+  displayName: string;
+  price: number;
+  priceString?: string;
+  type: 'theme' | 'chainColor';
+  pkg?: PurchasesPackage;
+}
 
 export default function ShopScreen() {
   const router = useRouter();
@@ -25,32 +35,207 @@ export default function ShopScreen() {
   const [equippedTheme, setEquippedTheme] = useState<string>('theme_classic');
   const [equippedColor, setEquippedColor] = useState<string>('#FFD700');
   const [activeTab, setActiveTab] = useState<'themes' | 'colors'>('themes');
+  const [loading, setLoading] = useState(true);
+  const [purchasing, setPurchasing] = useState<string | null>(null);
+  const [restoring, setRestoring] = useState(false);
+  
+  const [themesWithPrices, setThemesWithPrices] = useState<ProductWithPrice[]>([]);
+  const [colorsWithPrices, setColorsWithPrices] = useState<ProductWithPrice[]>([]);
 
   useEffect(() => {
-    console.log('[Shop] Screen mounted, loading ownership data');
-    loadOwnership();
+    console.log('[Shop] Screen mounted, loading ownership data and RevenueCat offerings');
+    loadOwnershipAndOfferings();
   }, []);
 
-  const loadOwnership = async () => {
-    const themes = await loadOwnedThemes();
-    const colorIds = await loadOwnedColors();
-    const currentTheme = await loadTheme();
-    const currentColor = await loadChainHighlightColor();
-    
-    setOwnedThemes(themes);
-    setOwnedColors(colorIds);
-    setEquippedTheme(currentTheme || 'theme_classic');
-    setEquippedColor(currentColor || '#FFD700');
-    
-    console.log('[Shop] Loaded ownership:', { themes, colorIds, currentTheme, currentColor });
+  const loadOwnershipAndOfferings = async () => {
+    try {
+      setLoading(true);
+      
+      // Load local ownership
+      const themes = await loadOwnedThemes();
+      const colorIds = await loadOwnedColors();
+      const currentTheme = await loadTheme();
+      const currentColor = await loadChainHighlightColor();
+      
+      setOwnedThemes(themes);
+      setOwnedColors(colorIds);
+      setEquippedTheme(currentTheme || 'theme_classic');
+      setEquippedColor(currentColor || '#FFD700');
+      
+      console.log('[Shop] Loaded local ownership:', { themes, colorIds, currentTheme, currentColor });
+      
+      // Fetch RevenueCat offerings
+      console.log('[Shop] Fetching RevenueCat offerings...');
+      const offerings = await Purchases.getOfferings();
+      
+      // Log all offering identifiers to confirm correct ones
+      console.log('[Shop] Available offering identifiers:', Object.keys(offerings.all));
+      
+      // Map offerings to products
+      const themesMap: { [key: string]: ProductWithPrice } = {};
+      const colorsMap: { [key: string]: ProductWithPrice } = {};
+      
+      // Process all offerings
+      Object.values(offerings.all).forEach((offering) => {
+        console.log(`[Shop] Processing offering: ${offering.identifier} with ${offering.availablePackages.length} packages`);
+        
+        offering.availablePackages.forEach((pkg) => {
+          const productId = pkg.storeProduct.identifier;
+          console.log(`[Shop] Package product ID: ${productId}, price: ${pkg.storeProduct.priceString}`);
+          
+          if (productId.startsWith('theme_')) {
+            const theme = THEMES[productId];
+            if (theme) {
+              themesMap[productId] = {
+                productId,
+                displayName: theme.displayName,
+                price: theme.price,
+                priceString: pkg.storeProduct.priceString,
+                type: 'theme',
+                pkg,
+              };
+            }
+          } else if (productId.startsWith('chain_')) {
+            const color = CHAIN_HIGHLIGHT_COLORS[productId];
+            if (color) {
+              colorsMap[productId] = {
+                productId,
+                displayName: color.displayName,
+                price: color.price,
+                priceString: pkg.storeProduct.priceString,
+                type: 'chainColor',
+                pkg,
+              };
+            }
+          }
+        });
+      });
+      
+      // Merge with local product definitions (for items not in offerings)
+      const allThemes = Object.values(THEMES).map((theme) => {
+        const rcProduct = themesMap[theme.productId];
+        return rcProduct || {
+          productId: theme.productId,
+          displayName: theme.displayName,
+          price: theme.price,
+          priceString: theme.price === 0 ? 'Free' : `$${theme.price.toFixed(2)}`,
+          type: 'theme' as const,
+        };
+      });
+      
+      const allColors = Object.values(CHAIN_HIGHLIGHT_COLORS).map((color) => {
+        const rcProduct = colorsMap[color.productId];
+        return rcProduct || {
+          productId: color.productId,
+          displayName: color.displayName,
+          price: color.price,
+          priceString: color.price === 0 ? 'Free' : `$${color.price.toFixed(2)}`,
+          type: 'chainColor' as const,
+        };
+      });
+      
+      setThemesWithPrices(allThemes);
+      setColorsWithPrices(allColors);
+      
+      console.log('[Shop] Loaded themes with prices:', allThemes.length);
+      console.log('[Shop] Loaded colors with prices:', allColors.length);
+      
+      // Sync ownership from RevenueCat
+      await syncOwnershipFromRevenueCat();
+      
+    } catch (error) {
+      console.error('[Shop] Error loading offerings:', error);
+      Alert.alert('Error', 'Failed to load store items. Please try again.');
+      
+      // Fallback to local data
+      const allThemes = Object.values(THEMES).map((theme) => ({
+        productId: theme.productId,
+        displayName: theme.displayName,
+        price: theme.price,
+        priceString: theme.price === 0 ? 'Free' : `$${theme.price.toFixed(2)}`,
+        type: 'theme' as const,
+      }));
+      
+      const allColors = Object.values(CHAIN_HIGHLIGHT_COLORS).map((color) => ({
+        productId: color.productId,
+        displayName: color.displayName,
+        price: color.price,
+        priceString: color.price === 0 ? 'Free' : `$${color.price.toFixed(2)}`,
+        type: 'chainColor' as const,
+      }));
+      
+      setThemesWithPrices(allThemes);
+      setColorsWithPrices(allColors);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleBuyTheme = async (themeId: string) => {
-    console.log(`[Shop] User tapped Buy for theme: ${themeId}`);
-    const updatedOwned = [...ownedThemes, themeId];
-    setOwnedThemes(updatedOwned);
-    await saveOwnedThemes(updatedOwned);
-    console.log(`[Shop] Theme ${themeId} purchased`);
+  const syncOwnershipFromRevenueCat = async () => {
+    try {
+      console.log('[Shop] Syncing ownership from RevenueCat...');
+      const customerInfo = await Purchases.getCustomerInfo();
+      await updateOwnershipFromCustomerInfo(customerInfo);
+    } catch (error) {
+      console.error('[Shop] Error syncing ownership from RevenueCat:', error);
+    }
+  };
+
+  const updateOwnershipFromCustomerInfo = async (customerInfo: CustomerInfo) => {
+    const ownedThemeIds: string[] = ['theme_classic']; // Classic is always owned
+    const ownedChainColorIds: string[] = ['chain_gold']; // Gold is always owned
+    
+    console.log('[Shop] Processing customer info for ownership...');
+    console.log('[Shop] Non-subscription transactions:', customerInfo.nonSubscriptionTransactions.length);
+    
+    // Process non-subscription transactions for themes and chain colors
+    customerInfo.nonSubscriptionTransactions.forEach((transaction) => {
+      const productId = transaction.productIdentifier;
+      console.log(`[Shop] Found purchased product: ${productId}`);
+      
+      if (productId.startsWith('theme_') && !ownedThemeIds.includes(productId)) {
+        ownedThemeIds.push(productId);
+      } else if (productId.startsWith('chain_') && !ownedChainColorIds.includes(productId)) {
+        ownedChainColorIds.push(productId);
+      }
+    });
+    
+    console.log('[Shop] Updated owned themes:', ownedThemeIds);
+    console.log('[Shop] Updated owned colors:', ownedChainColorIds);
+    
+    // Update state and storage
+    setOwnedThemes(ownedThemeIds);
+    setOwnedColors(ownedChainColorIds);
+    await saveOwnedThemes(ownedThemeIds);
+    await saveOwnedColors(ownedChainColorIds);
+  };
+
+  const handleBuyTheme = async (product: ProductWithPrice) => {
+    if (!product.pkg) {
+      console.log('[Shop] No RevenueCat package for theme:', product.productId);
+      Alert.alert('Not Available', 'This item is not available for purchase at the moment.');
+      return;
+    }
+    
+    try {
+      console.log(`[Shop] User tapped Buy for theme: ${product.productId}`);
+      setPurchasing(product.productId);
+      
+      const { customerInfo } = await Purchases.purchasePackage(product.pkg);
+      console.log('[Shop] Purchase successful, updating ownership...');
+      
+      await updateOwnershipFromCustomerInfo(customerInfo);
+      
+      Alert.alert('Success!', `${product.displayName} theme purchased successfully!`);
+    } catch (error: any) {
+      console.error('[Shop] Purchase error:', error);
+      
+      if (!error.userCancelled) {
+        Alert.alert('Purchase Failed', error.message || 'Unable to complete purchase. Please try again.');
+      }
+    } finally {
+      setPurchasing(null);
+    }
   };
 
   const handleEquipTheme = async (themeId: string) => {
@@ -60,12 +245,32 @@ export default function ShopScreen() {
     console.log(`[Shop] Theme ${themeId} equipped and saved to storage`);
   };
 
-  const handleBuyColor = async (colorId: string) => {
-    console.log(`[Shop] User tapped Buy for color: ${colorId}`);
-    const updatedOwned = [...ownedColors, colorId];
-    setOwnedColors(updatedOwned);
-    await saveOwnedColors(updatedOwned);
-    console.log(`[Shop] Color ${colorId} purchased`);
+  const handleBuyColor = async (product: ProductWithPrice) => {
+    if (!product.pkg) {
+      console.log('[Shop] No RevenueCat package for color:', product.productId);
+      Alert.alert('Not Available', 'This item is not available for purchase at the moment.');
+      return;
+    }
+    
+    try {
+      console.log(`[Shop] User tapped Buy for color: ${product.productId}`);
+      setPurchasing(product.productId);
+      
+      const { customerInfo } = await Purchases.purchasePackage(product.pkg);
+      console.log('[Shop] Purchase successful, updating ownership...');
+      
+      await updateOwnershipFromCustomerInfo(customerInfo);
+      
+      Alert.alert('Success!', `${product.displayName} color purchased successfully!`);
+    } catch (error: any) {
+      console.error('[Shop] Purchase error:', error);
+      
+      if (!error.userCancelled) {
+        Alert.alert('Purchase Failed', error.message || 'Unable to complete purchase. Please try again.');
+      }
+    } finally {
+      setPurchasing(null);
+    }
   };
 
   const handleEquipColor = async (colorId: string) => {
@@ -78,11 +283,47 @@ export default function ShopScreen() {
     }
   };
 
-  const themesList = Object.values(THEMES);
-  const colorsList = Object.values(CHAIN_HIGHLIGHT_COLORS);
+  const handleRestorePurchases = async () => {
+    try {
+      console.log('[Shop] User tapped Restore Purchases');
+      setRestoring(true);
+      
+      const customerInfo = await Purchases.restorePurchases();
+      console.log('[Shop] Restore successful, updating ownership...');
+      
+      await updateOwnershipFromCustomerInfo(customerInfo);
+      
+      Alert.alert('Restored!', 'Your purchases have been restored successfully.');
+    } catch (error: any) {
+      console.error('[Shop] Restore error:', error);
+      Alert.alert('Restore Failed', error.message || 'Unable to restore purchases. Please try again.');
+    } finally {
+      setRestoring(false);
+    }
+  };
 
   const tabTextThemes = 'Themes';
   const tabTextColors = 'Colors';
+  const restoreButtonText = 'Restore Purchases';
+
+  if (loading) {
+    const loadingText = 'Loading Store...';
+    return (
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+        <Stack.Screen 
+          options={{
+            headerShown: true,
+            title: 'Shop',
+            headerBackTitle: 'Back',
+          }}
+        />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>{loadingText}</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -121,15 +362,18 @@ export default function ShopScreen() {
       >
         {activeTab === 'themes' && (
           <View style={styles.grid}>
-            {themesList.map((theme) => {
-              const isOwned = ownedThemes.includes(theme.productId);
-              const isEquipped = equippedTheme === theme.productId;
-              const price = theme.price;
-              const priceText = price === 0 ? 'Free' : `$${price.toFixed(2)}`;
+            {themesWithPrices.map((product) => {
+              const theme = THEMES[product.productId];
+              if (!theme) return null;
+              
+              const isOwned = ownedThemes.includes(product.productId);
+              const isEquipped = equippedTheme === product.productId;
+              const isPurchasing = purchasing === product.productId;
+              const priceText = product.priceString || (product.price === 0 ? 'Free' : `$${product.price.toFixed(2)}`);
               const statusText = isEquipped ? 'Equipped' : (isOwned ? 'Owned' : priceText);
               
               return (
-                <View key={theme.productId} style={styles.itemCard}>
+                <View key={product.productId} style={styles.itemCard}>
                   <View style={[styles.themePreview, { backgroundColor: theme.boardBackground }]}>
                     <View style={styles.themePreviewTiles}>
                       <View style={[styles.previewTile, { backgroundColor: theme.tileColors[2]?.[1] || theme.accentColor }]} />
@@ -138,28 +382,35 @@ export default function ShopScreen() {
                     </View>
                   </View>
                   
-                  <Text style={styles.itemName}>{theme.displayName}</Text>
+                  <Text style={styles.itemName}>{product.displayName}</Text>
                   
                   <View style={styles.itemActions}>
                     {!isOwned && (
                       <TouchableOpacity
                         style={[styles.actionButton, styles.buyButton]}
-                        onPress={() => handleBuyTheme(theme.productId)}
+                        onPress={() => handleBuyTheme(product)}
+                        disabled={isPurchasing}
                       >
-                        <IconSymbol
-                          ios_icon_name="cart.fill"
-                          android_material_icon_name="shopping-cart"
-                          size={16}
-                          color="#FFFFFF"
-                        />
-                        <Text style={styles.buyButtonText}>{statusText}</Text>
+                        {isPurchasing ? (
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                          <>
+                            <IconSymbol
+                              ios_icon_name="cart.fill"
+                              android_material_icon_name="shopping-cart"
+                              size={16}
+                              color="#FFFFFF"
+                            />
+                            <Text style={styles.buyButtonText}>{statusText}</Text>
+                          </>
+                        )}
                       </TouchableOpacity>
                     )}
                     
                     {isOwned && !isEquipped && (
                       <TouchableOpacity
                         style={[styles.actionButton, styles.equipButton]}
-                        onPress={() => handleEquipTheme(theme.productId)}
+                        onPress={() => handleEquipTheme(product.productId)}
                       >
                         <Text style={styles.equipButtonText}>Equip</Text>
                       </TouchableOpacity>
@@ -185,39 +436,49 @@ export default function ShopScreen() {
 
         {activeTab === 'colors' && (
           <View style={styles.grid}>
-            {colorsList.map((colorObj) => {
-              const isOwned = ownedColors.includes(colorObj.productId);
+            {colorsWithPrices.map((product) => {
+              const colorObj = CHAIN_HIGHLIGHT_COLORS[product.productId];
+              if (!colorObj) return null;
+              
+              const isOwned = ownedColors.includes(product.productId);
               const isEquipped = equippedColor === colorObj.color;
-              const price = colorObj.price;
-              const priceText = price === 0 ? 'Free' : `$${price.toFixed(2)}`;
+              const isPurchasing = purchasing === product.productId;
+              const priceText = product.priceString || (product.price === 0 ? 'Free' : `$${product.price.toFixed(2)}`);
               const statusText = isEquipped ? 'Equipped' : (isOwned ? 'Owned' : priceText);
               
               return (
-                <View key={colorObj.productId} style={styles.itemCard}>
+                <View key={product.productId} style={styles.itemCard}>
                   <View style={[styles.colorPreview, { backgroundColor: colorObj.color }]} />
                   
-                  <Text style={styles.itemName}>{colorObj.displayName}</Text>
+                  <Text style={styles.itemName}>{product.displayName}</Text>
                   
                   <View style={styles.itemActions}>
                     {!isOwned && (
                       <TouchableOpacity
                         style={[styles.actionButton, styles.buyButton]}
-                        onPress={() => handleBuyColor(colorObj.productId)}
+                        onPress={() => handleBuyColor(product)}
+                        disabled={isPurchasing}
                       >
-                        <IconSymbol
-                          ios_icon_name="cart.fill"
-                          android_material_icon_name="shopping-cart"
-                          size={16}
-                          color="#FFFFFF"
-                        />
-                        <Text style={styles.buyButtonText}>{statusText}</Text>
+                        {isPurchasing ? (
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                          <>
+                            <IconSymbol
+                              ios_icon_name="cart.fill"
+                              android_material_icon_name="shopping-cart"
+                              size={16}
+                              color="#FFFFFF"
+                            />
+                            <Text style={styles.buyButtonText}>{statusText}</Text>
+                          </>
+                        )}
                       </TouchableOpacity>
                     )}
                     
                     {isOwned && !isEquipped && (
                       <TouchableOpacity
                         style={[styles.actionButton, styles.equipButton]}
-                        onPress={() => handleEquipColor(colorObj.productId)}
+                        onPress={() => handleEquipColor(product.productId)}
                       >
                         <Text style={styles.equipButtonText}>Equip</Text>
                       </TouchableOpacity>
@@ -240,6 +501,26 @@ export default function ShopScreen() {
             })}
           </View>
         )}
+        
+        <TouchableOpacity
+          style={styles.restoreButton}
+          onPress={handleRestorePurchases}
+          disabled={restoring}
+        >
+          {restoring ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <>
+              <IconSymbol
+                ios_icon_name="arrow.clockwise"
+                android_material_icon_name="refresh"
+                size={20}
+                color={colors.primary}
+              />
+              <Text style={styles.restoreButtonText}>{restoreButtonText}</Text>
+            </>
+          )}
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -249,6 +530,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 16,
+  },
+  loadingText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.textSecondary,
   },
   tabBar: {
     flexDirection: 'row',
@@ -376,5 +668,26 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: colors.success,
+  },
+  restoreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.cardBackground,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    marginTop: 24,
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  restoreButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.primary,
   },
 });
