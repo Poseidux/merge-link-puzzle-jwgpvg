@@ -70,16 +70,16 @@ export default function ShopScreen() {
 
   const handleEquipColor = async (colorId: string) => {
     console.log(`[Shop] User tapped Equip for color: ${colorId}`);
-    const colorObj = CHAIN_HIGHLIGHT_COLORS.find(c => c.id === colorId);
+    const colorObj = CHAIN_HIGHLIGHT_COLORS[colorId];
     if (colorObj) {
-      setEquippedColor(colorObj.value);
-      await saveChainHighlightColor(colorObj.value);
-      console.log(`[Shop] Color ${colorId} (${colorObj.value}) equipped and saved to storage`);
+      setEquippedColor(colorObj.color);
+      await saveChainHighlightColor(colorObj.color);
+      console.log(`[Shop] Color ${colorId} (${colorObj.color}) equipped and saved to storage`);
     }
   };
 
   const themesList = Object.values(THEMES);
-  const colorsList = CHAIN_HIGHLIGHT_COLORS;
+  const colorsList = Object.values(CHAIN_HIGHLIGHT_COLORS);
 
   const tabTextThemes = 'Themes';
   const tabTextColors = 'Colors';
@@ -122,14 +122,14 @@ export default function ShopScreen() {
         {activeTab === 'themes' && (
           <View style={styles.grid}>
             {themesList.map((theme) => {
-              const isOwned = ownedThemes.includes(theme.id);
-              const isEquipped = equippedTheme === theme.id;
+              const isOwned = ownedThemes.includes(theme.productId);
+              const isEquipped = equippedTheme === theme.productId;
               const price = theme.price;
               const priceText = price === 0 ? 'Free' : `$${price.toFixed(2)}`;
               const statusText = isEquipped ? 'Equipped' : (isOwned ? 'Owned' : priceText);
               
               return (
-                <View key={theme.id} style={styles.itemCard}>
+                <View key={theme.productId} style={styles.itemCard}>
                   <View style={[styles.themePreview, { backgroundColor: theme.boardBackground }]}>
                     <View style={styles.themePreviewTiles}>
                       <View style={[styles.previewTile, { backgroundColor: theme.tileColors[2]?.[1] || theme.accentColor }]} />
@@ -138,13 +138,13 @@ export default function ShopScreen() {
                     </View>
                   </View>
                   
-                  <Text style={styles.itemName}>{theme.name}</Text>
+                  <Text style={styles.itemName}>{theme.displayName}</Text>
                   
                   <View style={styles.itemActions}>
                     {!isOwned && (
                       <TouchableOpacity
                         style={[styles.actionButton, styles.buyButton]}
-                        onPress={() => handleBuyTheme(theme.id)}
+                        onPress={() => handleBuyTheme(theme.productId)}
                       >
                         <IconSymbol
                           ios_icon_name="cart.fill"
@@ -159,7 +159,7 @@ export default function ShopScreen() {
                     {isOwned && !isEquipped && (
                       <TouchableOpacity
                         style={[styles.actionButton, styles.equipButton]}
-                        onPress={() => handleEquipTheme(theme.id)}
+                        onPress={() => handleEquipTheme(theme.productId)}
                       >
                         <Text style={styles.equipButtonText}>Equip</Text>
                       </TouchableOpacity>
@@ -186,23 +186,23 @@ export default function ShopScreen() {
         {activeTab === 'colors' && (
           <View style={styles.grid}>
             {colorsList.map((colorObj) => {
-              const isOwned = ownedColors.includes(colorObj.id);
-              const isEquipped = equippedColor === colorObj.value;
+              const isOwned = ownedColors.includes(colorObj.productId);
+              const isEquipped = equippedColor === colorObj.color;
               const price = colorObj.price;
               const priceText = price === 0 ? 'Free' : `$${price.toFixed(2)}`;
               const statusText = isEquipped ? 'Equipped' : (isOwned ? 'Owned' : priceText);
               
               return (
-                <View key={colorObj.id} style={styles.itemCard}>
-                  <View style={[styles.colorPreview, { backgroundColor: colorObj.value }]} />
+                <View key={colorObj.productId} style={styles.itemCard}>
+                  <View style={[styles.colorPreview, { backgroundColor: colorObj.color }]} />
                   
-                  <Text style={styles.itemName}>{colorObj.name}</Text>
+                  <Text style={styles.itemName}>{colorObj.displayName}</Text>
                   
                   <View style={styles.itemActions}>
                     {!isOwned && (
                       <TouchableOpacity
                         style={[styles.actionButton, styles.buyButton]}
-                        onPress={() => handleBuyColor(colorObj.id)}
+                        onPress={() => handleBuyColor(colorObj.productId)}
                       >
                         <IconSymbol
                           ios_icon_name="cart.fill"
@@ -217,7 +217,7 @@ export default function ShopScreen() {
                     {isOwned && !isEquipped && (
                       <TouchableOpacity
                         style={[styles.actionButton, styles.equipButton]}
-                        onPress={() => handleEquipColor(colorObj.id)}
+                        onPress={() => handleEquipColor(colorObj.productId)}
                       >
                         <Text style={styles.equipButtonText}>Equip</Text>
                       </TouchableOpacity>

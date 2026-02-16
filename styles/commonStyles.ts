@@ -12,27 +12,35 @@ export const colors = {
   warning: '#FF9500',
 };
 
-// Chain Highlight Colors with consistent IDs and pricing
-export const CHAIN_HIGHLIGHT_COLORS = [
-  { id: 'chain_gold', name: 'Gold', value: '#FFD700', price: 0 },
-  { id: 'chain_electricblue', name: 'Electric Blue', value: '#00D9FF', price: 1.99 },
-  { id: 'chain_hotpink', name: 'Hot Pink', value: '#FF1493', price: 1.99 },
-  { id: 'chain_limegreen', name: 'Lime Green', value: '#32CD32', price: 1.99 },
-  { id: 'chain_orange', name: 'Orange', value: '#FF6B35', price: 1.99 },
-  { id: 'chain_purple', name: 'Purple', value: '#9D4EDD', price: 1.99 },
-  { id: 'chain_crimson', name: 'Crimson', value: '#DC143C', price: 1.99 },
-  { id: 'chain_turquoise', name: 'Turquoise', value: '#40E0D0', price: 1.99 },
-  { id: 'chain_amber', name: 'Amber', value: '#FFBF00', price: 1.99 },
-  { id: 'chain_neongreen', name: 'Neon Green', value: '#39FF14', price: 1.99 },
-  { id: 'chain_magenta', name: 'Magenta', value: '#FF00FF', price: 1.99 },
-  { id: 'chain_cyan', name: 'Cyan', value: '#00FFFF', price: 1.99 },
-];
+// Type definitions for single source of truth
+export interface Theme {
+  productId: string;
+  displayName: string;
+  price: number;
+  type: 'theme';
+  boardBackground: string;
+  emptyCellColor: string;
+  accentColor: string;
+  tileColors: {
+    [key: string]: [string, string];
+  };
+}
 
-export const THEMES = {
+export interface ChainHighlightColor {
+  productId: string;
+  displayName: string;
+  price: number;
+  type: 'chainColor';
+  color: string;
+}
+
+// SINGLE SOURCE OF TRUTH: All themes with stable productIds
+export const THEMES: Record<string, Theme> = {
   theme_classic: {
-    id: 'theme_classic',
-    name: 'Classic',
+    productId: 'theme_classic',
+    displayName: 'Classic',
     price: 0,
+    type: 'theme',
     boardBackground: '#FFFFFF',
     emptyCellColor: '#F5F5F7',
     accentColor: '#667EEA',
@@ -56,9 +64,10 @@ export const THEMES = {
     },
   },
   theme_ocean: {
-    id: 'theme_ocean',
-    name: 'Ocean',
+    productId: 'theme_ocean',
+    displayName: 'Ocean',
     price: 0.99,
+    type: 'theme',
     boardBackground: '#E8F4F8',
     emptyCellColor: '#D4E9F0',
     accentColor: '#0077BE',
@@ -82,9 +91,10 @@ export const THEMES = {
     },
   },
   theme_sunset: {
-    id: 'theme_sunset',
-    name: 'Sunset',
+    productId: 'theme_sunset',
+    displayName: 'Sunset',
     price: 0.99,
+    type: 'theme',
     boardBackground: '#FFF5E6',
     emptyCellColor: '#FFE8CC',
     accentColor: '#FF6B35',
@@ -108,9 +118,10 @@ export const THEMES = {
     },
   },
   theme_forest: {
-    id: 'theme_forest',
-    name: 'Forest',
+    productId: 'theme_forest',
+    displayName: 'Forest',
     price: 0.99,
+    type: 'theme',
     boardBackground: '#F0F8F0',
     emptyCellColor: '#E0F0E0',
     accentColor: '#2D6A4F',
@@ -134,9 +145,10 @@ export const THEMES = {
     },
   },
   theme_midnight: {
-    id: 'theme_midnight',
-    name: 'Midnight',
+    productId: 'theme_midnight',
+    displayName: 'Midnight',
     price: 0.99,
+    type: 'theme',
     boardBackground: '#1A1A2E',
     emptyCellColor: '#16213E',
     accentColor: '#E94560',
@@ -160,9 +172,10 @@ export const THEMES = {
     },
   },
   theme_candy: {
-    id: 'theme_candy',
-    name: 'Candy',
+    productId: 'theme_candy',
+    displayName: 'Candy',
     price: 0.99,
+    type: 'theme',
     boardBackground: '#FFF0F5',
     emptyCellColor: '#FFE4E9',
     accentColor: '#FF69B4',
@@ -186,9 +199,10 @@ export const THEMES = {
     },
   },
   theme_neon: {
-    id: 'theme_neon',
-    name: 'Neon',
+    productId: 'theme_neon',
+    displayName: 'Neon',
     price: 0.99,
+    type: 'theme',
     boardBackground: '#0A0A0A',
     emptyCellColor: '#1A1A1A',
     accentColor: '#00FF00',
@@ -212,9 +226,10 @@ export const THEMES = {
     },
   },
   theme_autumn: {
-    id: 'theme_autumn',
-    name: 'Autumn',
+    productId: 'theme_autumn',
+    displayName: 'Autumn',
     price: 0.99,
+    type: 'theme',
     boardBackground: '#FFF8E7',
     emptyCellColor: '#FFEFD5',
     accentColor: '#D2691E',
@@ -238,9 +253,10 @@ export const THEMES = {
     },
   },
   theme_arctic: {
-    id: 'theme_arctic',
-    name: 'Arctic',
+    productId: 'theme_arctic',
+    displayName: 'Arctic',
     price: 0.99,
+    type: 'theme',
     boardBackground: '#F0F8FF',
     emptyCellColor: '#E6F3FF',
     accentColor: '#4682B4',
@@ -264,9 +280,10 @@ export const THEMES = {
     },
   },
   theme_volcano: {
-    id: 'theme_volcano',
-    name: 'Volcano',
+    productId: 'theme_volcano',
+    displayName: 'Volcano',
     price: 0.99,
+    type: 'theme',
     boardBackground: '#2B1B17',
     emptyCellColor: '#3D2B27',
     accentColor: '#FF4500',
@@ -290,9 +307,10 @@ export const THEMES = {
     },
   },
   theme_aurora: {
-    id: 'theme_aurora',
-    name: 'Aurora',
+    productId: 'theme_aurora',
+    displayName: 'Aurora',
     price: 0.99,
+    type: 'theme',
     boardBackground: '#0D1B2A',
     emptyCellColor: '#1B2838',
     accentColor: '#08BFAE',
@@ -316,9 +334,10 @@ export const THEMES = {
     },
   },
   theme_coralreef: {
-    id: 'theme_coralreef',
-    name: 'Coral Reef',
+    productId: 'theme_coralreef',
+    displayName: 'Coral Reef',
     price: 0.99,
+    type: 'theme',
     boardBackground: '#0A1828',
     emptyCellColor: '#152838',
     accentColor: '#2EE0FF',
@@ -342,9 +361,10 @@ export const THEMES = {
     },
   },
   theme_desertdusk: {
-    id: 'theme_desertdusk',
-    name: 'Desert Dusk',
+    productId: 'theme_desertdusk',
+    displayName: 'Desert Dusk',
     price: 0.99,
+    type: 'theme',
     boardBackground: '#3B2010',
     emptyCellColor: '#4A2818',
     accentColor: '#FF7A2E',
@@ -368,9 +388,10 @@ export const THEMES = {
     },
   },
   theme_royalvelvet: {
-    id: 'theme_royalvelvet',
-    name: 'Royal Velvet',
+    productId: 'theme_royalvelvet',
+    displayName: 'Royal Velvet',
     price: 0.99,
+    type: 'theme',
     boardBackground: '#0A0E1A',
     emptyCellColor: '#12162A',
     accentColor: '#4F7BFF',
@@ -394,9 +415,10 @@ export const THEMES = {
     },
   },
   theme_sakura: {
-    id: 'theme_sakura',
-    name: 'Sakura',
+    productId: 'theme_sakura',
+    displayName: 'Sakura',
     price: 0.99,
+    type: 'theme',
     boardBackground: '#2A1218',
     emptyCellColor: '#3A1A28',
     accentColor: '#FF2E8A',
@@ -420,9 +442,10 @@ export const THEMES = {
     },
   },
   theme_copperteal: {
-    id: 'theme_copperteal',
-    name: 'Copper Teal',
+    productId: 'theme_copperteal',
+    displayName: 'Copper Teal',
     price: 0.99,
+    type: 'theme',
     boardBackground: '#2A1A15',
     emptyCellColor: '#3A2520',
     accentColor: '#FF7A2E',
@@ -446,9 +469,10 @@ export const THEMES = {
     },
   },
   theme_prismpop: {
-    id: 'theme_prismpop',
-    name: 'Prism Pop',
+    productId: 'theme_prismpop',
+    displayName: 'Prism Pop',
     price: 0.99,
+    type: 'theme',
     boardBackground: '#0F1020',
     emptyCellColor: '#1A1A30',
     accentColor: '#FF4DFF',
@@ -472,9 +496,10 @@ export const THEMES = {
     },
   },
   theme_icefire: {
-    id: 'theme_icefire',
-    name: 'Ice Fire',
+    productId: 'theme_icefire',
+    displayName: 'Ice Fire',
     price: 0.99,
+    type: 'theme',
     boardBackground: '#0F1F2F',
     emptyCellColor: '#1A2A3A',
     accentColor: '#2EE0FF',
@@ -498,9 +523,10 @@ export const THEMES = {
     },
   },
   theme_retroarcade: {
-    id: 'theme_retroarcade',
-    name: 'Retro Arcade',
+    productId: 'theme_retroarcade',
+    displayName: 'Retro Arcade',
     price: 0.99,
+    type: 'theme',
     boardBackground: '#0A0A15',
     emptyCellColor: '#15151F',
     accentColor: '#00E5FF',
@@ -524,9 +550,10 @@ export const THEMES = {
     },
   },
   theme_monochromeglass: {
-    id: 'theme_monochromeglass',
-    name: 'Monochrome Glass',
+    productId: 'theme_monochromeglass',
+    displayName: 'Monochrome Glass',
     price: 0.99,
+    type: 'theme',
     boardBackground: '#0F0F0F',
     emptyCellColor: '#1A1A1A',
     accentColor: '#7A7A7A',
@@ -550,9 +577,10 @@ export const THEMES = {
     },
   },
   theme_lagoon: {
-    id: 'theme_lagoon',
-    name: 'Lagoon',
+    productId: 'theme_lagoon',
+    displayName: 'Lagoon',
     price: 0.99,
+    type: 'theme',
     boardBackground: '#0D2A3A',
     emptyCellColor: '#1A3A4A',
     accentColor: '#2EE0FF',
@@ -576,9 +604,10 @@ export const THEMES = {
     },
   },
   theme_tropical: {
-    id: 'theme_tropical',
-    name: 'Tropical',
+    productId: 'theme_tropical',
+    displayName: 'Tropical',
     price: 0.99,
+    type: 'theme',
     boardBackground: '#0A2A2A',
     emptyCellColor: '#1A3A3A',
     accentColor: '#2EE0FF',
@@ -602,9 +631,10 @@ export const THEMES = {
     },
   },
   theme_spring: {
-    id: 'theme_spring',
-    name: 'Spring',
+    productId: 'theme_spring',
+    displayName: 'Spring',
     price: 0.99,
+    type: 'theme',
     boardBackground: '#F0FFF0',
     emptyCellColor: '#E0FFE0',
     accentColor: '#6BFF2E',
@@ -628,9 +658,10 @@ export const THEMES = {
     },
   },
   theme_sorbet: {
-    id: 'theme_sorbet',
-    name: 'Sorbet',
+    productId: 'theme_sorbet',
+    displayName: 'Sorbet',
     price: 0.99,
+    type: 'theme',
     boardBackground: '#FFF5FA',
     emptyCellColor: '#FFE8F0',
     accentColor: '#FF2E8A',
@@ -654,9 +685,10 @@ export const THEMES = {
     },
   },
   theme_sunrise: {
-    id: 'theme_sunrise',
-    name: 'Sunrise',
+    productId: 'theme_sunrise',
+    displayName: 'Sunrise',
     price: 0.99,
+    type: 'theme',
     boardBackground: '#FFF8E7',
     emptyCellColor: '#FFEFD5',
     accentColor: '#FFD12E',
@@ -680,9 +712,10 @@ export const THEMES = {
     },
   },
   theme_cottoncandy: {
-    id: 'theme_cottoncandy',
-    name: 'Cotton Candy',
+    productId: 'theme_cottoncandy',
+    displayName: 'Cotton Candy',
     price: 0.99,
+    type: 'theme',
     boardBackground: '#FFF0FF',
     emptyCellColor: '#FFE0FF',
     accentColor: '#FF2ED1',
@@ -704,5 +737,93 @@ export const THEMES = {
       32768: ['#7C4DFF', '#B12EFF'],
       65536: ['#B12EFF', '#D12EFF'],
     },
+  },
+};
+
+// SINGLE SOURCE OF TRUTH: All chain highlight colors with stable productIds
+export const CHAIN_HIGHLIGHT_COLORS: Record<string, ChainHighlightColor> = {
+  chain_gold: {
+    productId: 'chain_gold',
+    displayName: 'Gold',
+    price: 0,
+    type: 'chainColor',
+    color: '#FFD700',
+  },
+  chain_electricblue: {
+    productId: 'chain_electricblue',
+    displayName: 'Electric Blue',
+    price: 1.99,
+    type: 'chainColor',
+    color: '#00D9FF',
+  },
+  chain_hotpink: {
+    productId: 'chain_hotpink',
+    displayName: 'Hot Pink',
+    price: 1.99,
+    type: 'chainColor',
+    color: '#FF1493',
+  },
+  chain_limegreen: {
+    productId: 'chain_limegreen',
+    displayName: 'Lime Green',
+    price: 1.99,
+    type: 'chainColor',
+    color: '#32CD32',
+  },
+  chain_orange: {
+    productId: 'chain_orange',
+    displayName: 'Orange',
+    price: 1.99,
+    type: 'chainColor',
+    color: '#FF6B35',
+  },
+  chain_purple: {
+    productId: 'chain_purple',
+    displayName: 'Purple',
+    price: 1.99,
+    type: 'chainColor',
+    color: '#9D4EDD',
+  },
+  chain_crimson: {
+    productId: 'chain_crimson',
+    displayName: 'Crimson',
+    price: 1.99,
+    type: 'chainColor',
+    color: '#DC143C',
+  },
+  chain_turquoise: {
+    productId: 'chain_turquoise',
+    displayName: 'Turquoise',
+    price: 1.99,
+    type: 'chainColor',
+    color: '#40E0D0',
+  },
+  chain_amber: {
+    productId: 'chain_amber',
+    displayName: 'Amber',
+    price: 1.99,
+    type: 'chainColor',
+    color: '#FFBF00',
+  },
+  chain_neongreen: {
+    productId: 'chain_neongreen',
+    displayName: 'Neon Green',
+    price: 1.99,
+    type: 'chainColor',
+    color: '#39FF14',
+  },
+  chain_magenta: {
+    productId: 'chain_magenta',
+    displayName: 'Magenta',
+    price: 1.99,
+    type: 'chainColor',
+    color: '#FF00FF',
+  },
+  chain_cyan: {
+    productId: 'chain_cyan',
+    displayName: 'Cyan',
+    price: 1.99,
+    type: 'chainColor',
+    color: '#00FFFF',
   },
 };

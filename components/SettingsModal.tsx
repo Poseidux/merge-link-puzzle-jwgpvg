@@ -44,9 +44,9 @@ export default function SettingsModal({
         setOwnedThemes(themes);
       });
       
-      loadOwnedColors().then(colors => {
-        console.log('[SettingsModal] Loaded owned colors:', colors);
-        setOwnedColors(colors);
+      loadOwnedColors().then(colorIds => {
+        console.log('[SettingsModal] Loaded owned colors:', colorIds);
+        setOwnedColors(colorIds);
       });
     }
   }, [visible]);
@@ -79,9 +79,9 @@ export default function SettingsModal({
     
     if (isOwned) {
       console.log('[SettingsModal] Equipping owned color:', colorId);
-      const colorObj = CHAIN_HIGHLIGHT_COLORS.find(c => c.id === colorId);
+      const colorObj = CHAIN_HIGHLIGHT_COLORS[colorId];
       if (colorObj) {
-        onChainHighlightColorChange(colorObj.value);
+        onChainHighlightColorChange(colorObj.color);
       }
     }
   };
@@ -102,27 +102,27 @@ export default function SettingsModal({
             
             <View style={styles.themeList}>
               {Object.values(THEMES).map((theme) => {
-                const isOwned = ownedThemes.includes(theme.id);
-                const isSelected = theme.id === currentTheme;
+                const isOwned = ownedThemes.includes(theme.productId);
+                const isSelected = theme.productId === currentTheme;
                 const isFree = theme.price === 0;
                 const canSelect = isOwned || isFree;
                 const priceText = `$${theme.price.toFixed(2)}`;
                 
                 return (
                   <TouchableOpacity
-                    key={theme.id}
+                    key={theme.productId}
                     style={[
                       styles.themeOption,
                       isSelected && styles.themeOptionSelected,
                       !canSelect && styles.themeOptionLocked,
                     ]}
-                    onPress={() => handleThemePress(theme.id, canSelect, theme.price)}
+                    onPress={() => handleThemePress(theme.productId, canSelect, theme.price)}
                     disabled={!canSelect && isSelected}
                   >
                     <View style={styles.themeInfo}>
                       <View style={styles.themeNameRow}>
                         <Text style={[styles.themeName, isSelected && styles.themeNameSelected]}>
-                          {theme.name}
+                          {theme.displayName}
                         </Text>
                         {!canSelect && (
                           <Text style={styles.priceTag}>{priceText}</Text>
@@ -173,33 +173,33 @@ export default function SettingsModal({
             <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Chain Highlight Color</Text>
             
             <View style={styles.highlightColorList}>
-              {CHAIN_HIGHLIGHT_COLORS.map((colorOption) => {
-                const isOwned = ownedColors.includes(colorOption.id);
-                const isSelected = colorOption.value === chainHighlightColor;
+              {Object.values(CHAIN_HIGHLIGHT_COLORS).map((colorOption) => {
+                const isOwned = ownedColors.includes(colorOption.productId);
+                const isSelected = colorOption.color === chainHighlightColor;
                 const isFree = colorOption.price === 0;
                 const canSelect = isOwned || isFree;
                 const priceText = `$${colorOption.price.toFixed(2)}`;
                 
                 return (
                   <TouchableOpacity
-                    key={colorOption.id}
+                    key={colorOption.productId}
                     style={[
                       styles.colorOption,
                       isSelected && styles.colorOptionSelected,
                       !canSelect && styles.colorOptionLocked,
                     ]}
-                    onPress={() => handleColorPress(colorOption.id, canSelect, colorOption.price)}
+                    onPress={() => handleColorPress(colorOption.productId, canSelect, colorOption.price)}
                     disabled={!canSelect && isSelected}
                   >
                     <View
                       style={[
                         styles.colorSwatch,
-                        { backgroundColor: colorOption.value },
+                        { backgroundColor: colorOption.color },
                       ]}
                     />
                     <View style={styles.colorInfo}>
                       <Text style={[styles.colorName, isSelected && styles.colorNameSelected]}>
-                        {colorOption.name}
+                        {colorOption.displayName}
                       </Text>
                       {!canSelect && (
                         <Text style={styles.priceTagSmall}>{priceText}</Text>
