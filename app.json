@@ -1,21 +1,22 @@
+
 {
   "expo": {
     "name": "Numble",
     "slug": "Numble",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/e63b3642-495c-4341-91bb-a68bc310e7af.png",
+    "icon": "./assets/images/2b7bed79-c4f8-4440-b7a9-02d703bfc973.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/e63b3642-495c-4341-91bb-a68bc310e7af.png",
+      "image": "./assets/images/2b7bed79-c4f8-4440-b7a9-02d703bfc973.png",
       "resizeMode": "contain",
       "backgroundColor": "#000000"
     },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.Natively",
-      "icon": "./assets/images/e63b3642-495c-4341-91bb-a68bc310e7af.png",
+      "icon": "./assets/images/2b7bed79-c4f8-4440-b7a9-02d703bfc973.png",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "CFBundleURLTypes": [
@@ -29,15 +30,15 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/e63b3642-495c-4341-91bb-a68bc310e7af.png",
+        "foregroundImage": "./assets/images/2b7bed79-c4f8-4440-b7a9-02d703bfc973.png",
         "backgroundColor": "#000000"
       },
-      "icon": "./assets/images/e63b3642-495c-4341-91bb-a68bc310e7af.png",
+      "icon": "./assets/images/2b7bed79-c4f8-4440-b7a9-02d703bfc973.png",
       "edgeToEdgeEnabled": true,
       "package": "com.anonymous.Natively"
     },
     "web": {
-      "favicon": "./assets/images/e63b3642-495c-4341-91bb-a68bc310e7af.png",
+      "favicon": "./assets/images/2b7bed79-c4f8-4440-b7a9-02d703bfc973.png",
       "bundler": "metro"
     },
     "plugins": [
@@ -45,7 +46,7 @@
       "expo-router",
       "expo-web-browser"
     ],
-    "scheme": "Numble",
+    "scheme": "numble",
     "experiments": {
       "typedRoutes": true
     },
