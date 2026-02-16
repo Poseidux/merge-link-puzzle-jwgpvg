@@ -6,7 +6,7 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { SystemBars } from "react-native-edge-to-edge";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { useColorScheme, Alert } from "react-native";
+import { useColorScheme, Alert, Platform } from "react-native";
 import { useNetworkState } from "expo-network";
 import {
   DarkTheme,
@@ -16,6 +16,7 @@ import {
 } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
 import { WidgetProvider } from "@/contexts/WidgetContext";
+import Purchases, { LOG_LEVEL } from "react-native-purchases";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -29,6 +30,19 @@ export default function RootLayout() {
   const [loaded] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
+
+  // Initialize RevenueCat on app startup
+  useEffect(() => {
+    console.log("Initializing RevenueCat SDK...");
+    Purchases.setLogLevel(LOG_LEVEL.VERBOSE);
+
+    if (Platform.OS === "ios") {
+      // iOS public API key - placeholder for now
+      Purchases.configure({ apiKey: "appl_eSqPGLdMlJGuNyCAThUysRVZTcj" });
+      console.log("RevenueCat configured for iOS");
+    }
+    // Android configuration will be added later
+  }, []);
 
   useEffect(() => {
     if (loaded) {
