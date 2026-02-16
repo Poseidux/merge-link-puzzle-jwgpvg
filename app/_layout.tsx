@@ -37,9 +37,9 @@ export default function RootLayout() {
     Purchases.setLogLevel(LOG_LEVEL.VERBOSE);
 
     if (Platform.OS === "ios") {
-      // iOS public API key - placeholder for now
+      // iOS RevenueCat public API key
       Purchases.configure({ apiKey: "appl_eSqPGLdMlJGuNyCAThUysRVZTcj" });
-      console.log("RevenueCat configured for iOS");
+      console.log("RevenueCat configured for iOS with API key");
     }
     // Android configuration will be added later
   }, []);
