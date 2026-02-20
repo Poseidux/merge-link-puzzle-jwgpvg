@@ -74,7 +74,53 @@ const REVENUECAT_REST_IDS = {
     theme_tropical: 'prod88fbd85179',
     theme_volcano: 'prod2e9455b5c0',
   },
+  entitlements: {
+    // Chain Colors
+    chain_amber: 'entl1f5849d624',
+    chain_crimson: 'entl8ef9f19f9d',
+    chain_cyan: 'entlb80317a813',
+    chain_electricblue: 'entl0c5cdcc773',
+    chain_hotpink: 'entl524ab3b046',
+    chain_limegreen: 'entl04c9ae15d8',
+    chain_magenta: 'entlecd9d7ad22',
+    chain_neongreen: 'entleef0b3ca0c',
+    chain_orange: 'entl7f0867cebc',
+    chain_purple: 'entl4bd30ed1f0',
+    chain_turquoise: 'entl8ad9c836fd',
+    // Themes
+    theme_arctic: 'entl22749b524a',
+    theme_aurora: 'entl5e023c4139',
+    theme_autumn: 'entl4f53259e05',
+    theme_candy: 'entldf8ea4c5cb',
+    theme_copperteal: 'entld0622bad3d',
+    theme_coralreef: 'entla103f4632c',
+    theme_cottoncandy: 'entl8c2d3573d2',
+    theme_desertdusk: 'entlde154f9fa0',
+    theme_forest: 'entl0308dd8b73',
+    theme_icefire: 'entl04378f0f87',
+    theme_lagoon: 'entl80273fadfc',
+    theme_midnight: 'entlf37f675400',
+    theme_monochromeglass: 'entl3a4a87b77a',
+    theme_neon: 'entl4a5860e5f3',
+    theme_ocean: 'entl69dc41b7db',
+    theme_prismpop: 'entlb0c46ae482',
+    theme_retroarcade: 'entl84dfcccbd9',
+    theme_royalvelvet: 'entl0d1556a84c',
+    theme_sakura: 'entl38e763f3c2',
+    theme_sorbet: 'entl629871d0b3',
+    theme_spring: 'entle94f487e11',
+    theme_sunrise: 'entl2835ef921b',
+    theme_sunset: 'entl8c28d2e515',
+    theme_tropical: 'entl6b94447d87',
+    theme_volcano: 'entla6a5f118ad',
+  },
 };
+
+// Reverse map: entitlement REST ID → productId (for debugging)
+const ENTITLEMENT_TO_PRODUCT_MAP: Record<string, string> = {};
+Object.entries(REVENUECAT_REST_IDS.entitlements).forEach(([productId, entitlementId]) => {
+  ENTITLEMENT_TO_PRODUCT_MAP[entitlementId] = productId;
+});
 
 export default function ShopScreen() {
   const router = useRouter();
@@ -98,7 +144,10 @@ export default function ShopScreen() {
     console.log('[Shop]   Chains Offering REST ID:', REVENUECAT_REST_IDS.offerings.chains);
     console.log('[Shop]   Chain Product REST IDs:', Object.keys(REVENUECAT_REST_IDS.products).filter(k => k.startsWith('chain_')).length, 'items');
     console.log('[Shop]   Theme Product REST IDs:', Object.keys(REVENUECAT_REST_IDS.products).filter(k => k.startsWith('theme_')).length, 'items');
+    console.log('[Shop]   Chain Entitlement REST IDs:', Object.keys(REVENUECAT_REST_IDS.entitlements).filter(k => k.startsWith('chain_')).length, 'items');
+    console.log('[Shop]   Theme Entitlement REST IDs:', Object.keys(REVENUECAT_REST_IDS.entitlements).filter(k => k.startsWith('theme_')).length, 'items');
     console.log('[Shop] ⚠️ NOTE: SDK uses Offering IDENTIFIER strings from dashboard, not these REST IDs');
+    console.log('[Shop] ⚠️ NOTE: Entitlements are checked via customerInfo.entitlements.active, not REST IDs');
     console.log('[Shop] Loading ownership data and RevenueCat offerings');
     loadOwnershipAndOfferings();
   }, []);
@@ -109,7 +158,6 @@ export default function ShopScreen() {
       setErrorMessage(null);
       
       console.log('[Shop] Step 1: Loading local ownership data');
-      // Load local ownership
       const themes = await loadOwnedThemes();
       const colorIds = await loadOwnedColors();
       const currentTheme = await loadTheme();
@@ -147,7 +195,6 @@ export default function ShopScreen() {
       console.log('[Shop]   Number of offerings:', Object.keys(offerings.all).length);
       console.log('[Shop]   Current offering identifier:', offerings.current?.identifier || 'NONE');
       
-      // Check if offerings are empty
       if (Object.keys(offerings.all).length === 0) {
         console.error('[Shop] ❌ No offerings found! offerings.all is empty.');
         console.error('[Shop] 🔧 Possible causes:');
@@ -158,13 +205,11 @@ export default function ShopScreen() {
         setErrorMessage('No store items available. Please check RevenueCat dashboard configuration.');
       }
       
-      // Map offerings to products
       const themesMap: { [key: string]: ProductWithPrice } = {};
       const colorsMap: { [key: string]: ProductWithPrice } = {};
       
       let totalPackagesFound = 0;
       
-      // Process all offerings
       Object.entries(offerings.all).forEach(([offeringId, offering]) => {
         console.log(`[Shop] 📦 Processing offering: "${offeringId}"`);
         console.log(`[Shop]   - Packages in this offering: ${offering.availablePackages.length}`);
@@ -186,15 +231,19 @@ export default function ShopScreen() {
           console.log(`[Shop]     - Title: ${title}`);
           console.log(`[Shop]     - Description: ${description}`);
           
-          // Check REST API ID match for debugging
           const restId = REVENUECAT_REST_IDS.products[productId as keyof typeof REVENUECAT_REST_IDS.products];
+          const entitlementRestId = REVENUECAT_REST_IDS.entitlements[productId as keyof typeof REVENUECAT_REST_IDS.entitlements];
           if (restId) {
-            console.log(`[Shop]     - REST API ID (reference): ${restId}`);
+            console.log(`[Shop]     - Product REST API ID (reference): ${restId}`);
           } else {
-            console.warn(`[Shop]     ⚠️ No REST API ID reference found for: ${productId}`);
+            console.warn(`[Shop]     ⚠️ No Product REST API ID reference found for: ${productId}`);
+          }
+          if (entitlementRestId) {
+            console.log(`[Shop]     - Entitlement REST API ID (reference): ${entitlementRestId}`);
+          } else {
+            console.warn(`[Shop]     ⚠️ No Entitlement REST API ID reference found for: ${productId}`);
           }
           
-          // Check if this matches our expected product IDs
           if (productId.startsWith('theme_')) {
             const theme = THEMES[productId];
             if (theme) {
@@ -250,7 +299,6 @@ export default function ShopScreen() {
         console.error('[Shop]   4. Confirm offering identifiers match dashboard');
       }
       
-      // Merge with local product definitions (for items not in offerings)
       const allThemes = Object.values(THEMES).map((theme) => {
         const rcProduct = themesMap[theme.productId];
         if (rcProduct) {
@@ -290,7 +338,6 @@ export default function ShopScreen() {
       console.log(`[Shop]   - Themes: ${allThemes.length} total`);
       console.log(`[Shop]   - Colors: ${allColors.length} total`);
       
-      // Sync ownership from RevenueCat
       console.log('[Shop] Step 4: Syncing ownership from RevenueCat');
       await syncOwnershipFromRevenueCat();
       
@@ -308,7 +355,6 @@ export default function ShopScreen() {
       setErrorMessage(errorMsg);
       Alert.alert('Error', errorMsg);
       
-      // Fallback to local data
       console.log('[Shop] Using fallback local data only');
       const allThemes = Object.values(THEMES).map((theme) => ({
         productId: theme.productId,
@@ -337,6 +383,7 @@ export default function ShopScreen() {
       console.log('[Shop]   3. Check that products are added to offerings in dashboard');
       console.log('[Shop]   4. Confirm App Store Connect product IDs match app product IDs');
       console.log('[Shop]   5. Cross-reference storeProduct.identifier with REST API IDs above');
+      console.log('[Shop]   6. After purchase/restore, check active entitlement keys in logs');
     }
   };
 
@@ -357,13 +404,54 @@ export default function ShopScreen() {
   };
 
   const updateOwnershipFromCustomerInfo = async (customerInfo: CustomerInfo) => {
-    const ownedThemeIds: string[] = ['theme_classic']; // Classic is always owned
-    const ownedChainColorIds: string[] = ['chain_gold']; // Gold is always owned
+    const ownedThemeIds: string[] = ['theme_classic'];
+    const ownedChainColorIds: string[] = ['chain_gold'];
     
-    console.log('[Shop] Processing customer info for ownership');
+    console.log('[Shop] 🔍 Processing customer info for ownership');
     console.log(`[Shop] Non-subscription transactions: ${customerInfo.nonSubscriptionTransactions.length}`);
     
-    // Process non-subscription transactions for themes and chain colors
+    console.log('[Shop] 🎫 ACTIVE ENTITLEMENTS CHECK:');
+    const activeEntitlementKeys = Object.keys(customerInfo.entitlements.active);
+    console.log(`[Shop]   - Active entitlement count: ${activeEntitlementKeys.length}`);
+    console.log(`[Shop]   - Active entitlement keys:`, activeEntitlementKeys);
+    
+    if (activeEntitlementKeys.length > 0) {
+      activeEntitlementKeys.forEach((entitlementKey) => {
+        const entitlement = customerInfo.entitlements.active[entitlementKey];
+        const entitlementIdentifier = entitlement.identifier;
+        const productIdentifier = entitlement.productIdentifier;
+        
+        console.log(`[Shop]   📌 Entitlement: "${entitlementKey}"`);
+        console.log(`[Shop]     - Entitlement Identifier (from SDK): ${entitlementIdentifier}`);
+        console.log(`[Shop]     - Product Identifier (from SDK): ${productIdentifier}`);
+        
+        const mappedProductId = ENTITLEMENT_TO_PRODUCT_MAP[entitlementIdentifier];
+        if (mappedProductId) {
+          console.log(`[Shop]     - Mapped to internal productId (via REST ID): ${mappedProductId}`);
+          if (mappedProductId !== productIdentifier) {
+            console.warn(`[Shop]     ⚠️ MISMATCH: Mapped productId (${mappedProductId}) differs from SDK productIdentifier (${productIdentifier})`);
+          }
+        } else {
+          console.warn(`[Shop]     ⚠️ No internal productId mapping found for entitlement identifier: ${entitlementIdentifier}`);
+        }
+        
+        const expectedEntitlementRestId = REVENUECAT_REST_IDS.entitlements[productIdentifier as keyof typeof REVENUECAT_REST_IDS.entitlements];
+        if (expectedEntitlementRestId) {
+          console.log(`[Shop]     - Expected Entitlement REST ID (from our map): ${expectedEntitlementRestId}`);
+          if (expectedEntitlementRestId !== entitlementIdentifier) {
+            console.warn(`[Shop]     ⚠️ MISMATCH: Expected REST ID (${expectedEntitlementRestId}) differs from SDK identifier (${entitlementIdentifier})`);
+          } else {
+            console.log(`[Shop]     ✅ Entitlement REST ID matches our reference map`);
+          }
+        } else {
+          console.warn(`[Shop]     ⚠️ No expected entitlement REST ID found for product: ${productIdentifier}`);
+        }
+      });
+    } else {
+      console.log('[Shop]   ℹ️ No active entitlements found (user has not purchased anything yet)');
+    }
+    
+    console.log('[Shop] 📦 PROCESSING NON-SUBSCRIPTION TRANSACTIONS:');
     customerInfo.nonSubscriptionTransactions.forEach((transaction, index) => {
       const productId = transaction.productIdentifier;
       const purchaseDate = transaction.purchaseDate;
@@ -385,7 +473,6 @@ export default function ShopScreen() {
     console.log(`[Shop]   - Owned themes: ${ownedThemeIds.join(', ')}`);
     console.log(`[Shop]   - Owned colors: ${ownedChainColorIds.join(', ')}`);
     
-    // Update state and storage
     setOwnedThemes(ownedThemeIds);
     setOwnedColors(ownedChainColorIds);
     await saveOwnedThemes(ownedThemeIds);
