@@ -28,6 +28,27 @@ interface ProductWithPrice {
   pkg?: PurchasesPackage;
 }
 
+// RevenueCat REST API Identifiers for reference (DO NOT use these as SDK lookup keys)
+const REVENUECAT_REST_IDS = {
+  offerings: {
+    themes: 'ofrng11cb78188e',
+    chains: 'ofrngcb03122136',
+  },
+  products: {
+    chain_amber: 'proda0e467a6b1',
+    chain_crimson: 'proda7c9bc3233',
+    chain_cyan: 'prod8ed64e7906',
+    chain_electricblue: 'prod8e369722e5',
+    chain_hotpink: 'proda0657d7fa7',
+    chain_limegreen: 'prod506b7a6902',
+    chain_magenta: 'prod6fe4dae8fe',
+    chain_neongreen: 'prod46e51cc4a0',
+    chain_orange: 'prod20ac2e890e',
+    chain_purple: 'prodd129fac7a8',
+    chain_turquoise: 'prod64e152ab65',
+  },
+};
+
 export default function ShopScreen() {
   const router = useRouter();
   const [ownedThemes, setOwnedThemes] = useState<string[]>(['theme_classic']);
@@ -45,6 +66,11 @@ export default function ShopScreen() {
 
   useEffect(() => {
     console.log('=== Shop Screen Mounted ===');
+    console.log('[Shop] 📋 RevenueCat REST API Reference IDs (for dashboard verification only):');
+    console.log('[Shop]   Themes Offering REST ID:', REVENUECAT_REST_IDS.offerings.themes);
+    console.log('[Shop]   Chains Offering REST ID:', REVENUECAT_REST_IDS.offerings.chains);
+    console.log('[Shop]   Chain Product REST IDs:', REVENUECAT_REST_IDS.products);
+    console.log('[Shop] ⚠️ NOTE: SDK uses Offering IDENTIFIER strings from dashboard, not these REST IDs');
     console.log('[Shop] Loading ownership data and RevenueCat offerings');
     loadOwnershipAndOfferings();
   }, []);
@@ -79,6 +105,7 @@ export default function ShopScreen() {
       
       if (!isConfigured) {
         console.error('[Shop] ❌ RevenueCat is NOT configured! Cannot fetch offerings.');
+        console.error('[Shop] 🔧 Fix: Ensure Purchases.configure() runs at app startup in app/_layout.tsx');
         setErrorMessage('Store not configured. Please restart the app.');
         throw new Error('RevenueCat not configured');
       }
@@ -87,13 +114,19 @@ export default function ShopScreen() {
       const offerings = await Purchases.getOfferings();
       
       console.log('[Shop] ✅ Offerings fetched successfully');
-      console.log('[Shop] Available offering identifiers:', Object.keys(offerings.all));
-      console.log('[Shop] Number of offerings:', Object.keys(offerings.all).length);
-      console.log('[Shop] Current offering:', offerings.current?.identifier || 'NONE');
+      console.log('[Shop] 📊 OFFERING IDENTIFIERS (these are the keys to use):');
+      console.log('[Shop]   Available offering identifiers:', Object.keys(offerings.all));
+      console.log('[Shop]   Number of offerings:', Object.keys(offerings.all).length);
+      console.log('[Shop]   Current offering identifier:', offerings.current?.identifier || 'NONE');
       
       // Check if offerings are empty
       if (Object.keys(offerings.all).length === 0) {
         console.error('[Shop] ❌ No offerings found! offerings.all is empty.');
+        console.error('[Shop] 🔧 Possible causes:');
+        console.error('[Shop]   1. Offerings not configured in RevenueCat dashboard');
+        console.error('[Shop]   2. Offerings not available in current environment (sandbox vs production)');
+        console.error('[Shop]   3. Products not added to offerings in RevenueCat dashboard');
+        console.error('[Shop]   4. App Store Connect products not synced to RevenueCat');
         setErrorMessage('No store items available. Please check RevenueCat dashboard configuration.');
       }
       
@@ -105,22 +138,27 @@ export default function ShopScreen() {
       
       // Process all offerings
       Object.entries(offerings.all).forEach(([offeringId, offering]) => {
-        console.log(`[Shop] Processing offering: "${offeringId}" with ${offering.availablePackages.length} packages`);
+        console.log(`[Shop] 📦 Processing offering: "${offeringId}"`);
+        console.log(`[Shop]   - Packages in this offering: ${offering.availablePackages.length}`);
+        console.log(`[Shop]   - Offering description: ${offering.serverDescription || 'N/A'}`);
         
         offering.availablePackages.forEach((pkg, index) => {
           const productId = pkg.storeProduct.identifier;
           const priceString = pkg.storeProduct.priceString;
           const title = pkg.storeProduct.title;
           const description = pkg.storeProduct.description;
+          const packageIdentifier = pkg.identifier;
           
           totalPackagesFound++;
           
-          console.log(`[Shop]   Package ${index + 1}:`);
-          console.log(`[Shop]     - Product ID: ${productId}`);
+          console.log(`[Shop]   📱 Package ${index + 1}:`);
+          console.log(`[Shop]     - Package Identifier: ${packageIdentifier}`);
+          console.log(`[Shop]     - Store Product ID: ${productId}`);
           console.log(`[Shop]     - Price: ${priceString}`);
           console.log(`[Shop]     - Title: ${title}`);
           console.log(`[Shop]     - Description: ${description}`);
           
+          // Check if this matches our expected product IDs
           if (productId.startsWith('theme_')) {
             const theme = THEMES[productId];
             if (theme) {
@@ -135,6 +173,7 @@ export default function ShopScreen() {
               };
             } else {
               console.warn(`[Shop]     ⚠️ No local theme data found for product ID: ${productId}`);
+              console.warn(`[Shop]     🔧 Expected format: theme_<slug> (e.g., theme_ocean, theme_sunset)`);
             }
           } else if (productId.startsWith('chain_')) {
             const color = CHAIN_HIGHLIGHT_COLORS[productId];
@@ -150,24 +189,38 @@ export default function ShopScreen() {
               };
             } else {
               console.warn(`[Shop]     ⚠️ No local color data found for product ID: ${productId}`);
+              console.warn(`[Shop]     🔧 Expected one of:`, Object.keys(CHAIN_HIGHLIGHT_COLORS).join(', '));
             }
           } else {
             console.warn(`[Shop]     ⚠️ Unknown product ID format: ${productId}`);
+            console.warn(`[Shop]     🔧 Expected format: theme_<slug> or chain_<slug>`);
           }
         });
       });
       
-      console.log(`[Shop] Total packages found: ${totalPackagesFound}`);
-      console.log(`[Shop] Themes mapped: ${Object.keys(themesMap).length}`);
-      console.log(`[Shop] Colors mapped: ${Object.keys(colorsMap).length}`);
+      console.log(`[Shop] 📊 Summary:`);
+      console.log(`[Shop]   - Total packages found: ${totalPackagesFound}`);
+      console.log(`[Shop]   - Themes mapped: ${Object.keys(themesMap).length}`);
+      console.log(`[Shop]   - Colors mapped: ${Object.keys(colorsMap).length}`);
+      console.log(`[Shop]   - Expected themes: ${Object.keys(THEMES).length}`);
+      console.log(`[Shop]   - Expected colors: ${Object.keys(CHAIN_HIGHLIGHT_COLORS).length}`);
+      
+      if (totalPackagesFound === 0) {
+        console.error('[Shop] ❌ CRITICAL: No packages found in any offering!');
+        console.error('[Shop] 🔧 Action needed:');
+        console.error('[Shop]   1. Check RevenueCat dashboard → Offerings');
+        console.error('[Shop]   2. Ensure offerings contain packages with products');
+        console.error('[Shop]   3. Verify products are configured in App Store Connect');
+        console.error('[Shop]   4. Confirm offering identifiers match dashboard');
+      }
       
       // Merge with local product definitions (for items not in offerings)
       const allThemes = Object.values(THEMES).map((theme) => {
         const rcProduct = themesMap[theme.productId];
         if (rcProduct) {
-          console.log(`[Shop] Theme "${theme.displayName}" has RevenueCat package`);
+          console.log(`[Shop] ✅ Theme "${theme.displayName}" (${theme.productId}) has RevenueCat package`);
         } else {
-          console.log(`[Shop] Theme "${theme.displayName}" using local fallback (no RevenueCat package)`);
+          console.log(`[Shop] ⚠️ Theme "${theme.displayName}" (${theme.productId}) using local fallback (no RevenueCat package)`);
         }
         return rcProduct || {
           productId: theme.productId,
@@ -181,9 +234,9 @@ export default function ShopScreen() {
       const allColors = Object.values(CHAIN_HIGHLIGHT_COLORS).map((color) => {
         const rcProduct = colorsMap[color.productId];
         if (rcProduct) {
-          console.log(`[Shop] Color "${color.displayName}" has RevenueCat package`);
+          console.log(`[Shop] ✅ Color "${color.displayName}" (${color.productId}) has RevenueCat package`);
         } else {
-          console.log(`[Shop] Color "${color.displayName}" using local fallback (no RevenueCat package)`);
+          console.log(`[Shop] ⚠️ Color "${color.displayName}" (${color.productId}) using local fallback (no RevenueCat package)`);
         }
         return rcProduct || {
           productId: color.productId,
@@ -242,6 +295,11 @@ export default function ShopScreen() {
     } finally {
       setLoading(false);
       console.log('=== Shop Loading Complete ===');
+      console.log('[Shop] 📝 Next steps if issues persist:');
+      console.log('[Shop]   1. Share the offering identifiers logged above');
+      console.log('[Shop]   2. Verify offering identifiers in RevenueCat dashboard match');
+      console.log('[Shop]   3. Check that products are added to offerings in dashboard');
+      console.log('[Shop]   4. Confirm App Store Connect product IDs match app product IDs');
     }
   };
 
@@ -300,13 +358,16 @@ export default function ShopScreen() {
   const handleBuyTheme = async (product: ProductWithPrice) => {
     if (!product.pkg) {
       console.log(`[Shop] ❌ User tapped Buy for theme "${product.displayName}" but no RevenueCat package available`);
-      console.log('[Shop] This means the product is not configured in RevenueCat or not in any offering');
+      console.log('[Shop] 🔧 This means:');
+      console.log('[Shop]   - Product is not configured in RevenueCat dashboard, OR');
+      console.log('[Shop]   - Product is not added to any offering, OR');
+      console.log('[Shop]   - Offering is not available in current environment');
       Alert.alert('Not Available', 'This item is not available for purchase at the moment.');
       return;
     }
     
     try {
-      console.log(`[Shop] User tapped Buy for theme: ${product.productId} (${product.displayName})`);
+      console.log(`[Shop] 🛒 User tapped Buy for theme: ${product.productId} (${product.displayName})`);
       console.log(`[Shop] Package details:`, {
         identifier: product.pkg.identifier,
         productId: product.pkg.storeProduct.identifier,
@@ -357,13 +418,16 @@ export default function ShopScreen() {
   const handleBuyColor = async (product: ProductWithPrice) => {
     if (!product.pkg) {
       console.log(`[Shop] ❌ User tapped Buy for color "${product.displayName}" but no RevenueCat package available`);
-      console.log('[Shop] This means the product is not configured in RevenueCat or not in any offering');
+      console.log('[Shop] 🔧 This means:');
+      console.log('[Shop]   - Product is not configured in RevenueCat dashboard, OR');
+      console.log('[Shop]   - Product is not added to any offering, OR');
+      console.log('[Shop]   - Offering is not available in current environment');
       Alert.alert('Not Available', 'This item is not available for purchase at the moment.');
       return;
     }
     
     try {
-      console.log(`[Shop] User tapped Buy for color: ${product.productId} (${product.displayName})`);
+      console.log(`[Shop] 🛒 User tapped Buy for color: ${product.productId} (${product.displayName})`);
       console.log(`[Shop] Package details:`, {
         identifier: product.pkg.identifier,
         productId: product.pkg.storeProduct.identifier,
@@ -416,7 +480,7 @@ export default function ShopScreen() {
 
   const handleRestorePurchases = async () => {
     try {
-      console.log('[Shop] User tapped Restore Purchases');
+      console.log('[Shop] 🔄 User tapped Restore Purchases');
       setRestoring(true);
       
       console.log('[Shop] Calling Purchases.restorePurchases...');
