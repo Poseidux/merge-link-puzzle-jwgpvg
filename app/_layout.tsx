@@ -45,9 +45,11 @@ export default function RootLayout() {
         Purchases.configure({ apiKey: API_KEY });
         console.log("[RevenueCat] ✅ Configuration successful for iOS");
         
-        // Log SDK version
+        // Verify configuration
         Purchases.isConfigured().then((isConfigured) => {
           console.log(`[RevenueCat] Is configured: ${isConfigured}`);
+        }).catch((error) => {
+          console.error("[RevenueCat] Error checking configuration:", error);
         });
       } catch (error) {
         console.error("[RevenueCat] ❌ Configuration failed:", error);
