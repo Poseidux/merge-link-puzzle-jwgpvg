@@ -16,6 +16,7 @@ import {
 } from '@/utils/storage';
 import { IconSymbol } from '@/components/IconSymbol';
 import Purchases, { PurchasesPackage, CustomerInfo } from 'react-native-purchases';
+import Constants from 'expo-constants';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -135,14 +136,39 @@ export default function ShopScreen() {
   const [restoring, setRestoring] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [debugInfo, setDebugInfo] = useState<string>('');
-  const [isExpoGo, setIsExpoGo] = useState(false);
+  const [requiresDevBuild, setRequiresDevBuild] = useState(false);
   
   const [themesWithPrices, setThemesWithPrices] = useState<ProductWithPrice[]>([]);
   const [colorsWithPrices, setColorsWithPrices] = useState<ProductWithPrice[]>([]);
 
   useEffect(() => {
-    console.log('=== Shop Screen Mounted (iOS/Android Only) ===');
+    console.log('=== Shop Screen Mounted ===');
     console.log('[Shop] Platform:', Platform.OS);
+    console.log('[Shop] App Name:', Constants.expoConfig?.name);
+    console.log('[Shop] Is Expo Go:', Constants.appOwnership === 'expo');
+    
+    // CRITICAL CHECK: Detect if running in unsupported environment
+    if (Platform.OS === 'web') {
+      console.error('[Shop] ❌ CRITICAL: Running on WEB - RevenueCat does NOT work on web!');
+      console.error('[Shop] 🔧 SOLUTION: You must test on a physical iOS device with a development build');
+      setRequiresDevBuild(true);
+      setErrorMessage('Web Platform Not Supported');
+      setDebugInfo('RevenueCat in-app purchases only work on iOS and Android devices, not in web browsers.');
+      loadLocalDataOnly();
+      return;
+    }
+    
+    if (Constants.appOwnership === 'expo') {
+      console.error('[Shop] ❌ CRITICAL: Running in EXPO GO - RevenueCat does NOT work in Expo Go!');
+      console.error('[Shop] 🔧 SOLUTION: You must create a development build and install on a physical device');
+      setRequiresDevBuild(true);
+      setErrorMessage('Expo Go Not Supported');
+      setDebugInfo('RevenueCat requires a custom development build. Expo Go cannot process real in-app purchases.');
+      loadLocalDataOnly();
+      return;
+    }
+    
+    console.log('[Shop] ✅ Running on native platform, proceeding with RevenueCat initialization');
     console.log('[Shop] 📋 RevenueCat REST API Reference IDs (for dashboard verification only):');
     console.log('[Shop]   Themes Offering REST ID:', REVENUECAT_REST_IDS.offerings.themes);
     console.log('[Shop]   Chains Offering REST ID:', REVENUECAT_REST_IDS.offerings.chains);
@@ -150,6 +176,40 @@ export default function ShopScreen() {
     console.log('[Shop] Loading ownership data and RevenueCat offerings');
     loadOwnershipAndOfferings();
   }, []);
+
+  const loadLocalDataOnly = () => {
+    console.log('[Shop] Loading local data only (no RevenueCat)');
+    setLoading(true);
+    
+    const allThemes = Object.values(THEMES).map((theme) => ({
+      productId: theme.productId,
+      displayName: theme.displayName,
+      price: theme.price,
+      priceString: theme.price === 0 ? 'Free' : `$${theme.price.toFixed(2)}`,
+      type: 'theme' as const,
+      isAvailable: theme.price === 0,
+    }));
+    
+    const allColors = Object.values(CHAIN_HIGHLIGHT_COLORS).map((color) => ({
+      productId: color.productId,
+      displayName: color.displayName,
+      price: color.price,
+      priceString: color.price === 0 ? 'Free' : `$${color.price.toFixed(2)}`,
+      type: 'chainColor' as const,
+      isAvailable: color.price === 0,
+    }));
+    
+    setThemesWithPrices(allThemes);
+    setColorsWithPrices(allColors);
+    
+    // Load local ownership
+    loadOwnedThemes().then(setOwnedThemes);
+    loadOwnedColors().then(setOwnedColors);
+    loadTheme().then((theme) => setEquippedTheme(theme || 'theme_classic'));
+    loadChainHighlightColor().then((color) => setEquippedColor(color || '#FFD700'));
+    
+    setLoading(false);
+  };
 
   const loadOwnershipAndOfferings = async () => {
     try {
@@ -175,38 +235,22 @@ export default function ShopScreen() {
         currentColor 
       });
       
-      console.log('[Shop] Step 2: Checking if running in Expo Go');
+      console.log('[Shop] Step 2: Checking RevenueCat configuration');
       const isConfigured = await Purchases.isConfigured();
       console.log(`[Shop] Purchases.isConfigured(): ${isConfigured}`);
       
       if (!isConfigured) {
-        console.warn('[Shop] ⚠️ RevenueCat is NOT configured - likely running in Expo Go');
-        setIsExpoGo(true);
+        console.error('[Shop] ❌ CRITICAL: RevenueCat is NOT configured!');
+        console.error('[Shop] 🔧 This usually means:');
+        console.error('[Shop]   1. Running in Expo Go (not supported)');
+        console.error('[Shop]   2. Running on iOS Simulator (purchases will fail)');
+        console.error('[Shop]   3. Configuration failed in app/_layout.tsx');
+        console.error('[Shop] 🔧 SOLUTION: Create a development build and test on a PHYSICAL iOS device');
+        setRequiresDevBuild(true);
         setErrorMessage('Development Build Required');
-        setDebugInfo('RevenueCat requires a custom development build. Expo Go is not supported.');
+        setDebugInfo('RevenueCat is not configured. You must use a development build on a physical device to test purchases.');
         
-        // Load local data only
-        const allThemes = Object.values(THEMES).map((theme) => ({
-          productId: theme.productId,
-          displayName: theme.displayName,
-          price: theme.price,
-          priceString: theme.price === 0 ? 'Free' : `$${theme.price.toFixed(2)}`,
-          type: 'theme' as const,
-          isAvailable: theme.price === 0,
-        }));
-        
-        const allColors = Object.values(CHAIN_HIGHLIGHT_COLORS).map((color) => ({
-          productId: color.productId,
-          displayName: color.displayName,
-          price: color.price,
-          priceString: color.price === 0 ? 'Free' : `$${color.price.toFixed(2)}`,
-          type: 'chainColor' as const,
-          isAvailable: color.price === 0,
-        }));
-        
-        setThemesWithPrices(allThemes);
-        setColorsWithPrices(allColors);
-        setLoading(false);
+        loadLocalDataOnly();
         return;
       }
       
@@ -696,14 +740,14 @@ export default function ShopScreen() {
     );
   }
 
-  if (isExpoGo) {
-    const expoGoTitle = 'Development Build Required';
-    const expoGoMessage1 = 'RevenueCat in-app purchases require a custom development build and cannot work in Expo Go.';
-    const expoGoMessage2 = 'To enable purchases:';
-    const expoGoStep1 = '1. Create a development build';
-    const expoGoStep2 = '2. Install on a physical device';
-    const expoGoStep3 = '3. Test purchases in sandbox mode';
-    const expoGoNote = 'Note: You can still browse and equip free themes and colors below.';
+  if (requiresDevBuild) {
+    const title = errorMessage || 'Development Build Required';
+    const message1 = debugInfo || 'RevenueCat in-app purchases require a custom development build and cannot work in Expo Go or web browsers.';
+    const message2 = 'To enable real purchases:';
+    const step1 = '1. Create a development build for iOS';
+    const step2 = '2. Install on a physical iOS device (not simulator)';
+    const step3 = '3. Test purchases in sandbox mode';
+    const note = 'Note: You can still browse and equip free themes and colors below.';
     const continueText = 'Continue Browsing';
     
     return (
@@ -717,7 +761,7 @@ export default function ShopScreen() {
         />
         <ScrollView 
           style={styles.scrollView}
-          contentContainerStyle={styles.expoGoContainer}
+          contentContainerStyle={styles.requiresDevBuildContainer}
         >
           <IconSymbol
             ios_icon_name="exclamationmark.triangle.fill"
@@ -725,33 +769,40 @@ export default function ShopScreen() {
             size={64}
             color="#FF9500"
           />
-          <Text style={styles.expoGoTitle}>{expoGoTitle}</Text>
-          <Text style={styles.expoGoMessage}>{expoGoMessage1}</Text>
+          <Text style={styles.requiresDevBuildTitle}>{title}</Text>
+          <Text style={styles.requiresDevBuildMessage}>{message1}</Text>
           
-          <View style={styles.expoGoStepsCard}>
-            <Text style={styles.expoGoStepsTitle}>{expoGoMessage2}</Text>
-            <Text style={styles.expoGoStep}>{expoGoStep1}</Text>
-            <Text style={styles.expoGoStep}>{expoGoStep2}</Text>
-            <Text style={styles.expoGoStep}>{expoGoStep3}</Text>
+          <View style={styles.requiresDevBuildStepsCard}>
+            <Text style={styles.requiresDevBuildStepsTitle}>{message2}</Text>
+            <Text style={styles.requiresDevBuildStep}>{step1}</Text>
+            <Text style={styles.requiresDevBuildStep}>{step2}</Text>
+            <Text style={styles.requiresDevBuildStep}>{step3}</Text>
           </View>
           
-          <Text style={styles.expoGoNote}>{expoGoNote}</Text>
+          <View style={styles.platformInfoCard}>
+            <Text style={styles.platformInfoTitle}>Current Environment:</Text>
+            <Text style={styles.platformInfoText}>Platform: {Platform.OS}</Text>
+            <Text style={styles.platformInfoText}>App Ownership: {Constants.appOwnership || 'unknown'}</Text>
+            <Text style={styles.platformInfoText}>Is Expo Go: {Constants.appOwnership === 'expo' ? 'Yes' : 'No'}</Text>
+          </View>
+          
+          <Text style={styles.requiresDevBuildNote}>{note}</Text>
           
           <TouchableOpacity
-            style={styles.expoGoContinueButton}
+            style={styles.requiresDevBuildContinueButton}
             onPress={() => {
-              setIsExpoGo(false);
+              setRequiresDevBuild(false);
               setErrorMessage(null);
             }}
           >
-            <Text style={styles.expoGoContinueButtonText}>{continueText}</Text>
+            <Text style={styles.requiresDevBuildContinueButtonText}>{continueText}</Text>
           </TouchableOpacity>
         </ScrollView>
       </SafeAreaView>
     );
   }
 
-  if (errorMessage && !isExpoGo) {
+  if (errorMessage && !requiresDevBuild) {
     const errorTitle = 'Store Error';
     const retryText = 'Retry';
     
@@ -1024,26 +1075,26 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.textSecondary,
   },
-  expoGoContainer: {
-    flex: 1,
+  requiresDevBuildContainer: {
+    flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
     gap: 20,
   },
-  expoGoTitle: {
+  requiresDevBuildTitle: {
     fontSize: 24,
     fontWeight: '700',
     color: colors.text,
     textAlign: 'center',
   },
-  expoGoMessage: {
+  requiresDevBuildMessage: {
     fontSize: 16,
     color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 24,
   },
-  expoGoStepsCard: {
+  requiresDevBuildStepsCard: {
     backgroundColor: colors.cardBackground,
     borderRadius: 16,
     padding: 20,
@@ -1055,31 +1106,51 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  expoGoStepsTitle: {
+  requiresDevBuildStepsTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: colors.text,
     marginBottom: 8,
   },
-  expoGoStep: {
+  requiresDevBuildStep: {
     fontSize: 15,
     color: colors.textSecondary,
     lineHeight: 22,
   },
-  expoGoNote: {
+  platformInfoCard: {
+    backgroundColor: 'rgba(255, 152, 0, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 152, 0, 0.3)',
+    borderRadius: 12,
+    padding: 16,
+    width: '100%',
+    gap: 8,
+  },
+  platformInfoTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  platformInfoText: {
+    fontSize: 14,
+    fontFamily: 'monospace',
+    color: colors.textSecondary,
+  },
+  requiresDevBuildNote: {
     fontSize: 14,
     color: colors.textSecondary,
     textAlign: 'center',
     fontStyle: 'italic',
   },
-  expoGoContinueButton: {
+  requiresDevBuildContinueButton: {
     backgroundColor: colors.primary,
     paddingVertical: 14,
     paddingHorizontal: 32,
     borderRadius: 12,
     marginTop: 8,
   },
-  expoGoContinueButtonText: {
+  requiresDevBuildContinueButtonText: {
     fontSize: 16,
     fontWeight: '700',
     color: '#FFFFFF',
