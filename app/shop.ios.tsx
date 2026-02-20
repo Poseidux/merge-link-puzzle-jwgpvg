@@ -35,6 +35,7 @@ const REVENUECAT_REST_IDS = {
     chains: 'ofrngcb03122136',
   },
   products: {
+    // Chain Colors
     chain_amber: 'proda0e467a6b1',
     chain_crimson: 'proda7c9bc3233',
     chain_cyan: 'prod8ed64e7906',
@@ -46,6 +47,32 @@ const REVENUECAT_REST_IDS = {
     chain_orange: 'prod20ac2e890e',
     chain_purple: 'prodd129fac7a8',
     chain_turquoise: 'prod64e152ab65',
+    // Themes
+    theme_arctic: 'prod5aa7029ec5',
+    theme_aurora: 'prod36fe9c19d1',
+    theme_autumn: 'prod660da95a4a',
+    theme_candy: 'prod10610916c2',
+    theme_copperteal: 'prod366f203a0e',
+    theme_coralreef: 'prodf1f5386772',
+    theme_cottoncandy: 'prod0f24c03cf1',
+    theme_desertdusk: 'prod67290599d1',
+    theme_forest: 'prodad01f24cdd',
+    theme_icefire: 'prodd054745007',
+    theme_lagoon: 'prod7a6039cb18',
+    theme_midnight: 'prod5d085dbc14',
+    theme_monochromeglass: 'prod5a47a8c1b1',
+    theme_neon: 'prodf652c971e1',
+    theme_ocean: 'prodeb01313480',
+    theme_prismpop: 'prod84b94c59a5',
+    theme_retroarcade: 'prod399776ba4b',
+    theme_royalvelvet: 'prod8e5b509179',
+    theme_sakura: 'prod9aa508ccf5',
+    theme_sorbet: 'prod68bf5ace88',
+    theme_spring: 'prod6f0f85a362',
+    theme_sunrise: 'prodde27ccf587',
+    theme_sunset: 'prod02ff412864',
+    theme_tropical: 'prod88fbd85179',
+    theme_volcano: 'prod2e9455b5c0',
   },
 };
 
@@ -69,7 +96,8 @@ export default function ShopScreen() {
     console.log('[Shop] 📋 RevenueCat REST API Reference IDs (for dashboard verification only):');
     console.log('[Shop]   Themes Offering REST ID:', REVENUECAT_REST_IDS.offerings.themes);
     console.log('[Shop]   Chains Offering REST ID:', REVENUECAT_REST_IDS.offerings.chains);
-    console.log('[Shop]   Chain Product REST IDs:', REVENUECAT_REST_IDS.products);
+    console.log('[Shop]   Chain Product REST IDs:', Object.keys(REVENUECAT_REST_IDS.products).filter(k => k.startsWith('chain_')).length, 'items');
+    console.log('[Shop]   Theme Product REST IDs:', Object.keys(REVENUECAT_REST_IDS.products).filter(k => k.startsWith('theme_')).length, 'items');
     console.log('[Shop] ⚠️ NOTE: SDK uses Offering IDENTIFIER strings from dashboard, not these REST IDs');
     console.log('[Shop] Loading ownership data and RevenueCat offerings');
     loadOwnershipAndOfferings();
@@ -157,6 +185,14 @@ export default function ShopScreen() {
           console.log(`[Shop]     - Price: ${priceString}`);
           console.log(`[Shop]     - Title: ${title}`);
           console.log(`[Shop]     - Description: ${description}`);
+          
+          // Check REST API ID match for debugging
+          const restId = REVENUECAT_REST_IDS.products[productId as keyof typeof REVENUECAT_REST_IDS.products];
+          if (restId) {
+            console.log(`[Shop]     - REST API ID (reference): ${restId}`);
+          } else {
+            console.warn(`[Shop]     ⚠️ No REST API ID reference found for: ${productId}`);
+          }
           
           // Check if this matches our expected product IDs
           if (productId.startsWith('theme_')) {
@@ -300,6 +336,7 @@ export default function ShopScreen() {
       console.log('[Shop]   2. Verify offering identifiers in RevenueCat dashboard match');
       console.log('[Shop]   3. Check that products are added to offerings in dashboard');
       console.log('[Shop]   4. Confirm App Store Connect product IDs match app product IDs');
+      console.log('[Shop]   5. Cross-reference storeProduct.identifier with REST API IDs above');
     }
   };
 
