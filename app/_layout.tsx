@@ -33,15 +33,30 @@ export default function RootLayout() {
 
   // Initialize RevenueCat on app startup
   useEffect(() => {
-    console.log("Initializing RevenueCat SDK...");
+    console.log("=== RevenueCat Initialization Start ===");
+    console.log("[RevenueCat] Setting log level to VERBOSE");
     Purchases.setLogLevel(LOG_LEVEL.VERBOSE);
 
     if (Platform.OS === "ios") {
-      // iOS RevenueCat public API key
-      Purchases.configure({ apiKey: "appl_eSqPGLdMlJGuNyCAThUysRVZTcj" });
-      console.log("RevenueCat configured for iOS with API key");
+      const API_KEY = "appl_eSqPGLdMlJGuNyCAThUysRVZTcj";
+      console.log(`[RevenueCat] Configuring for iOS with API key: ${API_KEY}`);
+      
+      try {
+        Purchases.configure({ apiKey: API_KEY });
+        console.log("[RevenueCat] ✅ Configuration successful for iOS");
+        
+        // Log SDK version
+        Purchases.isConfigured().then((isConfigured) => {
+          console.log(`[RevenueCat] Is configured: ${isConfigured}`);
+        });
+      } catch (error) {
+        console.error("[RevenueCat] ❌ Configuration failed:", error);
+      }
+    } else {
+      console.log(`[RevenueCat] Platform is ${Platform.OS}, skipping configuration (iOS only)`);
     }
-    // Android configuration will be added later
+    
+    console.log("=== RevenueCat Initialization Complete ===");
   }, []);
 
   useEffect(() => {
