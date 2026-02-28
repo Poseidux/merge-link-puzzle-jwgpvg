@@ -72,6 +72,11 @@ export default function HomeScreen() {
     router.push('/shop');
   };
 
+  const handleViewProducts = () => {
+    console.log('User tapped View Products button - navigating to /products-list');
+    router.push('/products-list');
+  };
+
   const bestScoreText = bestScore > 0 ? formatTileValue(bestScore) : '—';
   const highestTileText = stats.highestTileEver > 0 ? formatTileValue(stats.highestTileEver) : '—';
   const gamesPlayedText = stats.gamesPlayed > 0 ? stats.gamesPlayed.toString() : '—';
@@ -141,6 +146,19 @@ export default function HomeScreen() {
               color={colors.primary}
             />
             <Text style={styles.shopButtonText}>Shop</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.button, styles.productsButton]}
+            onPress={handleViewProducts}
+          >
+            <IconSymbol
+              ios_icon_name="list.bullet"
+              android_material_icon_name="list"
+              size={20}
+              color="#FF6B35"
+            />
+            <Text style={styles.productsButtonText}>View All Products</Text>
           </TouchableOpacity>
         </View>
 
@@ -264,6 +282,18 @@ const styles = StyleSheet.create({
   },
   shopButtonText: {
     color: colors.primary,
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  productsButton: {
+    backgroundColor: colors.cardBackground,
+    borderWidth: 2,
+    borderColor: '#FF6B35',
+    flexDirection: 'row',
+    gap: 10,
+  },
+  productsButtonText: {
+    color: '#FF6B35',
     fontSize: 18,
     fontWeight: '700',
   },
