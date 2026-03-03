@@ -235,54 +235,30 @@ export default function ShopScreen() {
         currentColor 
       });
       
-      console.log('[Shop] Step 2: Checking RevenueCat configuration');
-      const isConfigured = await Purchases.isConfigured();
-      console.log(`[Shop] Purchases.isConfigured(): ${isConfigured}`);
-      
-      if (!isConfigured) {
-        console.error('[Shop] ❌ CRITICAL: RevenueCat is NOT configured!');
-        console.error('[Shop] 🔧 This usually means:');
-        console.error('[Shop]   1. Running in Expo Go (not supported)');
-        console.error('[Shop]   2. Running on iOS Simulator (purchases will fail)');
-        console.error('[Shop]   3. Configuration failed in app/_layout.tsx');
-        console.error('[Shop] 🔧 SOLUTION: Create a development build and test on a PHYSICAL iOS device');
-        setRequiresDevBuild(true);
-        setErrorMessage('Development Build Required');
-        setDebugInfo('RevenueCat is not configured. You must use a development build on a physical device to test purchases.');
-        
-        loadLocalDataOnly();
-        return;
-      }
-      
-      console.log('[Shop] Step 3: Fetching RevenueCat offerings');
+      console.log('[Shop] Step 2: Fetching RevenueCat offerings (skipping isConfigured check)');
       const offerings = await Purchases.getOfferings();
       
       console.log('[Shop] ✅ Offerings fetched successfully');
-      console.log('[Shop] 📊 OFFERING IDENTIFIERS (keys from offerings.all):');
+      console.log('[Shop] 📊 REVENUECAT DEBUG INFO:');
       const offeringIdentifiers = Object.keys(offerings.all);
-      console.log('[Shop]   Available offering identifiers:', offeringIdentifiers);
-      console.log('[Shop]   Number of offerings:', offeringIdentifiers.length);
-      console.log('[Shop]   Current offering identifier:', offerings.current?.identifier || 'NONE');
+      console.log('[Shop]   (1) Offering IDs (Object.keys(offerings.all)):', offeringIdentifiers);
+      console.log('[Shop]   (2) Current offering ID:', offerings.current?.identifier || 'NONE');
       
       const debugLines = [];
       debugLines.push(`Offering IDs: ${offeringIdentifiers.join(', ') || 'NONE'}`);
+      debugLines.push(`Current: ${offerings.current?.identifier || 'NONE'}`);
       
       if (offeringIdentifiers.length === 0) {
-        const emptyMsg = '⚠️ No offerings found! This usually indicates a configuration mismatch between RevenueCat and the store.';
-        console.error(`[Shop] ${emptyMsg}`);
-        console.error('[Shop] 🔧 Troubleshooting steps:');
-        console.error('[Shop]   1. Check RevenueCat dashboard → Offerings tab');
-        console.error('[Shop]   2. Ensure offerings are created and contain products');
-        console.error('[Shop]   3. Verify products are configured in App Store Connect');
-        console.error('[Shop]   4. Confirm App Store Connect product IDs match your app product IDs');
-        console.error('[Shop]   5. Check that offerings are available in current environment (sandbox vs production)');
-        console.error('[Shop]');
-        console.error('[Shop] 📝 To diagnose, please provide:');
-        console.error('[Shop]   - Your Offering identifier strings from RevenueCat dashboard (e.g., "themes_offering", "chains_offering")');
-        console.error('[Shop]   - The storeProduct.identifier values you expect to see (e.g., "theme_ocean", "chain_gold")');
+        const emptyMsg = 'Offerings empty (check RevenueCat project/API key/offering identifiers)';
+        console.error(`[Shop] ❌ ${emptyMsg}`);
+        console.error('[Shop] 🔧 Troubleshooting:');
+        console.error('[Shop]   1. Verify offerings exist in RevenueCat dashboard');
+        console.error('[Shop]   2. Check products are attached to offerings');
+        console.error('[Shop]   3. Confirm API key matches project');
+        console.error('[Shop]   4. Ensure offerings are available in current environment');
         
         setErrorMessage(emptyMsg);
-        debugLines.push('⚠️ Empty offerings - check RevenueCat dashboard');
+        debugLines.push('⚠️ Empty - check dashboard');
       }
       
       const themesMap: { [key: string]: ProductWithPrice } = {};
@@ -291,30 +267,22 @@ export default function ShopScreen() {
       let totalPackagesFound = 0;
       const foundProductIds: string[] = [];
       
+      console.log('[Shop] 📦 Processing packages from offerings:');
       Object.entries(offerings.all).forEach(([offeringId, offering]) => {
-        console.log(`[Shop] 📦 Processing offering: "${offeringId}"`);
-        console.log(`[Shop]   - Packages in this offering: ${offering.availablePackages.length}`);
-        console.log(`[Shop]   - Offering description: ${offering.serverDescription || 'N/A'}`);
+        console.log(`[Shop]   Offering "${offeringId}": ${offering.availablePackages.length} packages`);
         
         offering.availablePackages.forEach((pkg, index) => {
           const productId = pkg.storeProduct.identifier;
           const priceString = pkg.storeProduct.priceString;
-          const title = pkg.storeProduct.title;
-          const packageIdentifier = pkg.identifier;
           
           totalPackagesFound++;
           foundProductIds.push(productId);
           
-          console.log(`[Shop]   📱 Package ${index + 1}:`);
-          console.log(`[Shop]     - Package Identifier: ${packageIdentifier}`);
-          console.log(`[Shop]     - Store Product ID: ${productId}`);
-          console.log(`[Shop]     - Price: ${priceString}`);
-          console.log(`[Shop]     - Title: ${title}`);
+          console.log(`[Shop]     (3) Package ${index + 1}: ${productId} - ${priceString}`);
           
           if (productId.startsWith('theme_')) {
             const theme = THEMES[productId];
             if (theme) {
-              console.log(`[Shop]     ✅ Matched to local theme: ${theme.displayName}`);
               themesMap[productId] = {
                 productId,
                 displayName: theme.displayName,
@@ -324,13 +292,10 @@ export default function ShopScreen() {
                 pkg,
                 isAvailable: true,
               };
-            } else {
-              console.warn(`[Shop]     ⚠️ No local theme data found for product ID: ${productId}`);
             }
           } else if (productId.startsWith('chain_')) {
             const color = CHAIN_HIGHLIGHT_COLORS[productId];
             if (color) {
-              console.log(`[Shop]     ✅ Matched to local color: ${color.displayName}`);
               colorsMap[productId] = {
                 productId,
                 displayName: color.displayName,
@@ -340,38 +305,22 @@ export default function ShopScreen() {
                 pkg,
                 isAvailable: true,
               };
-            } else {
-              console.warn(`[Shop]     ⚠️ No local color data found for product ID: ${productId}`);
             }
-          } else {
-            console.warn(`[Shop]     ⚠️ Unknown product ID format: ${productId}`);
           }
         });
       });
       
-      console.log(`[Shop] 📊 Summary:`);
-      console.log(`[Shop]   - Total packages found: ${totalPackagesFound}`);
-      console.log(`[Shop]   - Product IDs found:`, foundProductIds);
-      console.log(`[Shop]   - Themes mapped: ${Object.keys(themesMap).length}`);
-      console.log(`[Shop]   - Colors mapped: ${Object.keys(colorsMap).length}`);
-      console.log(`[Shop]   - Expected themes: ${Object.keys(THEMES).length}`);
-      console.log(`[Shop]   - Expected colors: ${Object.keys(CHAIN_HIGHLIGHT_COLORS).length}`);
+      console.log(`[Shop] 📊 Summary: ${totalPackagesFound} packages found`);
+      console.log(`[Shop]   Product IDs:`, foundProductIds);
       
-      debugLines.push(`Products found: ${foundProductIds.join(', ') || 'NONE'}`);
-      setDebugInfo(debugLines.join('\n'));
-      
-      if (totalPackagesFound === 0) {
-        console.error('[Shop] ❌ CRITICAL: No packages found in any offering!');
-        console.error('[Shop] 🔧 This means offerings exist but contain no products.');
-      }
+      debugLines.push(`Products: ${foundProductIds.slice(0, 3).join(', ')}${foundProductIds.length > 3 ? '...' : ''}`);
+      setDebugInfo(debugLines.join(' | '));
       
       const allThemes = Object.values(THEMES).map((theme) => {
         const rcProduct = themesMap[theme.productId];
         if (rcProduct) {
-          console.log(`[Shop] ✅ Theme "${theme.displayName}" (${theme.productId}) has RevenueCat package`);
           return rcProduct;
         } else {
-          console.log(`[Shop] ⚠️ Theme "${theme.displayName}" (${theme.productId}) NOT available in offerings - will show as Unavailable`);
           return {
             productId: theme.productId,
             displayName: theme.displayName,
@@ -386,10 +335,8 @@ export default function ShopScreen() {
       const allColors = Object.values(CHAIN_HIGHLIGHT_COLORS).map((color) => {
         const rcProduct = colorsMap[color.productId];
         if (rcProduct) {
-          console.log(`[Shop] ✅ Color "${color.displayName}" (${color.productId}) has RevenueCat package`);
           return rcProduct;
         } else {
-          console.log(`[Shop] ⚠️ Color "${color.displayName}" (${color.productId}) NOT available in offerings - will show as Unavailable`);
           return {
             productId: color.productId,
             displayName: color.displayName,
@@ -404,11 +351,7 @@ export default function ShopScreen() {
       setThemesWithPrices(allThemes);
       setColorsWithPrices(allColors);
       
-      console.log('[Shop] ✅ Final product lists created');
-      console.log(`[Shop]   - Themes: ${allThemes.length} total (${allThemes.filter(t => t.isAvailable).length} available)`);
-      console.log(`[Shop]   - Colors: ${allColors.length} total (${allColors.filter(c => c.isAvailable).length} available)`);
-      
-      console.log('[Shop] Step 4: Syncing ownership from RevenueCat');
+      console.log('[Shop] Step 3: Syncing ownership from RevenueCat');
       await syncOwnershipFromRevenueCat();
       
     } catch (error: any) {
@@ -423,14 +366,12 @@ export default function ShopScreen() {
         readableErrorCode: readableCode,
         underlyingErrorMessage: underlyingMsg,
         domain: error.domain,
-        stack: error.stack,
       });
       
-      const errorDetails = `Code: ${errorCode}, Readable: ${readableCode}, Underlying: ${underlyingMsg}`;
-      const errorMsg = `Failed to load store items. ${errorDetails}`;
+      const errorDetails = `${readableCode || error.message}`;
+      const errorMsg = `Failed to load store: ${errorDetails}`;
       setErrorMessage(errorMsg);
       
-      console.log('[Shop] Using fallback local data only (all items marked unavailable except free)');
       const allThemes = Object.values(THEMES).map((theme) => ({
         productId: theme.productId,
         displayName: theme.displayName,
@@ -454,10 +395,6 @@ export default function ShopScreen() {
     } finally {
       setLoading(false);
       console.log('=== Shop Loading Complete ===');
-      console.log('[Shop] 📝 If issues persist, please provide:');
-      console.log('[Shop]   1. The offering identifiers logged above');
-      console.log('[Shop]   2. The storeProduct.identifier values logged above');
-      console.log('[Shop]   3. Your RevenueCat dashboard offering identifier strings');
     }
   };
 
@@ -468,12 +405,7 @@ export default function ShopScreen() {
       console.log('[Shop] ✅ Customer info fetched');
       await updateOwnershipFromCustomerInfo(customerInfo);
     } catch (error: any) {
-      console.error('[Shop] ❌ Error syncing ownership from RevenueCat:', error);
-      console.error('[Shop] Error details:', {
-        message: error.message,
-        code: error.code,
-        domain: error.domain,
-      });
+      console.error('[Shop] ❌ Error syncing ownership:', error);
     }
   };
 
@@ -484,68 +416,20 @@ export default function ShopScreen() {
     console.log('[Shop] 🔍 Processing customer info for ownership');
     console.log(`[Shop] Non-subscription transactions: ${customerInfo.nonSubscriptionTransactions.length}`);
     
-    console.log('[Shop] 🎫 ACTIVE ENTITLEMENTS CHECK:');
-    const activeEntitlementKeys = Object.keys(customerInfo.entitlements.active);
-    console.log(`[Shop]   - Active entitlement count: ${activeEntitlementKeys.length}`);
-    console.log(`[Shop]   - Active entitlement keys:`, activeEntitlementKeys);
-    
-    if (activeEntitlementKeys.length > 0) {
-      activeEntitlementKeys.forEach((entitlementKey) => {
-        const entitlement = customerInfo.entitlements.active[entitlementKey];
-        const entitlementIdentifier = entitlement.identifier;
-        const productIdentifier = entitlement.productIdentifier;
-        
-        console.log(`[Shop]   📌 Entitlement: "${entitlementKey}"`);
-        console.log(`[Shop]     - Entitlement Identifier (from SDK): ${entitlementIdentifier}`);
-        console.log(`[Shop]     - Product Identifier (from SDK): ${productIdentifier}`);
-        
-        const mappedProductId = ENTITLEMENT_TO_PRODUCT_MAP[entitlementIdentifier];
-        if (mappedProductId) {
-          console.log(`[Shop]     - Mapped to internal productId (via REST ID): ${mappedProductId}`);
-          if (mappedProductId !== productIdentifier) {
-            console.warn(`[Shop]     ⚠️ MISMATCH: Mapped productId (${mappedProductId}) differs from SDK productIdentifier (${productIdentifier})`);
-          }
-        } else {
-          console.warn(`[Shop]     ⚠️ No internal productId mapping found for entitlement identifier: ${entitlementIdentifier}`);
-        }
-        
-        const expectedEntitlementRestId = REVENUECAT_REST_IDS.entitlements[productIdentifier as keyof typeof REVENUECAT_REST_IDS.entitlements];
-        if (expectedEntitlementRestId) {
-          console.log(`[Shop]     - Expected Entitlement REST ID (from our map): ${expectedEntitlementRestId}`);
-          if (expectedEntitlementRestId !== entitlementIdentifier) {
-            console.warn(`[Shop]     ⚠️ MISMATCH: Expected REST ID (${expectedEntitlementRestId}) differs from SDK identifier (${entitlementIdentifier})`);
-          } else {
-            console.log(`[Shop]     ✅ Entitlement REST ID matches our reference map`);
-          }
-        } else {
-          console.warn(`[Shop]     ⚠️ No expected entitlement REST ID found for product: ${productIdentifier}`);
-        }
-      });
-    } else {
-      console.log('[Shop]   ℹ️ No active entitlements found (user has not purchased anything yet)');
-    }
-    
-    console.log('[Shop] 📦 PROCESSING NON-SUBSCRIPTION TRANSACTIONS:');
     customerInfo.nonSubscriptionTransactions.forEach((transaction, index) => {
       const productId = transaction.productIdentifier;
-      const purchaseDate = transaction.purchaseDate;
-      
-      console.log(`[Shop]   Transaction ${index + 1}:`);
-      console.log(`[Shop]     - Product ID: ${productId}`);
-      console.log(`[Shop]     - Purchase Date: ${purchaseDate}`);
+      console.log(`[Shop]   Transaction ${index + 1}: ${productId}`);
       
       if (productId.startsWith('theme_') && !ownedThemeIds.includes(productId)) {
         ownedThemeIds.push(productId);
-        console.log(`[Shop]     ✅ Added to owned themes`);
       } else if (productId.startsWith('chain_') && !ownedChainColorIds.includes(productId)) {
         ownedChainColorIds.push(productId);
-        console.log(`[Shop]     ✅ Added to owned colors`);
       }
     });
     
     console.log('[Shop] ✅ Ownership updated');
-    console.log(`[Shop]   - Owned themes: ${ownedThemeIds.join(', ')}`);
-    console.log(`[Shop]   - Owned colors: ${ownedChainColorIds.join(', ')}`);
+    console.log(`[Shop]   Owned themes: ${ownedThemeIds.join(', ')}`);
+    console.log(`[Shop]   Owned colors: ${ownedChainColorIds.join(', ')}`);
     
     setOwnedThemes(ownedThemeIds);
     setOwnedColors(ownedChainColorIds);
@@ -555,53 +439,25 @@ export default function ShopScreen() {
 
   const handleBuyTheme = async (product: ProductWithPrice) => {
     if (!product.pkg || !product.isAvailable) {
-      console.log(`[Shop] ❌ User tapped Buy for theme "${product.displayName}" but item is unavailable`);
-      console.log('[Shop] 🔧 This means the product is not in any RevenueCat offering');
-      Alert.alert('Unavailable', 'This item is not available for purchase. It may not be configured in the store.');
+      console.log(`[Shop] ❌ Cannot purchase "${product.displayName}" - no valid package`);
+      Alert.alert('Unavailable', 'This item is not available for purchase.');
       return;
     }
     
     try {
-      console.log(`[Shop] 🛒 User tapped Buy for theme: ${product.productId} (${product.displayName})`);
-      console.log(`[Shop] Package details:`, {
-        identifier: product.pkg.identifier,
-        productId: product.pkg.storeProduct.identifier,
-        price: product.pkg.storeProduct.priceString,
-      });
-      
+      console.log(`[Shop] 🛒 Purchasing theme: ${product.productId}`);
       setPurchasing(product.productId);
       
-      console.log('[Shop] Calling Purchases.purchasePackage...');
       const { customerInfo } = await Purchases.purchasePackage(product.pkg);
-      console.log('[Shop] ✅ Purchase successful!');
-      console.log('[Shop] Updating ownership from purchase result');
+      console.log('[Shop] ✅ Purchase successful');
       
       await updateOwnershipFromCustomerInfo(customerInfo);
-      
-      const successMsg = `${product.displayName} theme purchased successfully!`;
-      console.log(`[Shop] ${successMsg}`);
-      Alert.alert('Success!', successMsg);
+      Alert.alert('Success!', `${product.displayName} purchased!`);
     } catch (error: any) {
-      console.error(`[Shop] ❌ Purchase failed for theme: ${product.productId}`);
-      const errorCode = error.code || 'N/A';
-      const readableCode = error.readableErrorCode || 'N/A';
-      const underlyingMsg = error.underlyingErrorMessage || 'N/A';
-      
-      console.error('[Shop] Error details:', {
-        message: error.message,
-        code: errorCode,
-        readableErrorCode: readableCode,
-        underlyingErrorMessage: underlyingMsg,
-        domain: error.domain,
-        userCancelled: error.userCancelled,
-      });
+      console.error(`[Shop] ❌ Purchase failed:`, error);
       
       if (!error.userCancelled) {
-        const errorDetails = `Code: ${errorCode}, Readable: ${readableCode}, Underlying: ${underlyingMsg}`;
-        const errorMsg = `Purchase failed. ${errorDetails}`;
-        Alert.alert('Purchase Failed', errorMsg);
-      } else {
-        console.log('[Shop] Purchase cancelled by user');
+        Alert.alert('Purchase Failed', error.readableErrorCode || error.message);
       }
     } finally {
       setPurchasing(null);
@@ -609,61 +465,32 @@ export default function ShopScreen() {
   };
 
   const handleEquipTheme = async (themeId: string) => {
-    console.log(`[Shop] User tapped Equip for theme: ${themeId}`);
+    console.log(`[Shop] Equipping theme: ${themeId}`);
     setEquippedTheme(themeId);
     await saveTheme(themeId);
-    console.log(`[Shop] ✅ Theme ${themeId} equipped and saved to storage`);
   };
 
   const handleBuyColor = async (product: ProductWithPrice) => {
     if (!product.pkg || !product.isAvailable) {
-      console.log(`[Shop] ❌ User tapped Buy for color "${product.displayName}" but item is unavailable`);
-      console.log('[Shop] 🔧 This means the product is not in any RevenueCat offering');
-      Alert.alert('Unavailable', 'This item is not available for purchase. It may not be configured in the store.');
+      console.log(`[Shop] ❌ Cannot purchase "${product.displayName}" - no valid package`);
+      Alert.alert('Unavailable', 'This item is not available for purchase.');
       return;
     }
     
     try {
-      console.log(`[Shop] 🛒 User tapped Buy for color: ${product.productId} (${product.displayName})`);
-      console.log(`[Shop] Package details:`, {
-        identifier: product.pkg.identifier,
-        productId: product.pkg.storeProduct.identifier,
-        price: product.pkg.storeProduct.priceString,
-      });
-      
+      console.log(`[Shop] 🛒 Purchasing color: ${product.productId}`);
       setPurchasing(product.productId);
       
-      console.log('[Shop] Calling Purchases.purchasePackage...');
       const { customerInfo } = await Purchases.purchasePackage(product.pkg);
-      console.log('[Shop] ✅ Purchase successful!');
-      console.log('[Shop] Updating ownership from purchase result');
+      console.log('[Shop] ✅ Purchase successful');
       
       await updateOwnershipFromCustomerInfo(customerInfo);
-      
-      const successMsg = `${product.displayName} color purchased successfully!`;
-      console.log(`[Shop] ${successMsg}`);
-      Alert.alert('Success!', successMsg);
+      Alert.alert('Success!', `${product.displayName} purchased!`);
     } catch (error: any) {
-      console.error(`[Shop] ❌ Purchase failed for color: ${product.productId}`);
-      const errorCode = error.code || 'N/A';
-      const readableCode = error.readableErrorCode || 'N/A';
-      const underlyingMsg = error.underlyingErrorMessage || 'N/A';
-      
-      console.error('[Shop] Error details:', {
-        message: error.message,
-        code: errorCode,
-        readableErrorCode: readableCode,
-        underlyingErrorMessage: underlyingMsg,
-        domain: error.domain,
-        userCancelled: error.userCancelled,
-      });
+      console.error(`[Shop] ❌ Purchase failed:`, error);
       
       if (!error.userCancelled) {
-        const errorDetails = `Code: ${errorCode}, Readable: ${readableCode}, Underlying: ${underlyingMsg}`;
-        const errorMsg = `Purchase failed. ${errorDetails}`;
-        Alert.alert('Purchase Failed', errorMsg);
-      } else {
-        console.log('[Shop] Purchase cancelled by user');
+        Alert.alert('Purchase Failed', error.readableErrorCode || error.message);
       }
     } finally {
       setPurchasing(null);
@@ -671,47 +498,27 @@ export default function ShopScreen() {
   };
 
   const handleEquipColor = async (colorId: string) => {
-    console.log(`[Shop] User tapped Equip for color: ${colorId}`);
+    console.log(`[Shop] Equipping color: ${colorId}`);
     const colorObj = CHAIN_HIGHLIGHT_COLORS[colorId];
     if (colorObj) {
       setEquippedColor(colorObj.color);
       await saveChainHighlightColor(colorObj.color);
-      console.log(`[Shop] ✅ Color ${colorId} (${colorObj.color}) equipped and saved to storage`);
     }
   };
 
   const handleRestorePurchases = async () => {
     try {
-      console.log('[Shop] 🔄 User tapped Restore Purchases');
+      console.log('[Shop] 🔄 Restoring purchases');
       setRestoring(true);
       
-      console.log('[Shop] Calling Purchases.restorePurchases...');
       const customerInfo = await Purchases.restorePurchases();
       console.log('[Shop] ✅ Restore successful');
-      console.log('[Shop] Updating ownership from restore result');
       
       await updateOwnershipFromCustomerInfo(customerInfo);
-      
-      const successMsg = 'Your purchases have been restored successfully.';
-      console.log(`[Shop] ${successMsg}`);
-      Alert.alert('Restored!', successMsg);
+      Alert.alert('Restored!', 'Your purchases have been restored.');
     } catch (error: any) {
-      console.error('[Shop] ❌ Restore failed');
-      const errorCode = error.code || 'N/A';
-      const readableCode = error.readableErrorCode || 'N/A';
-      const underlyingMsg = error.underlyingErrorMessage || 'N/A';
-      
-      console.error('[Shop] Error details:', {
-        message: error.message,
-        code: errorCode,
-        readableErrorCode: readableCode,
-        underlyingErrorMessage: underlyingMsg,
-        domain: error.domain,
-      });
-      
-      const errorDetails = `Code: ${errorCode}, Readable: ${readableCode}, Underlying: ${underlyingMsg}`;
-      const errorMsg = `Restore failed. ${errorDetails}`;
-      Alert.alert('Restore Failed', errorMsg);
+      console.error('[Shop] ❌ Restore failed:', error);
+      Alert.alert('Restore Failed', error.readableErrorCode || error.message);
     } finally {
       setRestoring(false);
     }
@@ -742,12 +549,7 @@ export default function ShopScreen() {
 
   if (requiresDevBuild) {
     const title = errorMessage || 'Development Build Required';
-    const message1 = debugInfo || 'RevenueCat in-app purchases require a custom development build and cannot work in Expo Go or web browsers.';
-    const message2 = 'To enable real purchases:';
-    const step1 = '1. Create a development build for iOS';
-    const step2 = '2. Install on a physical iOS device (not simulator)';
-    const step3 = '3. Test purchases in sandbox mode';
-    const note = 'Note: You can still browse and equip free themes and colors below.';
+    const message1 = debugInfo || 'RevenueCat requires a development build.';
     const continueText = 'Continue Browsing';
     
     return (
@@ -772,22 +574,6 @@ export default function ShopScreen() {
           <Text style={styles.requiresDevBuildTitle}>{title}</Text>
           <Text style={styles.requiresDevBuildMessage}>{message1}</Text>
           
-          <View style={styles.requiresDevBuildStepsCard}>
-            <Text style={styles.requiresDevBuildStepsTitle}>{message2}</Text>
-            <Text style={styles.requiresDevBuildStep}>{step1}</Text>
-            <Text style={styles.requiresDevBuildStep}>{step2}</Text>
-            <Text style={styles.requiresDevBuildStep}>{step3}</Text>
-          </View>
-          
-          <View style={styles.platformInfoCard}>
-            <Text style={styles.platformInfoTitle}>Current Environment:</Text>
-            <Text style={styles.platformInfoText}>Platform: {Platform.OS}</Text>
-            <Text style={styles.platformInfoText}>App Ownership: {Constants.appOwnership || 'unknown'}</Text>
-            <Text style={styles.platformInfoText}>Is Expo Go: {Constants.appOwnership === 'expo' ? 'Yes' : 'No'}</Text>
-          </View>
-          
-          <Text style={styles.requiresDevBuildNote}>{note}</Text>
-          
           <TouchableOpacity
             style={styles.requiresDevBuildContinueButton}
             onPress={() => {
@@ -798,44 +584,6 @@ export default function ShopScreen() {
             <Text style={styles.requiresDevBuildContinueButtonText}>{continueText}</Text>
           </TouchableOpacity>
         </ScrollView>
-      </SafeAreaView>
-    );
-  }
-
-  if (errorMessage && !requiresDevBuild) {
-    const errorTitle = 'Store Error';
-    const retryText = 'Retry';
-    
-    return (
-      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-        <Stack.Screen 
-          options={{
-            headerShown: true,
-            title: 'Shop',
-            headerBackTitle: 'Back',
-          }}
-        />
-        <View style={styles.errorContainer}>
-          <IconSymbol
-            ios_icon_name="exclamationmark.triangle.fill"
-            android_material_icon_name="warning"
-            size={48}
-            color={colors.error}
-          />
-          <Text style={styles.errorTitle}>{errorTitle}</Text>
-          <Text style={styles.errorMessage}>{errorMessage}</Text>
-          {debugInfo && (
-            <View style={styles.debugBox}>
-              <Text style={styles.debugText}>{debugInfo}</Text>
-            </View>
-          )}
-          <TouchableOpacity
-            style={styles.retryButton}
-            onPress={loadOwnershipAndOfferings}
-          >
-            <Text style={styles.retryButtonText}>{retryText}</Text>
-          </TouchableOpacity>
-        </View>
       </SafeAreaView>
     );
   }
@@ -852,7 +600,14 @@ export default function ShopScreen() {
       
       {debugInfo && (
         <View style={styles.debugBanner}>
+          <Text style={styles.debugBannerTitle}>RevenueCat Debug</Text>
           <Text style={styles.debugBannerText}>{debugInfo}</Text>
+        </View>
+      )}
+      
+      {errorMessage && (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorBannerText}>{errorMessage}</Text>
         </View>
       )}
       
@@ -1094,55 +849,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 24,
   },
-  requiresDevBuildStepsCard: {
-    backgroundColor: colors.cardBackground,
-    borderRadius: 16,
-    padding: 20,
-    width: '100%',
-    gap: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  requiresDevBuildStepsTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 8,
-  },
-  requiresDevBuildStep: {
-    fontSize: 15,
-    color: colors.textSecondary,
-    lineHeight: 22,
-  },
-  platformInfoCard: {
-    backgroundColor: 'rgba(255, 152, 0, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 152, 0, 0.3)',
-    borderRadius: 12,
-    padding: 16,
-    width: '100%',
-    gap: 8,
-  },
-  platformInfoTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 4,
-  },
-  platformInfoText: {
-    fontSize: 14,
-    fontFamily: 'monospace',
-    color: colors.textSecondary,
-  },
-  requiresDevBuildNote: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    fontStyle: 'italic',
-  },
   requiresDevBuildContinueButton: {
     backgroundColor: colors.primary,
     paddingVertical: 14,
@@ -1155,62 +861,33 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
   },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-    gap: 16,
-  },
-  errorTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.text,
-    textAlign: 'center',
-  },
-  errorMessage: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  debugBox: {
-    backgroundColor: 'rgba(255, 152, 0, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 152, 0, 0.3)',
-    borderRadius: 8,
-    padding: 12,
-    marginTop: 8,
-    maxWidth: '100%',
-  },
-  debugText: {
-    fontSize: 12,
-    fontFamily: 'monospace',
-    color: colors.textSecondary,
-  },
   debugBanner: {
     backgroundColor: 'rgba(255, 152, 0, 0.1)',
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 152, 0, 0.3)',
-    padding: 8,
+    padding: 12,
+  },
+  debugBannerTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 4,
   },
   debugBannerText: {
     fontSize: 11,
     fontFamily: 'monospace',
     color: colors.textSecondary,
+  },
+  errorBanner: {
+    backgroundColor: 'rgba(255, 59, 48, 0.1)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 59, 48, 0.3)',
+    padding: 12,
+  },
+  errorBannerText: {
+    fontSize: 12,
+    color: colors.error,
     textAlign: 'center',
-  },
-  retryButton: {
-    backgroundColor: colors.primary,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 10,
-    marginTop: 8,
-  },
-  retryButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
   },
   tabBar: {
     flexDirection: 'row',
