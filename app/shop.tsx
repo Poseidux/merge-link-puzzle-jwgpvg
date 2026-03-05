@@ -235,17 +235,17 @@ export default function ShopScreen() {
         currentColor 
       });
       
-      console.log('[Shop] Step 2: Fetching RevenueCat offerings (skipping isConfigured check)');
+      console.log('[Shop] Step 2: Fetching RevenueCat offerings');
       const offerings = await Purchases.getOfferings();
       
       console.log('[Shop] ✅ Offerings fetched successfully');
-      console.log('[Shop] 📊 REVENUECAT DEBUG INFO:');
+      console.log('[Shop] 📊 ENHANCED REVENUECAT DIAGNOSTICS:');
       const offeringIdentifiers = Object.keys(offerings.all);
       console.log('[Shop]   (1) Offering IDs (Object.keys(offerings.all)):', offeringIdentifiers);
       console.log('[Shop]   (2) Current offering ID:', offerings.current?.identifier || 'NONE');
       
       const debugLines = [];
-      debugLines.push(`Offering IDs: ${offeringIdentifiers.join(', ') || 'NONE'}`);
+      debugLines.push(`Offerings: [${offeringIdentifiers.join(', ') || 'NONE'}]`);
       debugLines.push(`Current: ${offerings.current?.identifier || 'NONE'}`);
       
       if (offeringIdentifiers.length === 0) {
@@ -266,19 +266,28 @@ export default function ShopScreen() {
       
       let totalPackagesFound = 0;
       const foundProductIds: string[] = [];
+      const offeringPackageCounts: { [key: string]: number } = {};
       
       console.log('[Shop] 📦 Processing packages from offerings:');
       Object.entries(offerings.all).forEach(([offeringId, offering]) => {
-        console.log(`[Shop]   Offering "${offeringId}": ${offering.availablePackages.length} packages`);
+        const packageCount = offering.availablePackages.length;
+        offeringPackageCounts[offeringId] = packageCount;
+        
+        console.log(`[Shop]   Offering "${offeringId}": ${packageCount} packages`);
+        console.log(`[Shop]   (2) Total availablePackages count for "${offeringId}": ${packageCount}`);
         
         offering.availablePackages.forEach((pkg, index) => {
           const productId = pkg.storeProduct.identifier;
           const priceString = pkg.storeProduct.priceString;
+          const pkgIdentifier = pkg.identifier;
           
           totalPackagesFound++;
           foundProductIds.push(productId);
           
-          console.log(`[Shop]     (3) Package ${index + 1}: ${productId} - ${priceString}`);
+          console.log(`[Shop]     (3) Package ${index + 1}:`);
+          console.log(`[Shop]       - pkg.identifier: ${pkgIdentifier}`);
+          console.log(`[Shop]       - pkg.storeProduct.identifier: ${productId}`);
+          console.log(`[Shop]       - pkg.storeProduct.priceString: ${priceString}`);
           
           if (productId.startsWith('theme_')) {
             const theme = THEMES[productId];
@@ -310,11 +319,22 @@ export default function ShopScreen() {
         });
       });
       
-      console.log(`[Shop] 📊 Summary: ${totalPackagesFound} packages found`);
+      console.log(`[Shop] 📊 Summary: ${totalPackagesFound} total packages found across all offerings`);
       console.log(`[Shop]   Product IDs:`, foundProductIds);
+      console.log(`[Shop]   Package counts per offering:`, offeringPackageCounts);
       
-      debugLines.push(`Products: ${foundProductIds.slice(0, 3).join(', ')}${foundProductIds.length > 3 ? '...' : ''}`);
-      setDebugInfo(debugLines.join(' | '));
+      debugLines.push(`Total Packages: ${totalPackagesFound}`);
+      if (foundProductIds.length > 0) {
+        debugLines.push(`Sample IDs: ${foundProductIds.slice(0, 2).join(', ')}...`);
+      }
+      
+      // (4) Diagnostic messages for empty packages or ID mismatches
+      if (offeringIdentifiers.length > 0 && totalPackagesFound === 0) {
+        const msg = 'Offerings found but packages empty. Check product assignments in RevenueCat dashboard.';
+        console.error(`[Shop] ❌ ${msg}`);
+        setErrorMessage(msg);
+        debugLines.push('⚠️ Packages empty');
+      }
       
       const allThemes = Object.values(THEMES).map((theme) => {
         const rcProduct = themesMap[theme.productId];
@@ -348,27 +368,38 @@ export default function ShopScreen() {
         }
       });
       
+      // Check for ID mismatches
+      const expectedThemeIds = Object.keys(THEMES).filter(id => THEMES[id].price > 0);
+      const expectedColorIds = Object.keys(CHAIN_HIGHLIGHT_COLORS).filter(id => CHAIN_HIGHLIGHT_COLORS[id].price > 0);
+      const missingThemes = expectedThemeIds.filter(id => !themesMap[id]);
+      const missingColors = expectedColorIds.filter(id => !colorsMap[id]);
+      
+      if (missingThemes.length > 0 || missingColors.length > 0) {
+        console.warn(`[Shop] ⚠️ IDs mismatch detected:`);
+        console.warn(`[Shop]   Missing themes: ${missingThemes.join(', ') || 'none'}`);
+        console.warn(`[Shop]   Missing colors: ${missingColors.join(', ') || 'none'}`);
+        debugLines.push(`⚠️ IDs mismatch: ${missingThemes.length + missingColors.length} missing`);
+      }
+      
       setThemesWithPrices(allThemes);
       setColorsWithPrices(allColors);
+      setDebugInfo(debugLines.join(' | '));
       
       console.log('[Shop] Step 3: Syncing ownership from RevenueCat');
       await syncOwnershipFromRevenueCat();
       
     } catch (error: any) {
-      console.error('[Shop] ❌ Error loading offerings:', error);
-      const errorCode = error.code || 'N/A';
-      const readableCode = error.readableErrorCode || 'N/A';
-      const underlyingMsg = error.underlyingErrorMessage || 'N/A';
-      
-      console.error('[Shop] Error details:', {
-        message: error.message,
-        code: errorCode,
-        readableErrorCode: readableCode,
-        underlyingErrorMessage: underlyingMsg,
-        domain: error.domain,
+      console.error('[Shop] ❌ Error loading offerings');
+      console.error('[Shop] 🔍 FULL ERROR OBJECT:', {
+        message: error.message || 'N/A',
+        code: error.code || 'N/A',
+        readableErrorCode: error.readableErrorCode || 'N/A',
+        underlyingErrorMessage: error.underlyingErrorMessage || 'N/A',
+        domain: error.domain || 'N/A',
+        userInfo: error.userInfo || 'N/A',
       });
       
-      const errorDetails = `${readableCode || error.message}`;
+      const errorDetails = `${error.readableErrorCode || error.message}`;
       const errorMsg = `Failed to load store: ${errorDetails}`;
       setErrorMessage(errorMsg);
       
@@ -405,7 +436,14 @@ export default function ShopScreen() {
       console.log('[Shop] ✅ Customer info fetched');
       await updateOwnershipFromCustomerInfo(customerInfo);
     } catch (error: any) {
-      console.error('[Shop] ❌ Error syncing ownership:', error);
+      console.error('[Shop] ❌ Error syncing ownership');
+      console.error('[Shop] 🔍 FULL ERROR OBJECT:', {
+        message: error.message || 'N/A',
+        code: error.code || 'N/A',
+        readableErrorCode: error.readableErrorCode || 'N/A',
+        underlyingErrorMessage: error.underlyingErrorMessage || 'N/A',
+        domain: error.domain || 'N/A',
+      });
     }
   };
 
@@ -454,7 +492,15 @@ export default function ShopScreen() {
       await updateOwnershipFromCustomerInfo(customerInfo);
       Alert.alert('Success!', `${product.displayName} purchased!`);
     } catch (error: any) {
-      console.error(`[Shop] ❌ Purchase failed:`, error);
+      console.error(`[Shop] ❌ Purchase failed`);
+      console.error('[Shop] 🔍 FULL ERROR OBJECT:', {
+        message: error.message || 'N/A',
+        code: error.code || 'N/A',
+        readableErrorCode: error.readableErrorCode || 'N/A',
+        underlyingErrorMessage: error.underlyingErrorMessage || 'N/A',
+        domain: error.domain || 'N/A',
+        userCancelled: error.userCancelled || false,
+      });
       
       if (!error.userCancelled) {
         Alert.alert('Purchase Failed', error.readableErrorCode || error.message);
@@ -487,7 +533,15 @@ export default function ShopScreen() {
       await updateOwnershipFromCustomerInfo(customerInfo);
       Alert.alert('Success!', `${product.displayName} purchased!`);
     } catch (error: any) {
-      console.error(`[Shop] ❌ Purchase failed:`, error);
+      console.error(`[Shop] ❌ Purchase failed`);
+      console.error('[Shop] 🔍 FULL ERROR OBJECT:', {
+        message: error.message || 'N/A',
+        code: error.code || 'N/A',
+        readableErrorCode: error.readableErrorCode || 'N/A',
+        underlyingErrorMessage: error.underlyingErrorMessage || 'N/A',
+        domain: error.domain || 'N/A',
+        userCancelled: error.userCancelled || false,
+      });
       
       if (!error.userCancelled) {
         Alert.alert('Purchase Failed', error.readableErrorCode || error.message);
@@ -517,7 +571,15 @@ export default function ShopScreen() {
       await updateOwnershipFromCustomerInfo(customerInfo);
       Alert.alert('Restored!', 'Your purchases have been restored.');
     } catch (error: any) {
-      console.error('[Shop] ❌ Restore failed:', error);
+      console.error('[Shop] ❌ Restore failed');
+      console.error('[Shop] 🔍 FULL ERROR OBJECT:', {
+        message: error.message || 'N/A',
+        code: error.code || 'N/A',
+        readableErrorCode: error.readableErrorCode || 'N/A',
+        underlyingErrorMessage: error.underlyingErrorMessage || 'N/A',
+        domain: error.domain || 'N/A',
+      });
+      
       Alert.alert('Restore Failed', error.readableErrorCode || error.message);
     } finally {
       setRestoring(false);

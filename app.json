@@ -1,8 +1,9 @@
+
 {
   "expo": {
     "name": "Numble",
     "slug": "numble",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/2b7bed79-c4f8-4440-b7a9-02d703bfc973.png",
     "userInterfaceStyle": "automatic",
