@@ -29,6 +29,10 @@ interface ProductWithPrice {
   isAvailable: boolean;
 }
 
+// Free item identifiers (local-only, never in RevenueCat)
+const FREE_THEME_ID = 'theme_classic';
+const FREE_CHAIN_COLOR_ID = 'chain_gold';
+
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
 const styles = StyleSheet.create({
@@ -209,7 +213,7 @@ const styles = StyleSheet.create({
 
 export default function ShopScreen() {
   const router = useRouter();
-  const [revenueCatReady] = useContext(RevenueCatContext);
+  const { revenueCatReady } = useContext(RevenueCatContext);
   
   const [activeTab, setActiveTab] = useState<'themes' | 'colors'>('themes');
   const [loading, setLoading] = useState(true);
@@ -221,8 +225,8 @@ export default function ShopScreen() {
   
   const [ownedThemes, setOwnedThemes] = useState<Set<string>>(new Set());
   const [ownedColors, setOwnedColors] = useState<Set<string>>(new Set());
-  const [equippedTheme, setEquippedTheme] = useState<string>('classic');
-  const [equippedColor, setEquippedColor] = useState<string>('gold');
+  const [equippedTheme, setEquippedTheme] = useState<string>(FREE_THEME_ID);
+  const [equippedColor, setEquippedColor] = useState<string>(FREE_CHAIN_COLOR_ID);
   
   const [latestRevenueCatError, setLatestRevenueCatError] = useState<string | null>(null);
 
@@ -256,17 +260,18 @@ export default function ShopScreen() {
       setEquippedTheme(savedTheme);
       setEquippedColor(savedColor);
       
+      // Always include free items as default owned
       const ownedThemesSet = new Set(savedOwnedThemes);
-      ownedThemesSet.add('classic');
+      ownedThemesSet.add(FREE_THEME_ID);
       setOwnedThemes(ownedThemesSet);
       
       const ownedColorsSet = new Set(savedOwnedColors);
-      ownedColorsSet.add('gold');
+      ownedColorsSet.add(FREE_CHAIN_COLOR_ID);
       setOwnedColors(ownedColorsSet);
 
       const themes: ProductWithPrice[] = Object.values(THEMES).map(theme => ({
         productId: theme.productId,
-        displayName: theme.name,
+        displayName: theme.displayName,
         price: theme.price,
         type: 'theme' as const,
         isAvailable: theme.price === 0,
@@ -274,7 +279,7 @@ export default function ShopScreen() {
 
       const colors: ProductWithPrice[] = Object.values(CHAIN_HIGHLIGHT_COLORS).map(color => ({
         productId: color.productId,
-        displayName: color.name,
+        displayName: color.displayName,
         price: color.price,
         type: 'chainColor' as const,
         isAvailable: color.price === 0,
@@ -311,7 +316,7 @@ export default function ShopScreen() {
         return;
       }
 
-      // NEW: Specific error message for empty availablePackages
+      // Specific error message for empty availablePackages
       if (selectedOffering.availablePackages.length === 0) {
         setError('RevenueCat offering loaded, but Apple StoreKit returned zero products for this build. Check App Store Connect product state, sandbox/TestFlight availability, bundle id, and Apple review/submission state.');
         setLoading(false);
@@ -369,11 +374,16 @@ export default function ShopScreen() {
         const productId = pkg.storeProduct.identifier;
         fetchedProductIds.push(productId);
 
+        // Exclude free items from RevenueCat processing
+        if (productId === FREE_THEME_ID || productId === FREE_CHAIN_COLOR_ID) {
+          return;
+        }
+
         if (themeLookupMap.has(productId)) {
           const theme = themeLookupMap.get(productId)!;
           themesWithPackages.push({
             productId: theme.productId,
-            displayName: theme.name,
+            displayName: theme.displayName,
             price: theme.price,
             priceString: pkg.storeProduct.priceString,
             type: 'theme',
@@ -385,7 +395,7 @@ export default function ShopScreen() {
           const color = chainColorLookupMap.get(productId)!;
           colorsWithPackages.push({
             productId: color.productId,
-            displayName: color.name,
+            displayName: color.displayName,
             price: color.price,
             priceString: pkg.storeProduct.priceString,
             type: 'chainColor',
@@ -404,7 +414,7 @@ export default function ShopScreen() {
           missingLocalPaidIds.push(theme.productId);
           themesWithPackages.push({
             productId: theme.productId,
-            displayName: theme.name,
+            displayName: theme.displayName,
             price: theme.price,
             type: 'theme',
             isAvailable: false,
@@ -412,7 +422,7 @@ export default function ShopScreen() {
         } else if (theme.price === 0 && !themesWithPackages.find(p => p.productId === theme.productId)) {
           themesWithPackages.push({
             productId: theme.productId,
-            displayName: theme.name,
+            displayName: theme.displayName,
             price: theme.price,
             type: 'theme',
             isAvailable: true,
@@ -425,7 +435,7 @@ export default function ShopScreen() {
           missingLocalPaidIds.push(color.productId);
           colorsWithPackages.push({
             productId: color.productId,
-            displayName: color.name,
+            displayName: color.displayName,
             price: color.price,
             type: 'chainColor',
             isAvailable: false,
@@ -433,7 +443,7 @@ export default function ShopScreen() {
         } else if (color.price === 0 && !colorsWithPackages.find(p => p.productId === color.productId)) {
           colorsWithPackages.push({
             productId: color.productId,
-            displayName: color.name,
+            displayName: color.displayName,
             price: color.price,
             type: 'chainColor',
             isAvailable: true,
@@ -496,9 +506,11 @@ export default function ShopScreen() {
   const updateOwnershipFromCustomerInfo = async (customerInfo: CustomerInfo) => {
     const purchasedProductIds = customerInfo.allPurchasedProductIdentifiers;
     
-    const newOwnedThemes = new Set<string>(['classic']);
-    const newOwnedColors = new Set<string>(['gold']);
+    // Start with free items as default owned
+    const newOwnedThemes = new Set<string>([FREE_THEME_ID]);
+    const newOwnedColors = new Set<string>([FREE_CHAIN_COLOR_ID]);
 
+    // Add all purchased product identifiers from RevenueCat
     purchasedProductIds.forEach(productId => {
       if (themeLookupMap.has(productId)) {
         newOwnedThemes.add(productId);
@@ -544,7 +556,7 @@ export default function ShopScreen() {
   const handleEquipTheme = async (themeId: string) => {
     setEquippedTheme(themeId);
     await saveTheme(themeId);
-    Alert.alert('Theme Equipped', `${themeLookupMap.get(themeId)?.name || themeId} is now active!`);
+    Alert.alert('Theme Equipped', `${themeLookupMap.get(themeId)?.displayName || themeId} is now active!`);
   };
 
   const handleBuyColor = async (product: ProductWithPrice) => {
@@ -571,9 +583,10 @@ export default function ShopScreen() {
   };
 
   const handleEquipColor = async (colorId: string) => {
+    // Store the full productId, not just the color value
     setEquippedColor(colorId);
     await saveChainHighlightColor(colorId);
-    Alert.alert('Color Equipped', `${chainColorLookupMap.get(colorId)?.name || colorId} is now active!`);
+    Alert.alert('Color Equipped', `${chainColorLookupMap.get(colorId)?.displayName || colorId} is now active!`);
   };
 
   const handleRestorePurchases = async () => {
