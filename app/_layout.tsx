@@ -1,6 +1,6 @@
 
 import "react-native-reanimated";
-import React, { useEffect } from "react";
+import React, { useEffect, useState, createContext } from "react";
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -24,41 +24,73 @@ export const unstable_settings = {
   initialRouteName: "index",
 };
 
+// Global RevenueCat readiness context
+export const RevenueCatContext = createContext<{ revenueCatReady: boolean }>({ 
+  revenueCatReady: false 
+});
+
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const networkState = useNetworkState();
   const [loaded] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
+  const [revenueCatReady, setRevenueCatReady] = useState(false);
 
   // Initialize RevenueCat on app startup
   useEffect(() => {
-    console.log("=== RevenueCat Initialization Start ===");
-    console.log("[RevenueCat] Setting log level to VERBOSE");
-    Purchases.setLogLevel(LOG_LEVEL.VERBOSE);
+    const configureRevenueCat = async () => {
+      if (Platform.OS === 'ios') {
+        try {
+          if (__DEV__) {
+            console.log('[RevenueCat] Setting log level to VERBOSE (development only)');
+            Purchases.setLogLevel(LOG_LEVEL.VERBOSE);
+          } else {
+            Purchases.setLogLevel(LOG_LEVEL.ERROR);
+          }
 
-    if (Platform.OS === "ios") {
-      const API_KEY = "appl_eSqPGLdMlJGuNyCAThUysRVZTcj";
-      console.log(`[RevenueCat] Configuring for iOS with API key: ${API_KEY}`);
-      
-      try {
-        Purchases.configure({ apiKey: API_KEY });
-        console.log("[RevenueCat] ✅ Configuration successful for iOS");
-        
-        // Verify configuration
-        Purchases.isConfigured().then((isConfigured) => {
-          console.log(`[RevenueCat] Is configured: ${isConfigured}`);
-        }).catch((error) => {
-          console.error("[RevenueCat] Error checking configuration:", error);
-        });
-      } catch (error) {
-        console.error("[RevenueCat] ❌ Configuration failed:", error);
+          // Use the existing iOS public RevenueCat SDK key from native app settings
+          // Note: In production, this should be retrieved from native settings (Info.plist)
+          // For now, using the existing key that's already configured
+          const API_KEY = "appl_eSqPGLdMlJGuNyCAThUysRVZTcj";
+          
+          if (__DEV__) {
+            console.log('[RevenueCat] Configuring for iOS');
+          }
+          
+          await Purchases.configure({ apiKey: API_KEY });
+          
+          if (__DEV__) {
+            console.log('[RevenueCat] ✅ Configuration successful');
+          }
+          
+          // Verify configuration before setting ready flag
+          const isConfigured = await Purchases.isConfigured();
+          if (isConfigured) {
+            setRevenueCatReady(true);
+            if (__DEV__) {
+              console.log('[RevenueCat] ✅ Ready flag set to true');
+            }
+          } else {
+            if (__DEV__) {
+              console.error('[RevenueCat] ❌ Configuration verification failed');
+            }
+          }
+        } catch (error) {
+          if (__DEV__) {
+            console.error('[RevenueCat] ❌ Configuration error:', error);
+          }
+        }
+      } else {
+        if (__DEV__) {
+          console.log(`[RevenueCat] Platform is ${Platform.OS}, skipping iOS configuration`);
+        }
+        // For non-iOS platforms, set ready to true to allow shop to proceed
+        setRevenueCatReady(true);
       }
-    } else {
-      console.log(`[RevenueCat] Platform is ${Platform.OS}, skipping configuration (iOS only)`);
-    }
-    
-    console.log("=== RevenueCat Initialization Complete ===");
+    };
+
+    configureRevenueCat();
   }, []);
 
   useEffect(() => {
@@ -111,6 +143,7 @@ export default function RootLayout() {
   return (
     <>
       <StatusBar style="auto" animated />
+      <RevenueCatContext.Provider value={{ revenueCatReady }}>
         <ThemeProvider
           value={colorScheme === "dark" ? CustomDarkTheme : CustomDefaultTheme}
         >
@@ -129,6 +162,7 @@ export default function RootLayout() {
             </GestureHandlerRootView>
           </WidgetProvider>
         </ThemeProvider>
+      </RevenueCatContext.Provider>
     </>
   );
 }
