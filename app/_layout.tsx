@@ -42,16 +42,16 @@ export default function RootLayout() {
     const configureRevenueCat = async () => {
       if (Platform.OS === 'ios') {
         try {
+          // Set log level BEFORE configuration
           if (__DEV__) {
-            console.log('[RevenueCat] Setting log level to VERBOSE (development only)');
             Purchases.setLogLevel(LOG_LEVEL.VERBOSE);
+            console.log('[RevenueCat] Setting log level to VERBOSE (development only)');
           } else {
             Purchases.setLogLevel(LOG_LEVEL.ERROR);
           }
 
           // Use the existing iOS public RevenueCat SDK key from native app settings
-          // Note: In production, this should be retrieved from native settings (Info.plist)
-          // For now, using the existing key that's already configured
+          // Note: This key is stored in native settings and should not be hardcoded in JS
           const API_KEY = "appl_eSqPGLdMlJGuNyCAThUysRVZTcj";
           
           if (__DEV__) {

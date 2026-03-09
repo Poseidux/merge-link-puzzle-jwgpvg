@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Dimensions, ActivityIndicator, Alert, Platform } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -48,6 +48,23 @@ export default function ShopScreen() {
   
   const [themesWithPrices, setThemesWithPrices] = useState<ProductWithPrice[]>([]);
   const [colorsWithPrices, setColorsWithPrices] = useState<ProductWithPrice[]>([]);
+
+  // Build lookup maps from Object.values, keyed by productId
+  const themeLookupMap = useMemo(() => {
+    const map = new Map<string, typeof THEMES[string]>();
+    Object.values(THEMES).forEach(theme => {
+      map.set(theme.productId, theme);
+    });
+    return map;
+  }, []);
+
+  const chainColorLookupMap = useMemo(() => {
+    const map = new Map<string, typeof CHAIN_HIGHLIGHT_COLORS[string]>();
+    Object.values(CHAIN_HIGHLIGHT_COLORS).forEach(color => {
+      map.set(color.productId, color);
+    });
+    return map;
+  }, []);
 
   useEffect(() => {
     if (__DEV__) {
@@ -170,7 +187,7 @@ export default function ShopScreen() {
       }
       
       const debugLines = [];
-      debugLines.push(`RC Ready: ${revenueCatReady}`);
+      debugLines.push(`RC Ready: ${revenueCatReady ? '✅' : '❌'}`);
       debugLines.push(`All Offerings: [${offeringIdentifiers.join(', ') || 'NONE'}]`);
       debugLines.push(`Current: ${currentOfferingId}`);
       
@@ -234,18 +251,7 @@ export default function ShopScreen() {
       debugLines.push(`Selected: ${selectedOfferingIdentifier}`);
       debugLines.push(`Total Pkgs: ${allPackagesInSelectedOffering.length}`);
       
-      // Build lookup maps from local catalogs using Object.values
-      const themesLookup = new Map<string, typeof THEMES[string]>();
-      Object.values(THEMES).forEach(theme => {
-        themesLookup.set(theme.productId, theme);
-      });
-      
-      const colorsLookup = new Map<string, typeof CHAIN_HIGHLIGHT_COLORS[string]>();
-      Object.values(CHAIN_HIGHLIGHT_COLORS).forEach(color => {
-        colorsLookup.set(color.productId, color);
-      });
-      
-      // Categorize packages by exact productId match
+      // Categorize packages by exact productId match using lookup maps
       if (__DEV__) {
         console.log('[Shop] Step 4: Categorizing packages by exact productId match');
       }
@@ -264,12 +270,12 @@ export default function ShopScreen() {
         }
         
         // Exact membership check using lookup maps
-        if (themesLookup.has(productId)) {
+        if (themeLookupMap.has(productId)) {
           themesMap[productId] = pkg;
           if (__DEV__) {
             console.log(`[Shop]     → Matched as THEME`);
           }
-        } else if (colorsLookup.has(productId)) {
+        } else if (chainColorLookupMap.has(productId)) {
           colorsMap[productId] = pkg;
           if (__DEV__) {
             console.log(`[Shop]     → Matched as CHAIN COLOR`);
@@ -300,7 +306,7 @@ export default function ShopScreen() {
         debugLines.push(`Unmatched: [${unmatchedProductIds.join(', ')}]`);
       }
       
-      // Build full product lists
+      // Build full product lists using lookup maps
       const allThemes = Object.values(THEMES).map((theme) => {
         const rcPackage = themesMap[theme.productId];
         if (rcPackage) {
@@ -357,7 +363,7 @@ export default function ShopScreen() {
       
       if (missingThemes.length > 0 || missingColors.length > 0) {
         if (__DEV__) {
-          console.warn(`[Shop] ⚠️ IDENTIFIER MISMATCH: Some local paid products not in RC offering:`);
+          console.warn(`[Shop] ⚠️ Render lookup mismatch: Some local paid products not in RC offering:`);
           if (missingThemes.length > 0) {
             console.warn(`[Shop]   Missing themes: [${missingThemes.join(', ')}]`);
           }
@@ -445,24 +451,13 @@ export default function ShopScreen() {
       console.log(`[Shop] Purchased IDs: [${Array.from(purchasedProductIds).join(', ') || 'none'}]`);
     }
     
-    // Build lookup maps
-    const themesLookup = new Map<string, typeof THEMES[string]>();
-    Object.values(THEMES).forEach(theme => {
-      themesLookup.set(theme.productId, theme);
-    });
-    
-    const colorsLookup = new Map<string, typeof CHAIN_HIGHLIGHT_COLORS[string]>();
-    Object.values(CHAIN_HIGHLIGHT_COLORS).forEach(color => {
-      colorsLookup.set(color.productId, color);
-    });
-    
     purchasedProductIds.forEach((productId) => {
-      if (themesLookup.has(productId) && !ownedThemeIds.includes(productId)) {
+      if (themeLookupMap.has(productId) && !ownedThemeIds.includes(productId)) {
         ownedThemeIds.push(productId);
         if (__DEV__) {
           console.log(`[Shop]   ✅ Theme owned: ${productId}`);
         }
-      } else if (colorsLookup.has(productId) && !ownedChainColorIds.includes(productId)) {
+      } else if (chainColorLookupMap.has(productId) && !ownedChainColorIds.includes(productId)) {
         ownedChainColorIds.push(productId);
         if (__DEV__) {
           console.log(`[Shop]   ✅ Color owned: ${productId}`);
@@ -562,7 +557,8 @@ export default function ShopScreen() {
     if (__DEV__) {
       console.log(`[Shop] Equipping color: ${colorId}`);
     }
-    const colorObj = CHAIN_HIGHLIGHT_COLORS[colorId];
+    // Use lookup map to find the color object
+    const colorObj = chainColorLookupMap.get(colorId);
     if (colorObj) {
       setEquippedColor(colorObj.color);
       await saveChainHighlightColor(colorObj.color);
@@ -709,7 +705,7 @@ export default function ShopScreen() {
         {activeTab === 'themes' && (
           <View style={styles.grid}>
             {themesWithPrices.map((product) => {
-              const theme = THEMES[product.productId];
+              const theme = themeLookupMap.get(product.productId);
               if (!theme) return null;
               
               const isOwned = ownedThemes.includes(product.productId);
@@ -789,7 +785,7 @@ export default function ShopScreen() {
         {activeTab === 'colors' && (
           <View style={styles.grid}>
             {colorsWithPrices.map((product) => {
-              const colorObj = CHAIN_HIGHLIGHT_COLORS[product.productId];
+              const colorObj = chainColorLookupMap.get(product.productId);
               if (!colorObj) return null;
               
               const isOwned = ownedColors.includes(product.productId);
