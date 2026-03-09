@@ -1,13 +1,13 @@
 
-import React, { useState, useEffect, useContext, useMemo } from 'react';
+import React, { useState, useEffect, useContext, useMemo, useCallback } from 'react';
 import Constants from 'expo-constants';
 import { IconSymbol } from '@/components/IconSymbol';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Purchases, { PurchasesPackage, CustomerInfo } from 'react-native-purchases';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Dimensions, ActivityIndicator, Alert, Platform } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
-import { RevenueCatContext } from '@/app/_layout';
 import { colors, THEMES, CHAIN_HIGHLIGHT_COLORS } from '@/styles/commonStyles';
+import { RevenueCatContext } from '@/app/_layout';
 import { 
   loadOwnedThemes, 
   saveOwnedThemes, 
@@ -29,465 +29,248 @@ interface ProductWithPrice {
   isAvailable: boolean;
 }
 
-// Free item identifiers (local-only, never in RevenueCat)
 const FREE_THEME_ID = 'theme_classic';
 const FREE_CHAIN_COLOR_ID = 'chain_gold';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 10,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: colors.text,
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: colors.textSecondary,
-  },
-  tabContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    marginBottom: 16,
-    gap: 12,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    backgroundColor: colors.cardBackground,
-    alignItems: 'center',
-  },
-  tabActive: {
-    backgroundColor: colors.primary,
-  },
-  tabText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.textSecondary,
-  },
-  tabTextActive: {
-    color: '#FFFFFF',
-  },
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 100,
-  },
-  productCard: {
-    backgroundColor: colors.cardBackground,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  productInfo: {
-    flex: 1,
-  },
-  productName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 4,
-  },
-  productPrice: {
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
-  buyButton: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  buyButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  equippedButton: {
-    backgroundColor: colors.success,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  equippedButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  ownedButton: {
-    backgroundColor: colors.cardBackground,
-    borderWidth: 1,
-    borderColor: colors.primary,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  ownedButtonText: {
-    color: colors.primary,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  unavailableButton: {
-    backgroundColor: colors.cardBackground,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  unavailableButtonText: {
-    color: colors.textSecondary,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 40,
-  },
-  errorText: {
-    fontSize: 16,
-    color: colors.error,
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  retryButton: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  restoreButton: {
-    alignSelf: 'center',
-    marginTop: 20,
-    marginBottom: 20,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    backgroundColor: colors.cardBackground,
-    borderRadius: 8,
-  },
-  restoreButtonText: {
-    color: colors.primary,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  debugBanner: {
-    backgroundColor: '#FFF3CD',
-    padding: 12,
-    marginHorizontal: 20,
-    marginBottom: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#FFC107',
-  },
-  debugText: {
-    fontSize: 11,
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-    color: '#856404',
-    lineHeight: 16,
-  },
-});
-
 export default function ShopScreen() {
   const router = useRouter();
   const { revenueCatReady } = useContext(RevenueCatContext);
-  
-  const [activeTab, setActiveTab] = useState<'themes' | 'colors'>('themes');
+
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [debugInfo, setDebugInfo] = useState<string | null>(null);
-  
-  const [themeProducts, setThemeProducts] = useState<ProductWithPrice[]>([]);
-  const [colorProducts, setColorProducts] = useState<ProductWithPrice[]>([]);
-  
-  const [ownedThemes, setOwnedThemes] = useState<Set<string>>(new Set());
-  const [ownedColors, setOwnedColors] = useState<Set<string>>(new Set());
+  const [purchasing, setPurchasing] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  const [themes, setThemes] = useState<ProductWithPrice[]>([]);
+  const [chainColors, setChainColors] = useState<ProductWithPrice[]>([]);
+
+  const [ownedThemes, setOwnedThemes] = useState<Set<string>>(new Set([FREE_THEME_ID]));
+  const [ownedChainColors, setOwnedChainColors] = useState<Set<string>>(new Set([FREE_CHAIN_COLOR_ID]));
+
   const [equippedTheme, setEquippedTheme] = useState<string>(FREE_THEME_ID);
   const [equippedColor, setEquippedColor] = useState<string>(FREE_CHAIN_COLOR_ID);
-  
-  const [latestRevenueCatError, setLatestRevenueCatError] = useState<string | null>(null);
 
-  // Lookup maps for local product definitions
+  // Debug state
+  const [debugInfo, setDebugInfo] = useState({
+    allOfferingsCount: 0,
+    currentOfferingId: '',
+    selectedOfferingId: '',
+    totalPackages: 0,
+    packagesMissingStoreProduct: 0,
+    themePackageCount: 0,
+    chainPackageCount: 0,
+    fetchedProductIds: [] as string[],
+    unmatchedProductIds: [] as string[],
+    missingLocalPaidIds: [] as string[],
+  });
+  const [latestRevenueCatError, setLatestRevenueCatError] = useState('');
+
+  // Build lookup maps from Object.values
   const themeLookupMap = useMemo(() => {
     const map = new Map<string, typeof THEMES[keyof typeof THEMES]>();
-    Object.values(THEMES).forEach(theme => map.set(theme.productId, theme));
+    Object.values(THEMES).forEach(theme => {
+      map.set(theme.productId, theme);
+    });
     return map;
   }, []);
 
   const chainColorLookupMap = useMemo(() => {
     const map = new Map<string, typeof CHAIN_HIGHLIGHT_COLORS[keyof typeof CHAIN_HIGHLIGHT_COLORS]>();
-    Object.values(CHAIN_HIGHLIGHT_COLORS).forEach(color => map.set(color.productId, color));
+    Object.values(CHAIN_HIGHLIGHT_COLORS).forEach(color => {
+      map.set(color.productId, color);
+    });
     return map;
   }, []);
 
   useEffect(() => {
-    loadLocalDataOnly();
     if (revenueCatReady) {
+      loadLocalDataOnly();
       loadOwnershipAndOfferings();
+    } else {
+      setLoading(true);
     }
   }, [revenueCatReady]);
 
   const loadLocalDataOnly = async () => {
     try {
-      const savedTheme = await loadTheme();
-      const savedColor = await loadChainHighlightColor();
-      const savedOwnedThemes = await loadOwnedThemes();
-      const savedOwnedColors = await loadOwnedColors();
+      const [savedTheme, savedColor, savedOwnedThemes, savedOwnedColors] = await Promise.all([
+        loadTheme(),
+        loadChainHighlightColor(),
+        loadOwnedThemes(),
+        loadOwnedColors(),
+      ]);
 
-      setEquippedTheme(savedTheme);
-      setEquippedColor(savedColor);
-      
-      // Always include free items as default owned
-      const ownedThemesSet = new Set(savedOwnedThemes);
-      ownedThemesSet.add(FREE_THEME_ID);
+      setEquippedTheme(savedTheme || FREE_THEME_ID);
+      setEquippedColor(savedColor || FREE_CHAIN_COLOR_ID);
+
+      const ownedThemesSet = new Set([FREE_THEME_ID, ...savedOwnedThemes]);
+      const ownedColorsSet = new Set([FREE_CHAIN_COLOR_ID, ...savedOwnedColors]);
+
       setOwnedThemes(ownedThemesSet);
-      
-      const ownedColorsSet = new Set(savedOwnedColors);
-      ownedColorsSet.add(FREE_CHAIN_COLOR_ID);
-      setOwnedColors(ownedColorsSet);
-
-      const themes: ProductWithPrice[] = Object.values(THEMES).map(theme => ({
-        productId: theme.productId,
-        displayName: theme.displayName,
-        price: theme.price,
-        type: 'theme' as const,
-        isAvailable: theme.price === 0,
-      }));
-
-      const colors: ProductWithPrice[] = Object.values(CHAIN_HIGHLIGHT_COLORS).map(color => ({
-        productId: color.productId,
-        displayName: color.displayName,
-        price: color.price,
-        type: 'chainColor' as const,
-        isAvailable: color.price === 0,
-      }));
-
-      setThemeProducts(themes);
-      setColorProducts(colors);
-    } catch (e) {
-      console.error('[Shop] Error loading local data:', e);
+      setOwnedChainColors(ownedColorsSet);
+    } catch (error) {
+      console.error('[Shop] Error loading local data:', error);
     }
   };
 
   const loadOwnershipAndOfferings = async () => {
-    if (!revenueCatReady) {
-      setLoading(true);
-      return;
-    }
-
     setLoading(true);
-    setError(null);
+    setErrorMessage('');
 
     try {
-      console.log('[Shop] Fetching RevenueCat offerings...');
-      const fetchedOfferings = await Purchases.getOfferings();
-      
-      let selectedOffering = fetchedOfferings.all['themes'];
-      if (!selectedOffering) {
-        selectedOffering = fetchedOfferings.current;
+      const offerings = await Purchases.getOfferings();
+
+      if (__DEV__) {
+        console.log('[Shop] Offerings loaded:', {
+          allOfferingsKeys: Object.keys(offerings.all),
+          currentOfferingId: offerings.current?.identifier,
+        });
       }
 
+      // Select offering: offerings.all["themes"] first, fallback to offerings.current
+      const selectedOffering = offerings.all["themes"] || offerings.current;
+
+      const debugData = {
+        allOfferingsCount: Object.keys(offerings.all).length,
+        currentOfferingId: offerings.current?.identifier || '',
+        selectedOfferingId: selectedOffering?.identifier || '',
+        totalPackages: 0,
+        packagesMissingStoreProduct: 0,
+        themePackageCount: 0,
+        chainPackageCount: 0,
+        fetchedProductIds: [] as string[],
+        unmatchedProductIds: [] as string[],
+        missingLocalPaidIds: [] as string[],
+      };
+
       if (!selectedOffering) {
-        setError('No offerings found. Check RevenueCat configuration.');
+        setErrorMessage('No offerings found. Check RevenueCat configuration.');
+        setDebugInfo(debugData);
         setLoading(false);
         return;
       }
 
-      // Specific error message for empty availablePackages
-      if (selectedOffering.availablePackages.length === 0) {
-        setError('RevenueCat offering loaded, but Apple StoreKit returned zero products for this build. Check App Store Connect product state, sandbox/TestFlight availability, bundle id, and Apple review/submission state.');
+      const availablePackages = selectedOffering.availablePackages;
+      debugData.totalPackages = availablePackages.length;
+
+      if (availablePackages.length === 0) {
+        setErrorMessage('RevenueCat offering loaded, but Apple StoreKit returned zero products for this build. Check App Store Connect product state, sandbox/TestFlight availability, bundle id, and Apple review/submission state.');
+        setDebugInfo(debugData);
         setLoading(false);
-        
-        // Still build debug info even with empty packages
-        if (__DEV__) {
-          const allOfferingIds = Object.keys(fetchedOfferings.all).join(', ') || 'NONE';
-          const currentOfferingId = fetchedOfferings.current?.identifier || 'NONE';
-          const selectedOfferingId = selectedOffering.identifier;
-          
-          let debugMessage = `RC Ready: ${revenueCatReady ? '✅' : '❌'}\n`;
-          debugMessage += `All Offerings: [${allOfferingIds}]\n`;
-          debugMessage += `Current Offering: ${currentOfferingId}\n`;
-          debugMessage += `Selected Offering: ${selectedOfferingId}\n`;
-          debugMessage += `Total Packages: 0\n`;
-          debugMessage += `Theme Package Count: 0\n`;
-          debugMessage += `Chain Package Count: 0\n`;
-          debugMessage += `Fetched Product IDs: []\n`;
-          debugMessage += `Unmatched Product IDs: []\n`;
-          
-          const missingLocalPaidIds: string[] = [];
-          Object.values(THEMES).forEach(theme => {
-            if (theme.price > 0) {
-              missingLocalPaidIds.push(theme.productId);
-            }
-          });
-          Object.values(CHAIN_HIGHLIGHT_COLORS).forEach(color => {
-            if (color.price > 0) {
-              missingLocalPaidIds.push(color.productId);
-            }
-          });
-          
-          if (missingLocalPaidIds.length > 0) {
-            debugMessage += `Missing Local Paid IDs: [${missingLocalPaidIds.join(', ')}]\n`;
-          }
-          if (latestRevenueCatError) {
-            debugMessage += `Latest RevenueCat error message: ${latestRevenueCatError}`;
-          }
-          
-          setDebugInfo(debugMessage);
-        }
         return;
       }
 
+      const themePackages: ProductWithPrice[] = [];
+      const chainPackages: ProductWithPrice[] = [];
       const fetchedProductIds: string[] = [];
       const unmatchedProductIds: string[] = [];
-      const missingLocalPaidIds: string[] = [];
-      let themePackageCount = 0;
-      let chainPackageCount = 0;
+      const packagesMissingStoreProduct: string[] = [];
 
-      const themesWithPackages: ProductWithPrice[] = [];
-      const colorsWithPackages: ProductWithPrice[] = [];
-
-      selectedOffering.availablePackages.forEach(pkg => {
-        const productId = pkg.storeProduct.identifier;
-        fetchedProductIds.push(productId);
-
-        // Exclude free items from RevenueCat processing
-        if (productId === FREE_THEME_ID || productId === FREE_CHAIN_COLOR_ID) {
+      availablePackages.forEach(pkg => {
+        if (!pkg.storeProduct) {
+          packagesMissingStoreProduct.push(pkg.identifier);
+          if (__DEV__) {
+            console.warn('[Shop] Package missing storeProduct:', pkg.identifier);
+          }
           return;
         }
 
+        const productId = pkg.storeProduct.identifier;
+        fetchedProductIds.push(productId);
+
         if (themeLookupMap.has(productId)) {
-          const theme = themeLookupMap.get(productId)!;
-          themesWithPackages.push({
-            productId: theme.productId,
-            displayName: theme.displayName,
-            price: theme.price,
+          const themeData = themeLookupMap.get(productId)!;
+          themePackages.push({
+            productId,
+            displayName: themeData.displayName,
+            price: pkg.storeProduct.price,
             priceString: pkg.storeProduct.priceString,
             type: 'theme',
             pkg,
             isAvailable: true,
           });
-          themePackageCount++;
         } else if (chainColorLookupMap.has(productId)) {
-          const color = chainColorLookupMap.get(productId)!;
-          colorsWithPackages.push({
-            productId: color.productId,
-            displayName: color.displayName,
-            price: color.price,
+          const colorData = chainColorLookupMap.get(productId)!;
+          chainPackages.push({
+            productId,
+            displayName: colorData.displayName,
+            price: pkg.storeProduct.price,
             priceString: pkg.storeProduct.priceString,
             type: 'chainColor',
             pkg,
             isAvailable: true,
           });
-          chainPackageCount++;
         } else {
           unmatchedProductIds.push(productId);
-          console.warn(`[Shop] ⚠️ RevenueCat returned unknown product ID: ${productId}`);
         }
       });
 
-      Object.values(THEMES).forEach(theme => {
-        if (theme.price > 0 && !themesWithPackages.find(p => p.productId === theme.productId)) {
-          missingLocalPaidIds.push(theme.productId);
-          themesWithPackages.push({
-            productId: theme.productId,
-            displayName: theme.displayName,
-            price: theme.price,
+      debugData.packagesMissingStoreProduct = packagesMissingStoreProduct.length;
+      debugData.themePackageCount = themePackages.length;
+      debugData.chainPackageCount = chainPackages.length;
+      debugData.fetchedProductIds = fetchedProductIds;
+      debugData.unmatchedProductIds = unmatchedProductIds;
+
+      // Build complete product lists including local-only items
+      const allThemes: ProductWithPrice[] = [];
+      const allChainColors: ProductWithPrice[] = [];
+      const missingLocalPaidIds: string[] = [];
+
+      Object.values(THEMES).forEach(themeData => {
+        const rcItem = themePackages.find(p => p.productId === themeData.productId);
+        if (rcItem) {
+          allThemes.push(rcItem);
+        } else {
+          const isFree = themeData.productId === FREE_THEME_ID;
+          allThemes.push({
+            productId: themeData.productId,
+            displayName: themeData.displayName,
+            price: themeData.price || 0,
             type: 'theme',
-            isAvailable: false,
+            isAvailable: isFree,
           });
-        } else if (theme.price === 0 && !themesWithPackages.find(p => p.productId === theme.productId)) {
-          themesWithPackages.push({
-            productId: theme.productId,
-            displayName: theme.displayName,
-            price: theme.price,
-            type: 'theme',
-            isAvailable: true,
-          });
+          if (!isFree) {
+            missingLocalPaidIds.push(themeData.productId);
+          }
         }
       });
 
-      Object.values(CHAIN_HIGHLIGHT_COLORS).forEach(color => {
-        if (color.price > 0 && !colorsWithPackages.find(p => p.productId === color.productId)) {
-          missingLocalPaidIds.push(color.productId);
-          colorsWithPackages.push({
-            productId: color.productId,
-            displayName: color.displayName,
-            price: color.price,
+      Object.values(CHAIN_HIGHLIGHT_COLORS).forEach(colorData => {
+        const rcItem = chainPackages.find(p => p.productId === colorData.productId);
+        if (rcItem) {
+          allChainColors.push(rcItem);
+        } else {
+          const isFree = colorData.productId === FREE_CHAIN_COLOR_ID;
+          allChainColors.push({
+            productId: colorData.productId,
+            displayName: colorData.displayName,
+            price: colorData.price || 0,
             type: 'chainColor',
-            isAvailable: false,
+            isAvailable: isFree,
           });
-        } else if (color.price === 0 && !colorsWithPackages.find(p => p.productId === color.productId)) {
-          colorsWithPackages.push({
-            productId: color.productId,
-            displayName: color.displayName,
-            price: color.price,
-            type: 'chainColor',
-            isAvailable: true,
-          });
+          if (!isFree) {
+            missingLocalPaidIds.push(colorData.productId);
+          }
         }
       });
 
-      setThemeProducts(themesWithPackages);
-      setColorProducts(colorsWithPackages);
+      debugData.missingLocalPaidIds = missingLocalPaidIds;
+      setDebugInfo(debugData);
 
-      await syncOwnershipFromRevenueCat();
+      setThemes(allThemes);
+      setChainColors(allChainColors);
 
-      // Build debug info string
-      if (__DEV__) {
-        const allOfferingIds = Object.keys(fetchedOfferings.all).join(', ') || 'NONE';
-        const currentOfferingId = fetchedOfferings.current?.identifier || 'NONE';
-        const selectedOfferingId = selectedOffering.identifier;
-        const totalPackages = selectedOffering.availablePackages.length;
-
-        let debugMessage = `RC Ready: ${revenueCatReady ? '✅' : '❌'}\n`;
-        debugMessage += `All Offerings: [${allOfferingIds}]\n`;
-        debugMessage += `Current Offering: ${currentOfferingId}\n`;
-        debugMessage += `Selected Offering: ${selectedOfferingId}\n`;
-        debugMessage += `Total Packages: ${totalPackages}\n`;
-        debugMessage += `Theme Package Count: ${themePackageCount}\n`;
-        debugMessage += `Chain Package Count: ${chainPackageCount}\n`;
-        debugMessage += `Fetched Product IDs: [${fetchedProductIds.join(', ')}]\n`;
-        if (unmatchedProductIds.length > 0) {
-          debugMessage += `Unmatched Product IDs: [${unmatchedProductIds.join(', ')}]\n`;
-        }
-        if (missingLocalPaidIds.length > 0) {
-          debugMessage += `Missing Local Paid IDs: [${missingLocalPaidIds.join(', ')}]\n`;
-        }
-        if (latestRevenueCatError) {
-          debugMessage += `Latest RevenueCat error message: ${latestRevenueCatError}`;
-        }
-        setDebugInfo(debugMessage);
+      if (packagesMissingStoreProduct.length > 0) {
+        setErrorMessage('RevenueCat package missing store product data for this build.');
       }
 
-    } catch (e: any) {
-      console.error('[Shop] Error fetching offerings:', e);
-      const errorMessage = e.message || e.readableErrorCode || 'Unknown error';
-      setError(`Failed to load store items: ${errorMessage}`);
-      setLatestRevenueCatError(errorMessage);
+      await syncOwnershipFromRevenueCat();
+    } catch (error: any) {
+      console.error('[Shop] Error loading offerings:', error);
+      setErrorMessage(`Failed to load shop: ${error.message}`);
+      setLatestRevenueCatError(error.message);
     } finally {
       setLoading(false);
     }
@@ -497,266 +280,443 @@ export default function ShopScreen() {
     try {
       const customerInfo = await Purchases.getCustomerInfo();
       await updateOwnershipFromCustomerInfo(customerInfo);
-    } catch (e: any) {
-      console.error('[Shop] Error syncing ownership:', e);
-      setLatestRevenueCatError(e.message || e.readableErrorCode || 'Unknown error');
+    } catch (error: any) {
+      console.error('[Shop] Error syncing ownership:', error);
+      setLatestRevenueCatError(error.message);
     }
   };
 
-  const updateOwnershipFromCustomerInfo = async (customerInfo: CustomerInfo) => {
+  const updateOwnershipFromCustomerInfo = useCallback(async (customerInfo: CustomerInfo) => {
     const purchasedProductIds = customerInfo.allPurchasedProductIdentifiers;
-    
-    // Start with free items as default owned
-    const newOwnedThemes = new Set<string>([FREE_THEME_ID]);
-    const newOwnedColors = new Set<string>([FREE_CHAIN_COLOR_ID]);
 
-    // Add all purchased product identifiers from RevenueCat
+    const ownedThemesSet = new Set<string>([FREE_THEME_ID]);
+    const ownedColorsSet = new Set<string>([FREE_CHAIN_COLOR_ID]);
+
     purchasedProductIds.forEach(productId => {
       if (themeLookupMap.has(productId)) {
-        newOwnedThemes.add(productId);
+        ownedThemesSet.add(productId);
       } else if (chainColorLookupMap.has(productId)) {
-        newOwnedColors.add(productId);
+        ownedColorsSet.add(productId);
       }
     });
 
-    setOwnedThemes(newOwnedThemes);
-    setOwnedColors(newOwnedColors);
+    setOwnedThemes(ownedThemesSet);
+    setOwnedChainColors(ownedColorsSet);
 
-    await saveOwnedThemes(Array.from(newOwnedThemes));
-    await saveOwnedColors(Array.from(newOwnedColors));
+    await saveOwnedThemes(Array.from(ownedThemesSet));
+    await saveOwnedColors(Array.from(ownedColorsSet));
 
     if (__DEV__) {
-      console.log(`[Shop] 🎫 Purchased Product IDs: [${purchasedProductIds.join(', ')}]`);
+      console.log('[Shop] Ownership updated:', {
+        ownedThemes: Array.from(ownedThemesSet),
+        ownedColors: Array.from(ownedColorsSet),
+      });
     }
-  };
+  }, [themeLookupMap, chainColorLookupMap]);
 
-  const handleBuyTheme = async (product: ProductWithPrice) => {
+  const handleBuyTheme = useCallback(async (product: ProductWithPrice) => {
     if (!product.pkg) {
       Alert.alert('Unavailable', 'This theme is not available for purchase.');
       return;
     }
 
-    setLoading(true);
+    setPurchasing(true);
+    setErrorMessage('');
+
     try {
-      await Purchases.purchasePackage(product.pkg);
-      await syncOwnershipFromRevenueCat();
-      Alert.alert('Success', `${product.displayName} theme purchased!`);
+      const { customerInfo } = await Purchases.purchasePackage(product.pkg);
+      await updateOwnershipFromCustomerInfo(customerInfo);
+      Alert.alert('Success', `${product.displayName} purchased!`);
     } catch (e: any) {
+      if (__DEV__) {
+        console.error('[Shop] Purchase error:', {
+          message: e.message,
+          code: e.code,
+          readableErrorCode: e.readableErrorCode,
+          underlyingErrorMessage: e.underlyingErrorMessage,
+          domain: e.domain,
+        });
+      }
+
       if (!e.userCancelled) {
-        console.error('[Shop] Purchase error:', e);
-        const errorMessage = e.message || e.readableErrorCode || 'Unknown error';
-        Alert.alert('Purchase Failed', errorMessage);
-        setLatestRevenueCatError(errorMessage);
+        setErrorMessage(`Purchase failed: ${e.message}`);
+        setLatestRevenueCatError(e.message);
+        Alert.alert('Purchase Failed', e.message);
       }
     } finally {
-      setLoading(false);
+      setPurchasing(false);
     }
-  };
+  }, [updateOwnershipFromCustomerInfo]);
 
-  const handleEquipTheme = async (themeId: string) => {
-    setEquippedTheme(themeId);
-    await saveTheme(themeId);
-    Alert.alert('Theme Equipped', `${themeLookupMap.get(themeId)?.displayName || themeId} is now active!`);
-  };
+  const handleEquipTheme = useCallback(async (productId: string) => {
+    setEquippedTheme(productId);
+    await saveTheme(productId);
+    if (__DEV__) {
+      console.log('[Shop] Theme equipped:', productId);
+    }
+  }, []);
 
-  const handleBuyColor = async (product: ProductWithPrice) => {
+  const handleBuyColor = useCallback(async (product: ProductWithPrice) => {
     if (!product.pkg) {
-      Alert.alert('Unavailable', 'This color is not available for purchase.');
+      Alert.alert('Unavailable', 'This chain color is not available for purchase.');
       return;
     }
 
-    setLoading(true);
+    setPurchasing(true);
+    setErrorMessage('');
+
     try {
-      await Purchases.purchasePackage(product.pkg);
-      await syncOwnershipFromRevenueCat();
-      Alert.alert('Success', `${product.displayName} color purchased!`);
+      const { customerInfo } = await Purchases.purchasePackage(product.pkg);
+      await updateOwnershipFromCustomerInfo(customerInfo);
+      Alert.alert('Success', `${product.displayName} purchased!`);
     } catch (e: any) {
+      if (__DEV__) {
+        console.error('[Shop] Purchase error:', {
+          message: e.message,
+          code: e.code,
+          readableErrorCode: e.readableErrorCode,
+          underlyingErrorMessage: e.underlyingErrorMessage,
+          domain: e.domain,
+        });
+      }
+
       if (!e.userCancelled) {
-        console.error('[Shop] Purchase error:', e);
-        const errorMessage = e.message || e.readableErrorCode || 'Unknown error';
-        Alert.alert('Purchase Failed', errorMessage);
-        setLatestRevenueCatError(errorMessage);
+        setErrorMessage(`Purchase failed: ${e.message}`);
+        setLatestRevenueCatError(e.message);
+        Alert.alert('Purchase Failed', e.message);
       }
     } finally {
-      setLoading(false);
+      setPurchasing(false);
     }
-  };
+  }, [updateOwnershipFromCustomerInfo]);
 
-  const handleEquipColor = async (colorId: string) => {
-    // Store the full productId, not just the color value
-    setEquippedColor(colorId);
-    await saveChainHighlightColor(colorId);
-    Alert.alert('Color Equipped', `${chainColorLookupMap.get(colorId)?.displayName || colorId} is now active!`);
-  };
+  const handleEquipColor = useCallback(async (productId: string) => {
+    setEquippedColor(productId);
+    await saveChainHighlightColor(productId);
+    if (__DEV__) {
+      console.log('[Shop] Chain color equipped:', productId);
+    }
+  }, []);
 
-  const handleRestorePurchases = async () => {
-    setLoading(true);
+  const handleRestorePurchases = useCallback(async () => {
+    setRestoring(true);
+    setErrorMessage('');
+
     try {
-      await Purchases.restorePurchases();
-      await syncOwnershipFromRevenueCat();
-      Alert.alert('Purchases Restored', 'Your previous purchases have been restored.');
+      const customerInfo = await Purchases.restorePurchases();
+      await updateOwnershipFromCustomerInfo(customerInfo);
+      Alert.alert('Success', 'Purchases restored!');
     } catch (e: any) {
-      console.error('[Shop] Restore error:', e);
-      const errorMessage = e.message || e.readableErrorCode || 'Unknown error';
-      Alert.alert('Restore Failed', errorMessage);
-      setLatestRevenueCatError(errorMessage);
+      if (__DEV__) {
+        console.error('[Shop] Restore error:', {
+          message: e.message,
+          code: e.code,
+          readableErrorCode: e.readableErrorCode,
+          underlyingErrorMessage: e.underlyingErrorMessage,
+          domain: e.domain,
+        });
+      }
+
+      setErrorMessage(`Restore failed: ${e.message}`);
+      setLatestRevenueCatError(e.message);
+      Alert.alert('Restore Failed', e.message);
     } finally {
-      setLoading(false);
+      setRestoring(false);
     }
+  }, [updateOwnershipFromCustomerInfo]);
+
+  const renderThemeCard = (product: ProductWithPrice) => {
+    const themeData = themeLookupMap.get(product.productId);
+    if (!themeData) {
+      if (__DEV__) {
+        console.warn('[Shop] Render lookup mismatch for theme:', product.productId);
+      }
+      return null;
+    }
+
+    const isOwned = ownedThemes.has(product.productId);
+    const isEquipped = equippedTheme === product.productId;
+    const isFree = product.productId === FREE_THEME_ID;
+
+    const priceDisplay = isFree ? 'Free' : (product.priceString || `$${product.price}`);
+    const buttonText = isEquipped ? 'Equipped' : (isOwned ? 'Equip' : priceDisplay);
+
+    return (
+      <View key={product.productId} style={styles.card}>
+        <View style={[styles.themePreview, { backgroundColor: themeData.boardBackground }]}>
+          <View style={[styles.previewTile, { backgroundColor: themeData.emptyCellColor }]} />
+          <View style={[styles.previewTile, { backgroundColor: themeData.accentColor }]} />
+        </View>
+        <Text style={styles.cardTitle}>{product.displayName}</Text>
+        <TouchableOpacity
+          style={[
+            styles.button,
+            isEquipped && styles.buttonEquipped,
+            !product.isAvailable && !isOwned && styles.buttonDisabled,
+          ]}
+          onPress={() => {
+            if (isOwned) {
+              handleEquipTheme(product.productId);
+            } else if (product.isAvailable) {
+              handleBuyTheme(product);
+            }
+          }}
+          disabled={purchasing || (!product.isAvailable && !isOwned) || isEquipped}
+        >
+          <Text style={[styles.buttonText, isEquipped && styles.buttonTextEquipped]}>
+            {buttonText}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
   };
 
-  if (loading && !revenueCatReady) {
-    return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <Stack.Screen options={{ headerShown: false }} />
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={{ color: colors.text, marginTop: 16 }}>Initializing store...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  const renderChainColorCard = (product: ProductWithPrice) => {
+    const colorData = chainColorLookupMap.get(product.productId);
+    if (!colorData) {
+      if (__DEV__) {
+        console.warn('[Shop] Render lookup mismatch for chain color:', product.productId);
+      }
+      return null;
+    }
 
-  if (error) {
-    return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <Stack.Screen options={{ headerShown: false }} />
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <IconSymbol ios_icon_name="chevron.left" android_material_icon_name="arrow-back" size={24} color={colors.text} />
-          </TouchableOpacity>
-        </View>
-        {__DEV__ && debugInfo && (
-          <View style={styles.debugBanner}>
-            <Text style={styles.debugText}>{debugInfo}</Text>
-          </View>
-        )}
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={loadOwnershipAndOfferings}>
-            <Text style={styles.retryButtonText}>Retry</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
-  }
+    const isOwned = ownedChainColors.has(product.productId);
+    const isEquipped = equippedColor === product.productId;
+    const isFree = product.productId === FREE_CHAIN_COLOR_ID;
 
-  const currentProducts = activeTab === 'themes' ? themeProducts : colorProducts;
-  const currentOwned = activeTab === 'themes' ? ownedThemes : ownedColors;
-  const currentEquipped = activeTab === 'themes' ? equippedTheme : equippedColor;
+    const priceDisplay = isFree ? 'Free' : (product.priceString || `$${product.price}`);
+    const buttonText = isEquipped ? 'Equipped' : (isOwned ? 'Equip' : priceDisplay);
+
+    return (
+      <View key={product.productId} style={styles.card}>
+        <View style={[styles.colorPreview, { backgroundColor: colorData.hex }]} />
+        <Text style={styles.cardTitle}>{product.displayName}</Text>
+        <TouchableOpacity
+          style={[
+            styles.button,
+            isEquipped && styles.buttonEquipped,
+            !product.isAvailable && !isOwned && styles.buttonDisabled,
+          ]}
+          onPress={() => {
+            if (isOwned) {
+              handleEquipColor(product.productId);
+            } else if (product.isAvailable) {
+              handleBuyColor(product);
+            }
+          }}
+          disabled={purchasing || (!product.isAvailable && !isOwned) || isEquipped}
+        >
+          <Text style={[styles.buttonText, isEquipped && styles.buttonTextEquipped]}>
+            {buttonText}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <Stack.Screen options={{ headerShown: false }} />
-      
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <IconSymbol ios_icon_name="chevron.left" android_material_icon_name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.title}>Shop</Text>
-        <Text style={styles.subtitle}>Customize your game experience</Text>
-      </View>
+      <Stack.Screen
+        options={{
+          title: 'Shop',
+          headerShown: true,
+          headerLeft: () => (
+            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 8 }}>
+              <IconSymbol ios_icon_name="chevron.left" android_material_icon_name="arrow-back" size={24} color={colors.text} />
+            </TouchableOpacity>
+          ),
+        }}
+      />
 
-      {__DEV__ && debugInfo && (
+      {__DEV__ && (
         <View style={styles.debugBanner}>
-          <Text style={styles.debugText}>{debugInfo}</Text>
+          <Text style={styles.debugText}>RC Ready: {revenueCatReady ? 'Yes' : 'No'}</Text>
+          <Text style={styles.debugText}>All Offerings: {debugInfo.allOfferingsCount}</Text>
+          <Text style={styles.debugText}>Current Offering: {debugInfo.currentOfferingId || 'None'}</Text>
+          <Text style={styles.debugText}>Selected Offering: {debugInfo.selectedOfferingId || 'None'}</Text>
+          <Text style={styles.debugText}>Total Packages: {debugInfo.totalPackages}</Text>
+          <Text style={styles.debugText}>Packages Missing storeProduct: {debugInfo.packagesMissingStoreProduct}</Text>
+          <Text style={styles.debugText}>Theme Package Count: {debugInfo.themePackageCount}</Text>
+          <Text style={styles.debugText}>Chain Package Count: {debugInfo.chainPackageCount}</Text>
+          <Text style={styles.debugText}>Fetched Product IDs: {debugInfo.fetchedProductIds.join(', ') || 'None'}</Text>
+          <Text style={styles.debugText}>Unmatched Product IDs: {debugInfo.unmatchedProductIds.join(', ') || 'None'}</Text>
+          <Text style={styles.debugText}>Missing Local Paid IDs: {debugInfo.missingLocalPaidIds.join(', ') || 'None'}</Text>
+          <Text style={styles.debugText}>Latest RevenueCat error: {latestRevenueCatError || 'None'}</Text>
         </View>
       )}
 
-      <View style={styles.tabContainer}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'themes' && styles.tabActive]}
-          onPress={() => setActiveTab('themes')}
-        >
-          <Text style={[styles.tabText, activeTab === 'themes' && styles.tabTextActive]}>
-            Themes
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'colors' && styles.tabActive]}
-          onPress={() => setActiveTab('colors')}
-        >
-          <Text style={[styles.tabText, activeTab === 'colors' && styles.tabTextActive]}>
-            Chain Colors
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent}>
-        {currentProducts.map((product, index) => {
-          const isOwned = currentOwned.has(product.productId);
-          const isEquipped = currentEquipped === product.productId;
-          const isFree = product.price === 0;
-
-          return (
-            <View key={index} style={styles.productCard}>
-              <View style={styles.productInfo}>
-                <Text style={styles.productName}>{product.displayName}</Text>
-                <Text style={styles.productPrice}>
-                  {isFree ? 'Free' : product.priceString || `$${product.price.toFixed(2)}`}
-                </Text>
-              </View>
-              
-              {isEquipped ? (
-                <View style={styles.equippedButton}>
-                  <Text style={styles.equippedButtonText}>Equipped</Text>
-                </View>
-              ) : isOwned ? (
-                <TouchableOpacity
-                  style={styles.ownedButton}
-                  onPress={() => {
-                    if (activeTab === 'themes') {
-                      handleEquipTheme(product.productId);
-                    } else {
-                      handleEquipColor(product.productId);
-                    }
-                  }}
-                >
-                  <Text style={styles.ownedButtonText}>Equip</Text>
-                </TouchableOpacity>
-              ) : product.isAvailable ? (
-                <TouchableOpacity
-                  style={styles.buyButton}
-                  onPress={() => {
-                    if (activeTab === 'themes') {
-                      handleBuyTheme(product);
-                    } else {
-                      handleBuyColor(product);
-                    }
-                  }}
-                >
-                  <Text style={styles.buyButtonText}>
-                    {isFree ? 'Get' : 'Buy'}
-                  </Text>
-                </TouchableOpacity>
-              ) : (
-                <View style={styles.unavailableButton}>
-                  <Text style={styles.unavailableButtonText}>Unavailable</Text>
-                </View>
-              )}
-            </View>
-          );
-        })}
-
-        <TouchableOpacity style={styles.restoreButton} onPress={handleRestorePurchases}>
-          <Text style={styles.restoreButtonText}>Restore Purchases</Text>
-        </TouchableOpacity>
-      </ScrollView>
-
-      {loading && (
-        <View style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.3)',
-          justifyContent: 'center',
-          alignItems: 'center',
-        }}>
+      {loading ? (
+        <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Loading shop...</Text>
         </View>
+      ) : (
+        <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+          {errorMessage ? (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{errorMessage}</Text>
+            </View>
+          ) : null}
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Themes</Text>
+            <View style={styles.grid}>
+              {themes.map(renderThemeCard)}
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Chain Highlight Colors</Text>
+            <View style={styles.grid}>
+              {chainColors.map(renderChainColorCard)}
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={[styles.restoreButton, restoring && styles.buttonDisabled]}
+            onPress={handleRestorePurchases}
+            disabled={restoring || purchasing}
+          >
+            <Text style={styles.restoreButtonText}>
+              {restoring ? 'Restoring...' : 'Restore Purchases'}
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
       )}
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  debugBanner: {
+    backgroundColor: '#000',
+    padding: 12,
+    borderBottomWidth: 2,
+    borderBottomColor: '#ff0',
+  },
+  debugText: {
+    color: '#0f0',
+    fontSize: 10,
+    fontFamily: 'monospace',
+    marginBottom: 2,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: colors.text,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 16,
+  },
+  errorContainer: {
+    backgroundColor: '#ff000020',
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#ff0000',
+  },
+  errorText: {
+    color: '#ff0000',
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  section: {
+    marginBottom: 32,
+  },
+  sectionTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginBottom: 16,
+  },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  card: {
+    width: (SCREEN_WIDTH - 48) / 2,
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  themePreview: {
+    width: '100%',
+    height: 80,
+    borderRadius: 8,
+    marginBottom: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    padding: 8,
+  },
+  previewTile: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+  },
+  colorPreview: {
+    width: '100%',
+    height: 80,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  button: {
+    backgroundColor: colors.primary,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    width: '100%',
+    alignItems: 'center',
+  },
+  buttonEquipped: {
+    backgroundColor: colors.success || '#4CAF50',
+  },
+  buttonDisabled: {
+    backgroundColor: colors.disabled || '#ccc',
+    opacity: 0.5,
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  buttonTextEquipped: {
+    color: '#fff',
+  },
+  restoreButton: {
+    backgroundColor: colors.secondary || colors.primary,
+    paddingVertical: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 16,
+    marginBottom: 32,
+  },
+  restoreButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+});
