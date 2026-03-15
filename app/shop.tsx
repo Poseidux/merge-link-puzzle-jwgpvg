@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Dimensions, ActivityIndicator, Alert, Platform } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,6 +17,7 @@ import {
 import { IconSymbol } from '@/components/IconSymbol';
 import Purchases, { PurchasesPackage, CustomerInfo } from 'react-native-purchases';
 import Constants from 'expo-constants';
+import { RevenueCatContext } from '@/app/_layout';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -39,10 +40,11 @@ const REVENUECAT_REST_IDS = {
 
 export default function ShopScreen() {
   const router = useRouter();
+  const { revenueCatReady } = useContext(RevenueCatContext);
   const [ownedThemes, setOwnedThemes] = useState<string[]>(['theme_classic']);
   const [ownedColors, setOwnedColors] = useState<string[]>(['chain_gold']);
   const [equippedTheme, setEquippedTheme] = useState<string>('theme_classic');
-  const [equippedColor, setEquippedColor] = useState<string>('#FFD700');
+  const [equippedColor, setEquippedColor] = useState<string>('chain_gold');
   const [activeTab, setActiveTab] = useState<'themes' | 'colors'>('themes');
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState<string | null>(null);
@@ -59,6 +61,7 @@ export default function ShopScreen() {
     console.log('[Shop] Platform:', Platform.OS);
     console.log('[Shop] App Name:', Constants.expoConfig?.name);
     console.log('[Shop] Is Expo Go:', Constants.appOwnership === 'expo');
+    console.log('[Shop] RevenueCat ready:', revenueCatReady);
     
     // CRITICAL CHECK: Detect if running in unsupported environment
     if (Platform.OS === 'web') {
@@ -80,6 +83,12 @@ export default function ShopScreen() {
       loadLocalDataOnly();
       return;
     }
+
+    if (!revenueCatReady) {
+      console.log('[Shop] RevenueCat not ready yet, waiting...');
+      setLoading(true);
+      return;
+    }
     
     console.log('[Shop] ✅ Running on native platform, proceeding with RevenueCat initialization');
     console.log('[Shop] 📋 RevenueCat REST API Reference IDs (for dashboard verification only):');
@@ -87,7 +96,7 @@ export default function ShopScreen() {
     console.log('[Shop] ⚠️ NOTE: SDK uses Offering IDENTIFIER strings ("themes"), not REST IDs');
     console.log('[Shop] Loading ownership data and RevenueCat offerings');
     loadOwnershipAndOfferings();
-  }, []);
+  }, [revenueCatReady]);
 
   const loadLocalDataOnly = () => {
     console.log('[Shop] Loading local data only (no RevenueCat)');
@@ -118,7 +127,7 @@ export default function ShopScreen() {
     loadOwnedThemes().then(setOwnedThemes);
     loadOwnedColors().then(setOwnedColors);
     loadTheme().then((theme) => setEquippedTheme(theme || 'theme_classic'));
-    loadChainHighlightColor().then((color) => setEquippedColor(color || '#FFD700'));
+    loadChainHighlightColor().then((color) => setEquippedColor(color || 'chain_gold'));
     
     setLoading(false);
   };
@@ -138,7 +147,7 @@ export default function ShopScreen() {
       setOwnedThemes(themes);
       setOwnedColors(colorIds);
       setEquippedTheme(currentTheme || 'theme_classic');
-      setEquippedColor(currentColor || '#FFD700');
+      setEquippedColor(currentColor || 'chain_gold');
       
       console.log('[Shop] ✅ Local ownership loaded:', { 
         themesCount: themes.length, 
@@ -405,11 +414,11 @@ export default function ShopScreen() {
     const ownedChainColorIds: string[] = ['chain_gold'];
     
     console.log('[Shop] 🔍 Processing customer info for ownership');
-    console.log(`[Shop] Non-subscription transactions: ${customerInfo.nonSubscriptionTransactions.length}`);
+    const purchasedProductIds = customerInfo.allPurchasedProductIdentifiers;
+    console.log(`[Shop] All purchased product identifiers: ${purchasedProductIds.length}`);
     
-    customerInfo.nonSubscriptionTransactions.forEach((transaction, index) => {
-      const productId = transaction.productIdentifier;
-      console.log(`[Shop]   Transaction ${index + 1}: ${productId}`);
+    purchasedProductIds.forEach((productId, index) => {
+      console.log(`[Shop]   Product ${index + 1}: ${productId}`);
       
       if (productId.startsWith('theme_') && !ownedThemeIds.includes(productId)) {
         ownedThemeIds.push(productId);
@@ -506,11 +515,8 @@ export default function ShopScreen() {
 
   const handleEquipColor = async (colorId: string) => {
     console.log(`[Shop] Equipping color: ${colorId}`);
-    const colorObj = CHAIN_HIGHLIGHT_COLORS[colorId];
-    if (colorObj) {
-      setEquippedColor(colorObj.color);
-      await saveChainHighlightColor(colorObj.color);
-    }
+    setEquippedColor(colorId);
+    await saveChainHighlightColor(colorId);
   };
 
   const handleRestorePurchases = async () => {
@@ -738,7 +744,7 @@ export default function ShopScreen() {
               if (!colorObj) return null;
               
               const isOwned = ownedColors.includes(product.productId);
-              const isEquipped = equippedColor === colorObj.color;
+              const isEquipped = equippedColor === product.productId;
               const isPurchasing = purchasing === product.productId;
               const priceText = product.priceString || (product.price === 0 ? 'Free' : `$${product.price.toFixed(2)}`);
               const statusText = isEquipped ? 'Equipped' : (isOwned ? 'Owned' : (product.isAvailable ? priceText : 'Unavailable'));
