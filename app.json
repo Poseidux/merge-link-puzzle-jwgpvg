@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.Natively",
+      "bundleIdentifier": "com.poseiduxfitness.numble",
       "icon": "./assets/images/2b7bed79-c4f8-4440-b7a9-02d703bfc973.png",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
@@ -34,7 +34,7 @@
       },
       "icon": "./assets/images/2b7bed79-c4f8-4440-b7a9-02d703bfc973.png",
       "edgeToEdgeEnabled": true,
-      "package": "com.anonymous.Natively"
+      "package": "com.poseiduxfitness.numble"
     },
     "web": {
       "favicon": "./assets/images/2b7bed79-c4f8-4440-b7a9-02d703bfc973.png",
@@ -43,7 +43,8 @@
     "plugins": [
       "expo-font",
       "expo-router",
-      "expo-web-browser"
+      "expo-web-browser",
+      "react-native-purchases"
     ],
     "scheme": "numble",
     "experiments": {
