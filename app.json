@@ -43,8 +43,7 @@
     "plugins": [
       "expo-font",
       "expo-router",
-      "expo-web-browser",
-      "react-native-purchases"
+      "expo-web-browser"
     ],
     "scheme": "numble",
     "experiments": {
