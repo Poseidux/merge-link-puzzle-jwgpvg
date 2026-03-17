@@ -119,11 +119,19 @@ export default function ShopScreen() {
     setLoading(true);
     setErrorMessage('');
 
+    if (!Purchases.isConfigured()) {
+      console.warn('[RevenueCat Diagnostics] getOfferings attempted before SDK configured');
+      setErrorMessage('Store is still initializing. Please try again in a moment.');
+      setLoading(false);
+      return;
+    }
+
     try {
       const offerings = await Purchases.getOfferings();
 
-      // Use offerings.current (default offering) as primary source of truth
-      const selectedOffering = offerings.current;
+      // Use "themes" offering explicitly, fall back to current
+      const selectedOffering = offerings.all['themes'] ?? offerings.current;
+      console.log('[RevenueCat Diagnostics] Target offering:', selectedOffering?.identifier ?? 'none');
 
       const debugData = {
         allOfferingsCount: Object.keys(offerings.all).length,
@@ -153,7 +161,7 @@ export default function ShopScreen() {
 
       if (availablePackages.length === 0) {
         console.warn('[RevenueCat Diagnostics] StoreKit returned 0 products. Verify products exist in App Store Connect for bundle ID com.poseiduxfitness.numble and are approved/ready to submit. RevenueCat app: app733f6356d7');
-        setErrorMessage('No products available from Apple. This usually means the products are not yet approved in App Store Connect for bundle ID com.poseiduxfitness.numble, or this build is not running in the correct StoreKit environment (sandbox/production). Check App Store Connect > In-App Purchases and ensure products are in \'Ready to Submit\' or \'Approved\' state.');
+        setErrorMessage('No products available. Apple StoreKit returned 0 products for bundle ID com.poseiduxfitness.numble. Check that all In-App Purchase products are approved in App Store Connect and that this build\'s bundle ID matches exactly.');
         setDebugInfo(debugData);
         setLoading(false);
         return;
@@ -320,6 +328,11 @@ export default function ShopScreen() {
   }, [themeLookupMap, chainColorLookupMap]);
 
   const handleBuyTheme = useCallback(async (product: ProductWithPrice) => {
+    if (!Purchases.isConfigured()) {
+      console.warn('[RevenueCat Diagnostics] Purchase attempted before SDK configured');
+      Alert.alert('Not ready', 'Store is still initializing. Please try again in a moment.');
+      return;
+    }
     if (!product.pkg) {
       console.log(`[RevenueCat] No package found for productId: ${product.productId}`);
       Alert.alert('Unavailable', 'This item is not available for purchase right now.');
@@ -357,6 +370,11 @@ export default function ShopScreen() {
   }, []);
 
   const handleBuyColor = useCallback(async (product: ProductWithPrice) => {
+    if (!Purchases.isConfigured()) {
+      console.warn('[RevenueCat Diagnostics] Purchase attempted before SDK configured');
+      Alert.alert('Not ready', 'Store is still initializing. Please try again in a moment.');
+      return;
+    }
     if (!product.pkg) {
       console.log(`[RevenueCat] No package found for productId: ${product.productId}`);
       Alert.alert('Unavailable', 'This item is not available for purchase right now.');
@@ -394,6 +412,11 @@ export default function ShopScreen() {
   }, []);
 
   const handleRestorePurchases = useCallback(async () => {
+    if (!Purchases.isConfigured()) {
+      console.warn('[RevenueCat Diagnostics] Purchase attempted before SDK configured');
+      Alert.alert('Not ready', 'Store is still initializing. Please try again in a moment.');
+      return;
+    }
     setRestoring(true);
     setErrorMessage('');
 

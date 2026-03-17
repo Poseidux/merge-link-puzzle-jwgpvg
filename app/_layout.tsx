@@ -39,75 +39,60 @@ export default function RootLayout() {
 
   // Initialize RevenueCat on app startup
   useEffect(() => {
-    const configureRevenueCat = async () => {
-      if (Platform.OS === 'ios') {
-        try {
-          const API_KEY = "appl_eSqPGLdMlJGuNyCAThUysRVZTcj";
-
-          if (!Purchases.isConfigured()) {
-            if (__DEV__) {
-              Purchases.setLogLevel(LOG_LEVEL.DEBUG);
-              console.log('[RevenueCat] Configuring for iOS');
-            }
-            Purchases.configure({
-              apiKey: API_KEY,
-              appUserID: null, // anonymous — correct for non-subscription one-time purchases
-            });
-          } else {
-            if (__DEV__) {
-              console.log('[RevenueCat] Already configured, skipping duplicate configure()');
-            }
-          }
-
-          if (__DEV__) {
-            console.log('[RevenueCat] ✅ Configuration successful');
-          }
-
-          // Verify configuration before setting ready flag
-          const isConfigured = Purchases.isConfigured();
-          if (isConfigured) {
-            setRevenueCatReady(true);
-            if (__DEV__) {
-              console.log('[RevenueCat] ✅ Ready flag set to true');
-              console.log('[RevenueCat Diagnostics] Bundle ID in use: com.poseiduxfitness.numble');
-              console.log('[RevenueCat Diagnostics] RevenueCat App ID: app733f6356d7');
-              const appUserID = await Purchases.getAppUserID();
-              console.log('[RevenueCat Diagnostics] App User ID:', appUserID);
-            }
-
-            // Pre-fetch offerings so they are cached before the shop screen opens
-            try {
-              const offerings = await Purchases.getOfferings();
-              const packages = offerings.current?.availablePackages ?? [];
-              console.log('[RevenueCat Diagnostics] Current offering ID:', offerings.current?.identifier ?? 'none');
-              console.log('[RevenueCat Diagnostics] Loaded package count:', packages.length);
-              packages.forEach(pkg => {
-                console.log('[RevenueCat Diagnostics] Package:', pkg.identifier, '| Product ID:', pkg.storeProduct.productIdentifier, '| Price:', pkg.storeProduct.priceString);
-              });
-              console.log('[RevenueCat Diagnostics] StoreKit product count:', packages.length);
-            } catch (offeringsError) {
-              console.warn('[RevenueCat] Pre-fetch offerings failed (will retry in shop):', offeringsError);
-            }
-          } else {
-            if (__DEV__) {
-              console.error('[RevenueCat] ❌ Configuration verification failed');
-            }
-          }
-        } catch (error) {
-          if (__DEV__) {
-            console.error('[RevenueCat] ❌ Configuration error:', error);
-          }
-        }
-      } else {
-        if (__DEV__) {
-          console.log(`[RevenueCat] Platform is ${Platform.OS}, skipping iOS configuration`);
-        }
+    const initRC = async () => {
+      if (Platform.OS !== 'ios') {
         // For non-iOS platforms, set ready to true to allow shop to proceed
         setRevenueCatReady(true);
+        return;
+      }
+      try {
+        const API_KEY = "appl_eSqPGLdMlJGuNyCAThUysRVZTcj";
+
+        if (!Purchases.isConfigured()) {
+          if (__DEV__) {
+            Purchases.setLogLevel(LOG_LEVEL.DEBUG);
+          }
+          Purchases.configure({
+            apiKey: API_KEY,
+            appUserID: null,
+          });
+        } else {
+          if (__DEV__) {
+            console.log('[RevenueCat] Already configured, skipping duplicate configure()');
+          }
+        }
+
+        // Only set ready AFTER configure returns
+        setRevenueCatReady(true);
+
+        const appUserID = await Purchases.getAppUserID();
+        console.log('[RevenueCat Diagnostics] Configured. App User ID:', appUserID);
+        console.log('[RevenueCat Diagnostics] Bundle ID: com.poseiduxfitness.numble');
+        console.log('[RevenueCat Diagnostics] RC App ID: app733f6356d7');
+
+        // Pre-fetch offerings so they are cached before the shop screen opens
+        try {
+          const offerings = await Purchases.getOfferings();
+          // Use "themes" offering explicitly, fall back to current
+          const targetOffering = offerings.all['themes'] ?? offerings.current;
+          console.log('[RevenueCat Diagnostics] Target offering:', targetOffering?.identifier ?? 'none');
+          const packages = targetOffering?.availablePackages ?? [];
+          console.log('[RevenueCat Diagnostics] Package count:', packages.length);
+          packages.forEach(pkg => {
+            console.log('[RevenueCat Diagnostics] Package:', pkg.identifier, '| Product:', pkg.storeProduct.productIdentifier, '| Price:', pkg.storeProduct.priceString);
+          });
+          if (packages.length === 0) {
+            console.warn('[RevenueCat Diagnostics] StoreKit returned 0 products for offering "themes". Verify products are approved in App Store Connect for bundle ID com.poseiduxfitness.numble (RC app: app733f6356d7). Products must be in Ready to Submit or Approved state.');
+          }
+        } catch (offeringsError) {
+          console.warn('[RevenueCat] Pre-fetch offerings failed (will retry in shop):', offeringsError);
+        }
+      } catch (e) {
+        console.error('[RevenueCat Diagnostics] Configure error:', e);
       }
     };
 
-    configureRevenueCat();
+    initRC();
   }, []);
 
   useEffect(() => {
