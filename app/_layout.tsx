@@ -17,6 +17,7 @@ import {
 import { StatusBar } from "expo-status-bar";
 import { WidgetProvider } from "@/contexts/WidgetContext";
 import Purchases, { LOG_LEVEL } from "react-native-purchases";
+import { RC_OFFERING_ID } from "@/constants/RevenueCatProducts";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -73,16 +74,14 @@ export default function RootLayout() {
         // Pre-fetch offerings so they are cached before the shop screen opens
         try {
           const offerings = await Purchases.getOfferings();
-          // Use "themes" offering explicitly, fall back to current
-          const targetOffering = offerings.all['themes'] ?? offerings.current;
-          console.log('[RevenueCat Diagnostics] Target offering:', targetOffering?.identifier ?? 'none');
-          const packages = targetOffering?.availablePackages ?? [];
-          console.log('[RevenueCat Diagnostics] Package count:', packages.length);
-          packages.forEach(pkg => {
-            console.log('[RevenueCat Diagnostics] Package:', pkg.identifier, '| Product:', pkg.storeProduct.productIdentifier, '| Price:', pkg.storeProduct.priceString);
+          const themesOffering = offerings.all[RC_OFFERING_ID] ?? offerings.current;
+          console.log('[RevenueCat Diagnostics] Offering used:', themesOffering?.identifier ?? 'none');
+          console.log('[RevenueCat Diagnostics] Package count:', themesOffering?.availablePackages?.length ?? 0);
+          themesOffering?.availablePackages?.forEach(pkg => {
+            console.log('[RevenueCat Diagnostics] Package:', pkg.identifier, '| Product ID:', pkg.storeProduct.productIdentifier, '| Price:', pkg.storeProduct.priceString);
           });
-          if (packages.length === 0) {
-            console.warn('[RevenueCat Diagnostics] StoreKit returned 0 products for offering "themes". Verify products are approved in App Store Connect for bundle ID com.poseiduxfitness.numble (RC app: app733f6356d7). Products must be in Ready to Submit or Approved state.');
+          if ((themesOffering?.availablePackages?.length ?? 0) === 0) {
+            console.warn('[RevenueCat Diagnostics] ⚠️ StoreKit returned 0 products. Bundle: com.poseiduxfitness.numble | Offering: themes (ofrng11cb78188e) | RC App: app733f6356d7. Ensure all 35 products are Approved in App Store Connect.');
           }
         } catch (offeringsError) {
           console.warn('[RevenueCat] Pre-fetch offerings failed (will retry in shop):', offeringsError);

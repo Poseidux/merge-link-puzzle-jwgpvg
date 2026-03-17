@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useContext, useMemo, useCallback } from 'react';
+import { RC_OFFERING_ID, ALL_PRODUCT_IDS } from '@/constants/RevenueCatProducts';
 import Constants from 'expo-constants';
 import { IconSymbol } from '@/components/IconSymbol';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -129,8 +130,8 @@ export default function ShopScreen() {
     try {
       const offerings = await Purchases.getOfferings();
 
-      // Use "themes" offering explicitly, fall back to current
-      const selectedOffering = offerings.all['themes'] ?? offerings.current;
+      // Use RC_OFFERING_ID ("themes") explicitly, fall back to current
+      const selectedOffering = offerings.all[RC_OFFERING_ID] ?? offerings.current;
       console.log('[RevenueCat Diagnostics] Target offering:', selectedOffering?.identifier ?? 'none');
 
       const debugData = {
@@ -161,13 +162,13 @@ export default function ShopScreen() {
 
       if (availablePackages.length === 0) {
         console.warn('[RevenueCat Diagnostics] StoreKit returned 0 products. Verify products exist in App Store Connect for bundle ID com.poseiduxfitness.numble and are approved/ready to submit. RevenueCat app: app733f6356d7');
-        setErrorMessage('No products available. Apple StoreKit returned 0 products for bundle ID com.poseiduxfitness.numble. Check that all In-App Purchase products are approved in App Store Connect and that this build\'s bundle ID matches exactly.');
+        setErrorMessage("No products loaded from Apple. Offering: 'themes' | Bundle: com.poseiduxfitness.numble | Ensure all In-App Purchase products are Approved in App Store Connect.");
         setDebugInfo(debugData);
         setLoading(false);
         return;
       }
 
-      // Build packageMap keyed by storeProduct.identifier (exact product ID)
+      // Build packageMap keyed by storeProduct.productIdentifier (exact product ID)
       const packageMap: Record<string, PurchasesPackage> = {};
       const packagesMissingStoreProduct: string[] = [];
 
@@ -177,11 +178,17 @@ export default function ShopScreen() {
           console.warn('[Shop] Package missing storeProduct:', pkg.identifier);
           return;
         }
-        const productId = pkg.storeProduct.identifier;
+        const productId = pkg.storeProduct.productIdentifier;
         packageMap[productId] = pkg;
       });
 
       console.log('[RevenueCat] packageMap keys:', Object.keys(packageMap));
+
+      // Warn about any known product IDs that didn't come back from StoreKit
+      const unmatchedIds = ALL_PRODUCT_IDS.filter(id => !packageMap[id]);
+      if (unmatchedIds.length > 0) {
+        console.warn('[RevenueCat Diagnostics] Product IDs in app but NOT in StoreKit packages:', unmatchedIds);
+      }
 
       const fetchedProductIds = Object.keys(packageMap);
       const unmatchedProductIds: string[] = [];
