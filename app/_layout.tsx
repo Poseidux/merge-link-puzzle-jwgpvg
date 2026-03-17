@@ -42,41 +42,49 @@ export default function RootLayout() {
     const configureRevenueCat = async () => {
       if (Platform.OS === 'ios') {
         try {
-          // Set log level BEFORE configuration
-          if (__DEV__) {
-            Purchases.setLogLevel(LOG_LEVEL.VERBOSE);
-            console.log('[RevenueCat] Setting log level to VERBOSE (development only)');
+          const API_KEY = "appl_eSqPGLdMlJGuNyCAThUysRVZTcj";
+
+          if (!Purchases.isConfigured()) {
+            if (__DEV__) {
+              Purchases.setLogLevel(LOG_LEVEL.DEBUG);
+              console.log('[RevenueCat] Configuring for iOS');
+            }
+            Purchases.configure({
+              apiKey: API_KEY,
+              appUserID: null, // anonymous — correct for non-subscription one-time purchases
+            });
           } else {
-            Purchases.setLogLevel(LOG_LEVEL.ERROR);
+            if (__DEV__) {
+              console.log('[RevenueCat] Already configured, skipping duplicate configure()');
+            }
           }
 
-          // Use the existing iOS public RevenueCat SDK key from native app settings
-          // Note: This key is stored in native settings and should not be hardcoded in JS
-          const API_KEY = "appl_eSqPGLdMlJGuNyCAThUysRVZTcj";
-          
-          if (__DEV__) {
-            console.log('[RevenueCat] Configuring for iOS');
-          }
-          
-          await Purchases.configure({ apiKey: API_KEY });
-          
           if (__DEV__) {
             console.log('[RevenueCat] ✅ Configuration successful');
           }
-          
+
           // Verify configuration before setting ready flag
-          const isConfigured = await Purchases.isConfigured();
+          const isConfigured = Purchases.isConfigured();
           if (isConfigured) {
             setRevenueCatReady(true);
             if (__DEV__) {
               console.log('[RevenueCat] ✅ Ready flag set to true');
+              console.log('[RevenueCat Diagnostics] Bundle ID in use: com.poseiduxfitness.numble');
+              console.log('[RevenueCat Diagnostics] RevenueCat App ID: app733f6356d7');
+              const appUserID = await Purchases.getAppUserID();
+              console.log('[RevenueCat Diagnostics] App User ID:', appUserID);
             }
 
             // Pre-fetch offerings so they are cached before the shop screen opens
             try {
               const offerings = await Purchases.getOfferings();
-              const packageCount = offerings.current?.availablePackages?.length ?? 0;
-              console.log(`[RevenueCat] Offerings loaded: ${packageCount} packages`);
+              const packages = offerings.current?.availablePackages ?? [];
+              console.log('[RevenueCat Diagnostics] Current offering ID:', offerings.current?.identifier ?? 'none');
+              console.log('[RevenueCat Diagnostics] Loaded package count:', packages.length);
+              packages.forEach(pkg => {
+                console.log('[RevenueCat Diagnostics] Package:', pkg.identifier, '| Product ID:', pkg.storeProduct.productIdentifier, '| Price:', pkg.storeProduct.priceString);
+              });
+              console.log('[RevenueCat Diagnostics] StoreKit product count:', packages.length);
             } catch (offeringsError) {
               console.warn('[RevenueCat] Pre-fetch offerings failed (will retry in shop):', offeringsError);
             }

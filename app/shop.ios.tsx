@@ -152,7 +152,8 @@ export default function ShopScreen() {
       console.log(`[RevenueCat] Offerings loaded: ${availablePackages.length} packages`);
 
       if (availablePackages.length === 0) {
-        setErrorMessage('RevenueCat offering loaded, but Apple StoreKit returned zero products for this build. Check App Store Connect product state, sandbox/TestFlight availability, bundle id, and Apple review/submission state.');
+        console.warn('[RevenueCat Diagnostics] StoreKit returned 0 products. Verify products exist in App Store Connect for bundle ID com.poseiduxfitness.numble and are approved/ready to submit. RevenueCat app: app733f6356d7');
+        setErrorMessage('No products available from Apple. This usually means the products are not yet approved in App Store Connect for bundle ID com.poseiduxfitness.numble, or this build is not running in the correct StoreKit environment (sandbox/production). Check App Store Connect > In-App Purchases and ensure products are in \'Ready to Submit\' or \'Approved\' state.');
         setDebugInfo(debugData);
         setLoading(false);
         return;
