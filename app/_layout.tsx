@@ -71,6 +71,15 @@ export default function RootLayout() {
             if (__DEV__) {
               console.log('[RevenueCat] ✅ Ready flag set to true');
             }
+
+            // Pre-fetch offerings so they are cached before the shop screen opens
+            try {
+              const offerings = await Purchases.getOfferings();
+              const packageCount = offerings.current?.availablePackages?.length ?? 0;
+              console.log(`[RevenueCat] Offerings loaded: ${packageCount} packages`);
+            } catch (offeringsError) {
+              console.warn('[RevenueCat] Pre-fetch offerings failed (will retry in shop):', offeringsError);
+            }
           } else {
             if (__DEV__) {
               console.error('[RevenueCat] ❌ Configuration verification failed');

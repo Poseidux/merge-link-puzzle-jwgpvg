@@ -122,15 +122,8 @@ export default function ShopScreen() {
     try {
       const offerings = await Purchases.getOfferings();
 
-      if (__DEV__) {
-        console.log('[Shop] Offerings loaded:', {
-          allOfferingsKeys: Object.keys(offerings.all),
-          currentOfferingId: offerings.current?.identifier,
-        });
-      }
-
-      // Select offering: offerings.all["themes"] first, fallback to offerings.current
-      const selectedOffering = offerings.all["themes"] || offerings.current;
+      // Use offerings.current (default offering) as primary source of truth
+      const selectedOffering = offerings.current;
 
       const debugData = {
         allOfferingsCount: Object.keys(offerings.all).length,
@@ -146,6 +139,7 @@ export default function ShopScreen() {
       };
 
       if (!selectedOffering) {
+        console.warn('[RevenueCat] offerings.current is null — no default offering configured');
         setErrorMessage('No offerings found. Check RevenueCat configuration.');
         setDebugInfo(debugData);
         setLoading(false);
@@ -155,6 +149,8 @@ export default function ShopScreen() {
       const availablePackages = selectedOffering.availablePackages;
       debugData.totalPackages = availablePackages.length;
 
+      console.log(`[RevenueCat] Offerings loaded: ${availablePackages.length} packages`);
+
       if (availablePackages.length === 0) {
         setErrorMessage('RevenueCat offering loaded, but Apple StoreKit returned zero products for this build. Check App Store Connect product state, sandbox/TestFlight availability, bundle id, and Apple review/submission state.');
         setDebugInfo(debugData);
@@ -162,24 +158,30 @@ export default function ShopScreen() {
         return;
       }
 
-      const themePackages: ProductWithPrice[] = [];
-      const chainPackages: ProductWithPrice[] = [];
-      const fetchedProductIds: string[] = [];
-      const unmatchedProductIds: string[] = [];
+      // Build packageMap keyed by storeProduct.identifier (exact product ID)
+      const packageMap: Record<string, PurchasesPackage> = {};
       const packagesMissingStoreProduct: string[] = [];
 
       availablePackages.forEach(pkg => {
         if (!pkg.storeProduct) {
           packagesMissingStoreProduct.push(pkg.identifier);
-          if (__DEV__) {
-            console.warn('[Shop] Package missing storeProduct:', pkg.identifier);
-          }
+          console.warn('[Shop] Package missing storeProduct:', pkg.identifier);
           return;
         }
-
         const productId = pkg.storeProduct.identifier;
-        fetchedProductIds.push(productId);
+        packageMap[productId] = pkg;
+      });
 
+      console.log('[RevenueCat] packageMap keys:', Object.keys(packageMap));
+
+      const fetchedProductIds = Object.keys(packageMap);
+      const unmatchedProductIds: string[] = [];
+
+      const themePackages: ProductWithPrice[] = [];
+      const chainPackages: ProductWithPrice[] = [];
+
+      fetchedProductIds.forEach(productId => {
+        const pkg = packageMap[productId];
         if (themeLookupMap.has(productId)) {
           const themeData = themeLookupMap.get(productId)!;
           themePackages.push({
@@ -224,6 +226,10 @@ export default function ShopScreen() {
           allThemes.push(rcItem);
         } else {
           const isFree = themeData.productId === FREE_THEME_ID;
+          if (!isFree) {
+            console.log(`[RevenueCat] No package found for productId: ${themeData.productId}`);
+            missingLocalPaidIds.push(themeData.productId);
+          }
           allThemes.push({
             productId: themeData.productId,
             displayName: themeData.displayName,
@@ -231,9 +237,6 @@ export default function ShopScreen() {
             type: 'theme',
             isAvailable: isFree,
           });
-          if (!isFree) {
-            missingLocalPaidIds.push(themeData.productId);
-          }
         }
       });
 
@@ -243,6 +246,10 @@ export default function ShopScreen() {
           allChainColors.push(rcItem);
         } else {
           const isFree = colorData.productId === FREE_CHAIN_COLOR_ID;
+          if (!isFree) {
+            console.log(`[RevenueCat] No package found for productId: ${colorData.productId}`);
+            missingLocalPaidIds.push(colorData.productId);
+          }
           allChainColors.push({
             productId: colorData.productId,
             displayName: colorData.displayName,
@@ -250,9 +257,6 @@ export default function ShopScreen() {
             type: 'chainColor',
             isAvailable: isFree,
           });
-          if (!isFree) {
-            missingLocalPaidIds.push(colorData.productId);
-          }
         }
       });
 
@@ -316,28 +320,23 @@ export default function ShopScreen() {
 
   const handleBuyTheme = useCallback(async (product: ProductWithPrice) => {
     if (!product.pkg) {
-      Alert.alert('Unavailable', 'This theme is not available for purchase.');
+      console.log(`[RevenueCat] No package found for productId: ${product.productId}`);
+      Alert.alert('Unavailable', 'This item is not available for purchase right now.');
       return;
     }
 
+    console.log(`[RevenueCat] Purchasing package: ${product.productId}`);
     setPurchasing(true);
     setErrorMessage('');
 
     try {
       const { customerInfo } = await Purchases.purchasePackage(product.pkg);
+      const owned = customerInfo.allPurchasedProductIdentifiers.includes(product.productId);
+      console.log(`[RevenueCat] Purchase success: ${product.productId} (in allPurchasedProductIdentifiers: ${owned})`);
       await updateOwnershipFromCustomerInfo(customerInfo);
       Alert.alert('Success', `${product.displayName} purchased!`);
     } catch (e: any) {
-      if (__DEV__) {
-        console.error('[Shop] Purchase error:', {
-          message: e.message,
-          code: e.code,
-          readableErrorCode: e.readableErrorCode,
-          underlyingErrorMessage: e.underlyingErrorMessage,
-          domain: e.domain,
-        });
-      }
-
+      console.log(`[RevenueCat] Purchase error: ${e.message}`);
       if (!e.userCancelled) {
         setErrorMessage(`Purchase failed: ${e.message}`);
         setLatestRevenueCatError(e.message);
@@ -358,28 +357,23 @@ export default function ShopScreen() {
 
   const handleBuyColor = useCallback(async (product: ProductWithPrice) => {
     if (!product.pkg) {
-      Alert.alert('Unavailable', 'This chain color is not available for purchase.');
+      console.log(`[RevenueCat] No package found for productId: ${product.productId}`);
+      Alert.alert('Unavailable', 'This item is not available for purchase right now.');
       return;
     }
 
+    console.log(`[RevenueCat] Purchasing package: ${product.productId}`);
     setPurchasing(true);
     setErrorMessage('');
 
     try {
       const { customerInfo } = await Purchases.purchasePackage(product.pkg);
+      const owned = customerInfo.allPurchasedProductIdentifiers.includes(product.productId);
+      console.log(`[RevenueCat] Purchase success: ${product.productId} (in allPurchasedProductIdentifiers: ${owned})`);
       await updateOwnershipFromCustomerInfo(customerInfo);
       Alert.alert('Success', `${product.displayName} purchased!`);
     } catch (e: any) {
-      if (__DEV__) {
-        console.error('[Shop] Purchase error:', {
-          message: e.message,
-          code: e.code,
-          readableErrorCode: e.readableErrorCode,
-          underlyingErrorMessage: e.underlyingErrorMessage,
-          domain: e.domain,
-        });
-      }
-
+      console.log(`[RevenueCat] Purchase error: ${e.message}`);
       if (!e.userCancelled) {
         setErrorMessage(`Purchase failed: ${e.message}`);
         setLatestRevenueCatError(e.message);

@@ -158,41 +158,20 @@ export default function ShopScreen() {
       
       console.log('[Shop] Step 2: Fetching RevenueCat offerings');
       const offerings = await Purchases.getOfferings();
-      
-      console.log('[Shop] ✅ Offerings fetched successfully');
-      console.log('[Shop] 📊 REVENUECAT DIAGNOSTICS:');
-      const offeringIdentifiers = Object.keys(offerings.all);
-      console.log('[Shop]   (1) Offering IDs (Object.keys(offerings.all)):', offeringIdentifiers);
-      console.log('[Shop]   (2) Current offering ID:', offerings.current?.identifier || 'NONE');
-      
+
+      // Use offerings.current (default offering) as primary source of truth
+      const selectedOffering = offerings.current;
+
       const debugLines = [];
-      debugLines.push(`Offerings: [${offeringIdentifiers.join(', ') || 'NONE'}]`);
+      debugLines.push(`Offerings: [${Object.keys(offerings.all).join(', ') || 'NONE'}]`);
       debugLines.push(`Current: ${offerings.current?.identifier || 'NONE'}`);
-      
-      if (offeringIdentifiers.length === 0) {
-        const emptyMsg = 'Offerings empty (check RevenueCat project/API key/offering identifiers)';
-        console.error(`[Shop] ❌ ${emptyMsg}`);
-        console.error('[Shop] 🔧 Troubleshooting:');
-        console.error('[Shop]   1. Verify offerings exist in RevenueCat dashboard');
-        console.error('[Shop]   2. Check products are attached to offerings');
-        console.error('[Shop]   3. Confirm API key matches project');
-        console.error('[Shop]   4. Ensure offerings are available in current environment');
-        
-        setErrorMessage(emptyMsg);
-        debugLines.push('⚠️ Empty - check dashboard');
-      }
-      
-      // Select the 'themes' offering (or fallback to current)
-      console.log('[Shop] Step 3: Selecting "themes" offering');
-      const selectedOffering = offerings.all['themes'] || offerings.current;
-      
+
       if (!selectedOffering) {
-        const msg = 'No "themes" offering found and no current offering. Check RevenueCat configuration.';
-        console.error(`[Shop] ❌ ${msg}`);
+        const msg = 'offerings.current is null — no default offering configured in RevenueCat.';
+        console.warn(`[RevenueCat] ${msg}`);
         setErrorMessage(msg);
-        debugLines.push('⚠️ No "themes" offering');
-        
-        // Fallback to local data
+        debugLines.push('⚠️ No current offering');
+
         const allThemes = Object.values(THEMES).map((theme) => ({
           productId: theme.productId,
           displayName: theme.displayName,
@@ -201,7 +180,7 @@ export default function ShopScreen() {
           type: 'theme' as const,
           isAvailable: theme.price === 0,
         }));
-        
+
         const allColors = Object.values(CHAIN_HIGHLIGHT_COLORS).map((color) => ({
           productId: color.productId,
           displayName: color.displayName,
@@ -210,139 +189,88 @@ export default function ShopScreen() {
           type: 'chainColor' as const,
           isAvailable: color.price === 0,
         }));
-        
+
         setThemesWithPrices(allThemes);
         setColorsWithPrices(allColors);
         setDebugInfo(debugLines.join(' | '));
         setLoading(false);
         return;
       }
-      
-      const selectedOfferingIdentifier = selectedOffering.identifier;
-      const allPackagesInSelectedOffering = selectedOffering.availablePackages;
-      
-      console.log(`[Shop]   Selected offering: "${selectedOfferingIdentifier}"`);
-      console.log(`[Shop]   (3) Total packages in "${selectedOfferingIdentifier}": ${allPackagesInSelectedOffering.length}`);
-      
-      debugLines.push(`Selected: ${selectedOfferingIdentifier}`);
-      debugLines.push(`Total Packages: ${allPackagesInSelectedOffering.length}`);
-      
-      // Split packages into themes and chain colors based on product ID prefix
-      console.log('[Shop] Step 4: Splitting packages by product ID prefix');
-      const themePackages: PurchasesPackage[] = [];
-      const chainPackages: PurchasesPackage[] = [];
-      
-      allPackagesInSelectedOffering.forEach((pkg, index) => {
-        const productId = pkg.storeProduct.identifier;
-        const priceString = pkg.storeProduct.priceString;
-        const pkgIdentifier = pkg.identifier;
-        
-        console.log(`[Shop]   Package ${index + 1}:`);
-        console.log(`[Shop]     - pkg.identifier: ${pkgIdentifier}`);
-        console.log(`[Shop]     - pkg.storeProduct.identifier: ${productId}`);
-        console.log(`[Shop]     - pkg.storeProduct.priceString: ${priceString}`);
-        
-        if (productId.startsWith('theme_')) {
-          themePackages.push(pkg);
-          console.log(`[Shop]     → Categorized as THEME`);
-        } else if (productId.startsWith('chain_')) {
-          chainPackages.push(pkg);
-          console.log(`[Shop]     → Categorized as CHAIN COLOR`);
-        } else {
-          console.warn(`[Shop]     ⚠️ Unknown product ID prefix: ${productId}`);
+
+      const availablePackages = selectedOffering.availablePackages;
+      console.log(`[RevenueCat] Offerings loaded: ${availablePackages.length} packages`);
+      debugLines.push(`Selected: ${selectedOffering.identifier}`);
+      debugLines.push(`Total Packages: ${availablePackages.length}`);
+
+      // Build packageMap keyed by storeProduct.identifier (exact product ID)
+      const packageMap: Record<string, PurchasesPackage> = {};
+      availablePackages.forEach((pkg) => {
+        if (!pkg.storeProduct) {
+          console.warn('[Shop] Package missing storeProduct:', pkg.identifier);
+          return;
         }
+        packageMap[pkg.storeProduct.identifier] = pkg;
       });
-      
-      console.log(`[Shop] ✅ Package split complete:`);
-      console.log(`[Shop]   (4) Theme packages: ${themePackages.length}`);
-      console.log(`[Shop]   (5) Chain color packages: ${chainPackages.length}`);
-      
-      debugLines.push(`Themes: ${themePackages.length}`);
-      debugLines.push(`Colors: ${chainPackages.length}`);
-      
-      // Map packages to local product data
-      const themesMap: { [key: string]: ProductWithPrice } = {};
-      const colorsMap: { [key: string]: ProductWithPrice } = {};
-      
-      themePackages.forEach((pkg) => {
-        const productId = pkg.storeProduct.identifier;
-        const theme = THEMES[productId];
-        if (theme) {
-          themesMap[productId] = {
-            productId,
-            displayName: theme.displayName,
-            price: theme.price,
-            priceString: pkg.storeProduct.priceString,
-            type: 'theme',
-            pkg,
-            isAvailable: true,
-          };
-        }
-      });
-      
-      chainPackages.forEach((pkg) => {
-        const productId = pkg.storeProduct.identifier;
-        const color = CHAIN_HIGHLIGHT_COLORS[productId];
-        if (color) {
-          colorsMap[productId] = {
-            productId,
-            displayName: color.displayName,
-            price: color.price,
-            priceString: pkg.storeProduct.priceString,
-            type: 'chainColor',
-            pkg,
-            isAvailable: true,
-          };
-        }
-      });
-      
-      // Build full product lists (with unavailable items marked)
+
+      console.log('[RevenueCat] packageMap keys:', Object.keys(packageMap));
+
+      // Build full product lists using packageMap for lookup
       const allThemes = Object.values(THEMES).map((theme) => {
-        const rcProduct = themesMap[theme.productId];
-        if (rcProduct) {
-          return rcProduct;
+        const pkg = packageMap[theme.productId];
+        if (pkg) {
+          return {
+            productId: theme.productId,
+            displayName: theme.displayName,
+            price: pkg.storeProduct.price,
+            priceString: pkg.storeProduct.priceString,
+            type: 'theme' as const,
+            pkg,
+            isAvailable: true,
+          };
         } else {
-          // Product not in offering - mark as unavailable
+          const isFree = theme.price === 0;
+          if (!isFree) {
+            console.log(`[RevenueCat] No package found for productId: ${theme.productId}`);
+          }
           return {
             productId: theme.productId,
             displayName: theme.displayName,
             price: theme.price,
-            priceString: theme.price === 0 ? 'Free' : `$${theme.price.toFixed(2)}`,
+            priceString: isFree ? 'Free' : `$${theme.price.toFixed(2)}`,
             type: 'theme' as const,
-            isAvailable: theme.price === 0, // Free items are always available
+            isAvailable: isFree,
           };
         }
       });
-      
+
       const allColors = Object.values(CHAIN_HIGHLIGHT_COLORS).map((color) => {
-        const rcProduct = colorsMap[color.productId];
-        if (rcProduct) {
-          return rcProduct;
+        const pkg = packageMap[color.productId];
+        if (pkg) {
+          return {
+            productId: color.productId,
+            displayName: color.displayName,
+            price: pkg.storeProduct.price,
+            priceString: pkg.storeProduct.priceString,
+            type: 'chainColor' as const,
+            pkg,
+            isAvailable: true,
+          };
         } else {
-          // Product not in offering - mark as unavailable
+          const isFree = color.price === 0;
+          if (!isFree) {
+            console.log(`[RevenueCat] No package found for productId: ${color.productId}`);
+          }
           return {
             productId: color.productId,
             displayName: color.displayName,
             price: color.price,
-            priceString: color.price === 0 ? 'Free' : `$${color.price.toFixed(2)}`,
+            priceString: isFree ? 'Free' : `$${color.price.toFixed(2)}`,
             type: 'chainColor' as const,
-            isAvailable: color.price === 0, // Free items are always available
+            isAvailable: isFree,
           };
         }
       });
-      
-      // Check for missing products
-      const expectedThemeIds = Object.keys(THEMES).filter(id => THEMES[id].price > 0);
-      const expectedColorIds = Object.keys(CHAIN_HIGHLIGHT_COLORS).filter(id => CHAIN_HIGHLIGHT_COLORS[id].price > 0);
-      const missingThemes = expectedThemeIds.filter(id => !themesMap[id]);
-      const missingColors = expectedColorIds.filter(id => !colorsMap[id]);
-      
-      if (missingThemes.length > 0 || missingColors.length > 0) {
-        console.warn(`[Shop] ⚠️ Some products not found in offering:`);
-        console.warn(`[Shop]   Missing themes: ${missingThemes.join(', ') || 'none'}`);
-        console.warn(`[Shop]   Missing colors: ${missingColors.join(', ') || 'none'}`);
-      }
-      
+
       setThemesWithPrices(allThemes);
       setColorsWithPrices(allColors);
       setDebugInfo(debugLines.join(' | '));
@@ -438,32 +366,23 @@ export default function ShopScreen() {
   };
 
   const handleBuyTheme = async (product: ProductWithPrice) => {
-    if (!product.pkg || !product.isAvailable) {
-      console.log(`[Shop] ❌ Cannot purchase "${product.displayName}" - no valid package`);
-      Alert.alert('Unavailable', 'This item is not available for purchase.');
+    if (!product.pkg) {
+      console.log(`[RevenueCat] No package found for productId: ${product.productId}`);
+      Alert.alert('Unavailable', 'This item is not available for purchase right now.');
       return;
     }
-    
+
+    console.log(`[RevenueCat] Purchasing package: ${product.productId}`);
+    setPurchasing(product.productId);
+
     try {
-      console.log(`[Shop] 🛒 Purchasing theme: ${product.productId}`);
-      setPurchasing(product.productId);
-      
       const { customerInfo } = await Purchases.purchasePackage(product.pkg);
-      console.log('[Shop] ✅ Purchase successful');
-      
+      const owned = customerInfo.allPurchasedProductIdentifiers.includes(product.productId);
+      console.log(`[RevenueCat] Purchase success: ${product.productId} (in allPurchasedProductIdentifiers: ${owned})`);
       await updateOwnershipFromCustomerInfo(customerInfo);
       Alert.alert('Success!', `${product.displayName} purchased!`);
     } catch (error: any) {
-      console.error(`[Shop] ❌ Purchase failed`);
-      console.error('[Shop] 🔍 FULL ERROR OBJECT:', {
-        message: error.message || 'N/A',
-        code: error.code || 'N/A',
-        readableErrorCode: error.readableErrorCode || 'N/A',
-        underlyingErrorMessage: error.underlyingErrorMessage || 'N/A',
-        domain: error.domain || 'N/A',
-        userCancelled: error.userCancelled || false,
-      });
-      
+      console.log(`[RevenueCat] Purchase error: ${error.message}`);
       if (!error.userCancelled) {
         Alert.alert('Purchase Failed', error.readableErrorCode || error.message);
       }
@@ -479,32 +398,23 @@ export default function ShopScreen() {
   };
 
   const handleBuyColor = async (product: ProductWithPrice) => {
-    if (!product.pkg || !product.isAvailable) {
-      console.log(`[Shop] ❌ Cannot purchase "${product.displayName}" - no valid package`);
-      Alert.alert('Unavailable', 'This item is not available for purchase.');
+    if (!product.pkg) {
+      console.log(`[RevenueCat] No package found for productId: ${product.productId}`);
+      Alert.alert('Unavailable', 'This item is not available for purchase right now.');
       return;
     }
-    
+
+    console.log(`[RevenueCat] Purchasing package: ${product.productId}`);
+    setPurchasing(product.productId);
+
     try {
-      console.log(`[Shop] 🛒 Purchasing color: ${product.productId}`);
-      setPurchasing(product.productId);
-      
       const { customerInfo } = await Purchases.purchasePackage(product.pkg);
-      console.log('[Shop] ✅ Purchase successful');
-      
+      const owned = customerInfo.allPurchasedProductIdentifiers.includes(product.productId);
+      console.log(`[RevenueCat] Purchase success: ${product.productId} (in allPurchasedProductIdentifiers: ${owned})`);
       await updateOwnershipFromCustomerInfo(customerInfo);
       Alert.alert('Success!', `${product.displayName} purchased!`);
     } catch (error: any) {
-      console.error(`[Shop] ❌ Purchase failed`);
-      console.error('[Shop] 🔍 FULL ERROR OBJECT:', {
-        message: error.message || 'N/A',
-        code: error.code || 'N/A',
-        readableErrorCode: error.readableErrorCode || 'N/A',
-        underlyingErrorMessage: error.underlyingErrorMessage || 'N/A',
-        domain: error.domain || 'N/A',
-        userCancelled: error.userCancelled || false,
-      });
-      
+      console.log(`[RevenueCat] Purchase error: ${error.message}`);
       if (!error.userCancelled) {
         Alert.alert('Purchase Failed', error.readableErrorCode || error.message);
       }
