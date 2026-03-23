@@ -40,7 +40,7 @@ export default function ShopScreen() {
   const { revenueCatReady } = useContext(RevenueCatContext);
 
   const [loading, setLoading] = useState(true);
-  const [purchasing, setPurchasing] = useState(false);
+  const [purchasing, setPurchasing] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -347,7 +347,7 @@ export default function ShopScreen() {
     }
 
     console.log(`[RevenueCat] Purchasing package: ${product.productId}`);
-    setPurchasing(true);
+    setPurchasing(product.productId);
     setErrorMessage('');
 
     try {
@@ -364,7 +364,7 @@ export default function ShopScreen() {
         Alert.alert('Purchase Failed', e.message);
       }
     } finally {
-      setPurchasing(false);
+      setPurchasing(null);
     }
   }, [updateOwnershipFromCustomerInfo]);
 
@@ -389,7 +389,7 @@ export default function ShopScreen() {
     }
 
     console.log(`[RevenueCat] Purchasing package: ${product.productId}`);
-    setPurchasing(true);
+    setPurchasing(product.productId);
     setErrorMessage('');
 
     try {
@@ -406,7 +406,7 @@ export default function ShopScreen() {
         Alert.alert('Purchase Failed', e.message);
       }
     } finally {
-      setPurchasing(false);
+      setPurchasing(null);
     }
   }, [updateOwnershipFromCustomerInfo]);
 
@@ -486,11 +486,15 @@ export default function ShopScreen() {
               handleBuyTheme(product);
             }
           }}
-          disabled={purchasing || (!product.isAvailable && !isOwned) || isEquipped}
+          disabled={purchasing !== null || (!product.isAvailable && !isOwned) || isEquipped}
         >
-          <Text style={[styles.buttonText, isEquipped && styles.buttonTextEquipped]}>
-            {buttonText}
-          </Text>
+          {purchasing === product.productId ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <Text style={[styles.buttonText, isEquipped && styles.buttonTextEquipped]}>
+              {buttonText}
+            </Text>
+          )}
         </TouchableOpacity>
       </View>
     );
@@ -529,11 +533,15 @@ export default function ShopScreen() {
               handleBuyColor(product);
             }
           }}
-          disabled={purchasing || (!product.isAvailable && !isOwned) || isEquipped}
+          disabled={purchasing !== null || (!product.isAvailable && !isOwned) || isEquipped}
         >
-          <Text style={[styles.buttonText, isEquipped && styles.buttonTextEquipped]}>
-            {buttonText}
-          </Text>
+          {purchasing === product.productId ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <Text style={[styles.buttonText, isEquipped && styles.buttonTextEquipped]}>
+              {buttonText}
+            </Text>
+          )}
         </TouchableOpacity>
       </View>
     );
@@ -600,7 +608,7 @@ export default function ShopScreen() {
           <TouchableOpacity
             style={[styles.restoreButton, restoring && styles.buttonDisabled]}
             onPress={handleRestorePurchases}
-            disabled={restoring || purchasing}
+            disabled={restoring || purchasing !== null}
           >
             <Text style={styles.restoreButtonText}>
               {restoring ? 'Restoring...' : 'Restore Purchases'}

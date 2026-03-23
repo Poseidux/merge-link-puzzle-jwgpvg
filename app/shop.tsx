@@ -18,6 +18,7 @@ import { IconSymbol } from '@/components/IconSymbol';
 import Purchases, { PurchasesPackage, CustomerInfo } from 'react-native-purchases';
 import Constants from 'expo-constants';
 import { RevenueCatContext } from '@/app/_layout';
+import { RC_OFFERING_ID, THEME_PRODUCT_IDS, CHAIN_PRODUCT_IDS } from '@/constants/RevenueCatProducts';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -159,8 +160,8 @@ export default function ShopScreen() {
       console.log('[Shop] Step 2: Fetching RevenueCat offerings');
       const offerings = await Purchases.getOfferings();
 
-      // Use offerings.current (default offering) as primary source of truth
-      const selectedOffering = offerings.current;
+      // Use RC_OFFERING_ID ("themes") explicitly, fall back to current
+      const selectedOffering = offerings.all[RC_OFFERING_ID] ?? offerings.current;
 
       const debugLines = [];
       debugLines.push(`Offerings: [${Object.keys(offerings.all).join(', ') || 'NONE'}]`);
@@ -348,9 +349,9 @@ export default function ShopScreen() {
     purchasedProductIds.forEach((productId, index) => {
       console.log(`[Shop]   Product ${index + 1}: ${productId}`);
       
-      if (productId.startsWith('theme_') && !ownedThemeIds.includes(productId)) {
+      if ((THEME_PRODUCT_IDS as readonly string[]).includes(productId) && !ownedThemeIds.includes(productId)) {
         ownedThemeIds.push(productId);
-      } else if (productId.startsWith('chain_') && !ownedChainColorIds.includes(productId)) {
+      } else if ((CHAIN_PRODUCT_IDS as readonly string[]).includes(productId) && !ownedChainColorIds.includes(productId)) {
         ownedChainColorIds.push(productId);
       }
     });
