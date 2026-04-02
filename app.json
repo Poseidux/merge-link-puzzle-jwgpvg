@@ -51,7 +51,12 @@
     },
     "extra": {
       "router": {},
-      "backendUrl": "https://h9q99ruhgscw6tntra554s6qu5k2dye7.app.specular.dev"
+      "backendUrl": "https://h9q99ruhgscw6tntra554s6qu5k2dye7.app.specular.dev",
+      "revenueCatApiKeyIos": "appl_ECLMFKJuAaPHoerTjPgaMwDCdLw",
+      "revenueCatTestApiKeyIos": "test_lzbAPSZrkyjLSZJFxvFjiDRuyjv",
+      "revenueCatTestApiKeyAndroid": "test_lzbAPSZrkyjLSZJFxvFjiDRuyjv",
+      "revenueCatEntitlementId": "pro",
+      "nativelyProjectId": "f04f0d10-5577-42e8-85b5-24e1025f26b1"
     }
   }
 }

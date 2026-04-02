@@ -16,6 +16,7 @@ import {
 } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
 import { WidgetProvider } from "@/contexts/WidgetContext";
+import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
 import Purchases, { LOG_LEVEL } from "react-native-purchases";
 import { RC_OFFERING_ID } from "@/constants/RevenueCatProducts";
 
@@ -26,8 +27,8 @@ export const unstable_settings = {
 };
 
 // Global RevenueCat readiness context
-export const RevenueCatContext = createContext<{ revenueCatReady: boolean }>({ 
-  revenueCatReady: false 
+export const RevenueCatContext = createContext<{ revenueCatReady: boolean }>({
+  revenueCatReady: false,
 });
 
 export default function RootLayout() {
@@ -41,7 +42,7 @@ export default function RootLayout() {
   // Initialize RevenueCat on app startup
   useEffect(() => {
     const initRC = async () => {
-      if (Platform.OS !== 'ios') {
+      if (Platform.OS !== "ios") {
         // For non-iOS platforms, set ready to true to allow shop to proceed
         setRevenueCatReady(true);
         return;
@@ -59,7 +60,7 @@ export default function RootLayout() {
           });
         } else {
           if (__DEV__) {
-            console.log('[RevenueCat] Already configured, skipping duplicate configure()');
+            console.log("[RevenueCat] Already configured, skipping duplicate configure()");
           }
         }
 
@@ -67,27 +68,27 @@ export default function RootLayout() {
         setRevenueCatReady(true);
 
         const appUserID = await Purchases.getAppUserID();
-        console.log('[RevenueCat Diagnostics] Configured. App User ID:', appUserID);
-        console.log('[RevenueCat Diagnostics] Bundle ID: com.poseiduxfitness.numble');
-        console.log('[RevenueCat Diagnostics] RC App ID: app733f6356d7');
+        console.log("[RevenueCat Diagnostics] Configured. App User ID:", appUserID);
+        console.log("[RevenueCat Diagnostics] Bundle ID: com.poseiduxfitness.numble");
+        console.log("[RevenueCat Diagnostics] RC App ID: app733f6356d7");
 
         // Pre-fetch offerings so they are cached before the shop screen opens
         try {
           const offerings = await Purchases.getOfferings();
           const themesOffering = offerings.all[RC_OFFERING_ID] ?? offerings.current;
-          console.log('[RevenueCat Diagnostics] Offering used:', themesOffering?.identifier ?? 'none');
-          console.log('[RevenueCat Diagnostics] Package count:', themesOffering?.availablePackages?.length ?? 0);
+          console.log("[RevenueCat Diagnostics] Offering used:", themesOffering?.identifier ?? "none");
+          console.log("[RevenueCat Diagnostics] Package count:", themesOffering?.availablePackages?.length ?? 0);
           themesOffering?.availablePackages?.forEach(pkg => {
-            console.log('[RevenueCat Diagnostics] Package:', pkg.identifier, '| Product ID:', pkg.storeProduct.productIdentifier, '| Price:', pkg.storeProduct.priceString);
+            console.log("[RevenueCat Diagnostics] Package:", pkg.identifier, "| Product ID:", pkg.storeProduct.productIdentifier, "| Price:", pkg.storeProduct.priceString);
           });
           if ((themesOffering?.availablePackages?.length ?? 0) === 0) {
-            console.warn('[RevenueCat Diagnostics] ⚠️ StoreKit returned 0 products. Bundle: com.poseiduxfitness.numble | Offering: themes (ofrng11cb78188e) | RC App: app733f6356d7. Ensure all 35 products are Approved in App Store Connect.');
+            console.warn("[RevenueCat Diagnostics] ⚠️ StoreKit returned 0 products. Bundle: com.poseiduxfitness.numble | Offering: themes (ofrng11cb78188e) | RC App: app733f6356d7. Ensure all 35 products are Approved in App Store Connect.");
           }
         } catch (offeringsError) {
-          console.warn('[RevenueCat] Pre-fetch offerings failed (will retry in shop):', offeringsError);
+          console.warn("[RevenueCat] Pre-fetch offerings failed (will retry in shop):", offeringsError);
         }
       } catch (e) {
-        console.error('[RevenueCat Diagnostics] Configure error:', e);
+        console.error("[RevenueCat Diagnostics] Configure error:", e);
       }
     };
 
@@ -140,9 +141,9 @@ export default function RootLayout() {
       notification: "rgb(255, 69, 58)",
     },
   };
-  
+
   return (
-    <>
+    <SubscriptionProvider>
       <StatusBar style="auto" animated />
       <RevenueCatContext.Provider value={{ revenueCatReady }}>
         <ThemeProvider
@@ -150,20 +151,21 @@ export default function RootLayout() {
         >
           <WidgetProvider>
             <GestureHandlerRootView>
-            <Stack
-              screenOptions={{
-                gestureEnabled: false,
-              }}
-            >
-              <Stack.Screen name="index" options={{ headerShown: false, gestureEnabled: false }} />
-              <Stack.Screen name="(tabs)" options={{ headerShown: false, gestureEnabled: false }} />
-              <Stack.Screen name="game" options={{ headerShown: false, gestureEnabled: false }} />
-            </Stack>
-            <SystemBars style={"auto"} />
+              <Stack
+                screenOptions={{
+                  gestureEnabled: false,
+                }}
+              >
+                <Stack.Screen name="index" options={{ headerShown: false, gestureEnabled: false }} />
+                <Stack.Screen name="(tabs)" options={{ headerShown: false, gestureEnabled: false }} />
+                <Stack.Screen name="game" options={{ headerShown: false, gestureEnabled: false }} />
+                <Stack.Screen name="paywall" options={{ headerShown: false, presentation: "modal" }} />
+              </Stack>
+              <SystemBars style={"auto"} />
             </GestureHandlerRootView>
           </WidgetProvider>
         </ThemeProvider>
       </RevenueCatContext.Provider>
-    </>
+    </SubscriptionProvider>
   );
 }
