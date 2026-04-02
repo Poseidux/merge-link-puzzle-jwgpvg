@@ -148,19 +148,12 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
           return;
         }
 
-        // On iOS: _layout.tsx configures RC at module load. Just use the shared instance.
-        // If somehow not configured yet, retry a few times.
+        // On iOS: RC is configured in _layout.tsx. This app uses non-consumables only — no subscriptions.
+        // SubscriptionContext is a no-op on iOS.
         if (Platform.OS === "ios") {
-          let attempts = 0;
-          while (!Purchases.isConfigured() && attempts < 10) {
-            await new Promise(r => setTimeout(r, 100));
-            attempts++;
-          }
-          if (!Purchases.isConfigured()) {
-            console.error("[SubscriptionContext] RC still not configured after retries");
-            setLoading(false);
-            return;
-          }
+          setIsSubscribed(false);
+          setLoading(false);
+          return;
         }
 
         if (!Purchases.isConfigured()) {

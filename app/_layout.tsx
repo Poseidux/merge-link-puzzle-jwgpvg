@@ -34,6 +34,7 @@ if (Platform.OS === "ios") {
     console.error("[RevenueCat] Module-level configure failed:", e);
   }
 }
+console.log("[RevenueCat] isConfigured after module-level setup:", Platform.OS === "ios" ? Purchases.isConfigured() : "N/A");
 
 export const unstable_settings = {
   initialRouteName: "index",

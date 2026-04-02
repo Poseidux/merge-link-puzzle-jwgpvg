@@ -206,16 +206,17 @@ export default function ShopScreen() {
     setLoading(true);
     setErrorMessage('');
 
-    // Wait for RC to be configured (module-level configure in _layout.tsx)
-    let configAttempts = 0;
-    while (!Purchases.isConfigured() && configAttempts < 20) {
-      await new Promise(r => setTimeout(r, 100));
-      configAttempts++;
-    }
-    if (!Purchases.isConfigured()) {
-      setErrorMessage('RevenueCat not configured. Please restart the app.');
-      setLoading(false);
-      return;
+    // Ensure RC is configured (idempotent — safe to call multiple times).
+    // _layout.tsx configures at module load, but call defensively here as a safety net.
+    try {
+      if (!Purchases.isConfigured()) {
+        Purchases.configure({ apiKey: 'appl_ECLMFKJuAaPHoerTjPgaMwDCdLw', appUserID: null });
+        console.log('[Shop] RC configured defensively in shop');
+      } else {
+        console.log('[Shop] RC already configured — skipping defensive configure');
+      }
+    } catch (e) {
+      console.warn('[Shop] RC configure check failed:', e);
     }
 
     try {
