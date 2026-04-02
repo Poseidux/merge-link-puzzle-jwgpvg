@@ -22,6 +22,19 @@ import { RC_OFFERING_ID } from "@/constants/RevenueCatProducts";
 
 SplashScreen.preventAutoHideAsync();
 
+// Configure RevenueCat SYNCHRONOUSLY at module load time on iOS.
+// This must happen before any screen renders so that Purchases.getSharedInstance()
+// never throws "no singleton instance" when the shop screen mounts.
+if (Platform.OS === "ios") {
+  try {
+    Purchases.setLogLevel(__DEV__ ? LOG_LEVEL.DEBUG : LOG_LEVEL.ERROR);
+    Purchases.configure({ apiKey: "appl_ECLMFKJuAaPHoerTjPgaMwDCdLw", appUserID: null });
+    console.log("[RevenueCat] Configured at module load (iOS)");
+  } catch (e) {
+    console.error("[RevenueCat] Module-level configure failed:", e);
+  }
+}
+
 export const unstable_settings = {
   initialRouteName: "index",
 };
@@ -37,36 +50,19 @@ export default function RootLayout() {
   const [loaded] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
-  const [revenueCatReady, setRevenueCatReady] = useState(false);
+  // On iOS, RC is already configured synchronously above — start as ready.
+  // On other platforms, SubscriptionContext handles initialization.
+  const [revenueCatReady, setRevenueCatReady] = useState(Platform.OS === "ios");
 
-  // Initialize RevenueCat on app startup
+  // Post-configure async work: diagnostics + pre-fetch offerings cache
   useEffect(() => {
-    const initRC = async () => {
-      if (Platform.OS !== "ios") {
-        // For non-iOS platforms, set ready to true to allow shop to proceed
-        setRevenueCatReady(true);
-        return;
-      }
+    if (Platform.OS !== "ios") {
+      setRevenueCatReady(true);
+      return;
+    }
+
+    const postConfigureAsync = async () => {
       try {
-        const API_KEY = "appl_ECLMFKJuAaPHoerTjPgaMwDCdLw";
-
-        if (!Purchases.isConfigured()) {
-          if (__DEV__) {
-            Purchases.setLogLevel(LOG_LEVEL.DEBUG);
-          }
-          Purchases.configure({
-            apiKey: API_KEY,
-            appUserID: null,
-          });
-        } else {
-          if (__DEV__) {
-            console.log("[RevenueCat] Already configured, skipping duplicate configure()");
-          }
-        }
-
-        // Only set ready AFTER configure returns
-        setRevenueCatReady(true);
-
         const appUserID = await Purchases.getAppUserID();
         console.log("[RevenueCat Diagnostics] Configured. App User ID:", appUserID);
         console.log("[RevenueCat Diagnostics] Bundle ID: com.poseiduxfitness.numble");
@@ -90,11 +86,11 @@ export default function RootLayout() {
           console.warn("[RevenueCat] Pre-fetch offerings failed (will retry in shop):", offeringsError);
         }
       } catch (e) {
-        console.error("[RevenueCat Diagnostics] Configure error:", e);
+        console.error("[RevenueCat Diagnostics] Post-configure async error:", e);
       }
     };
 
-    initRC();
+    postConfigureAsync();
   }, []);
 
   useEffect(() => {

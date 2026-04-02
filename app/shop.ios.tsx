@@ -51,6 +51,29 @@ interface ProductWithPrice {
 const FREE_THEME_ID = 'theme_classic';
 const FREE_CHAIN_COLOR_ID = 'chain_gold';
 
+// Retry a RevenueCat SDK call up to `maxAttempts` times with exponential backoff.
+// StoreKit can return 0 products on the first call if it hasn't finished loading yet.
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxAttempts = 3,
+  baseDelayMs = 500,
+): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      if (attempt < maxAttempts) {
+        const delay = baseDelayMs * attempt;
+        console.warn(`[Shop] RC call failed (attempt ${attempt}/${maxAttempts}), retrying in ${delay}ms…`, err);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  throw lastError;
+}
+
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
 export default function ShopScreen() {
@@ -101,16 +124,6 @@ export default function ShopScreen() {
     return map;
   }, []);
 
-  useEffect(() => {
-    console.log('[Shop] Mounted — Platform:', Platform.OS, '| RC ready:', revenueCatReady);
-    if (revenueCatReady) {
-      loadLocalDataOnly();
-      loadOwnershipAndOfferings();
-    } else {
-      setLoading(true);
-    }
-  }, [revenueCatReady]);
-
   const loadLocalDataOnly = async () => {
     try {
       const [savedTheme, savedColor, savedOwnedThemes, savedOwnedColors] = await Promise.all([
@@ -130,20 +143,84 @@ export default function ShopScreen() {
     }
   };
 
-  const loadOwnershipAndOfferings = async () => {
+  // Defined before loadOwnershipAndOfferings so the dep chain is acyclic:
+  // updateOwnershipFromCustomerInfo → syncOwnershipFromRevenueCat → loadOwnershipAndOfferings
+
+  const updateOwnershipFromCustomerInfo = useCallback(async (customerInfo: CustomerInfo, storeIdMap?: Record<string, string>) => {
+    // nonSubscriptionTransactions[].productIdentifier is the App Store product ID
+    // (e.g. "com.poseiduxfitness.numble.theme_volcano"), NOT the local ID ("theme_volcano").
+    // We resolve it via storeIdMap (built from fetched packages) or fall back to direct match.
+    const resolvedMap = storeIdMap ?? storeProductIdToLocalId;
+
+    const nonSubTransactions = customerInfo.nonSubscriptionTransactions ?? [];
+    console.log(`[Shop] nonSubscriptionTransactions count: ${nonSubTransactions.length}`);
+
+    const owned = new Set<string>([FREE_THEME_ID, FREE_CHAIN_COLOR_ID]);
+
+    nonSubTransactions.forEach(tx => {
+      const storeId = tx.productIdentifier;
+      // Try resolving via the store->local map first, then fall back to direct local ID match
+      const localId = resolvedMap[storeId] ?? storeId;
+      console.log(`[Shop]   Non-subscription transaction: storeId="${storeId}" -> localId="${localId}"`);
+      if (themeLookupMap.has(localId) || chainColorLookupMap.has(localId)) {
+        owned.add(localId);
+      }
+    });
+
+    // Also check allPurchasedProductIdentifiers as a fallback (same resolution logic)
+    const allPurchased = customerInfo.allPurchasedProductIdentifiers ?? [];
+    console.log(`[Shop] allPurchasedProductIdentifiers count: ${allPurchased.length}`);
+    allPurchased.forEach(storeId => {
+      const localId = resolvedMap[storeId] ?? storeId;
+      if (themeLookupMap.has(localId) || chainColorLookupMap.has(localId)) {
+        owned.add(localId);
+      }
+    });
+
+    setOwnedProductIds(owned);
+
+    const ownedThemeIds = Array.from(owned).filter(id => themeLookupMap.has(id));
+    const ownedColorIds = Array.from(owned).filter(id => chainColorLookupMap.has(id));
+
+    await Promise.all([
+      saveOwnedThemes(ownedThemeIds),
+      saveOwnedColors(ownedColorIds),
+    ]);
+
+    console.log('[Shop] Ownership updated — themes:', ownedThemeIds, '| colors:', ownedColorIds);
+  }, [themeLookupMap, chainColorLookupMap, storeProductIdToLocalId]);
+
+  const syncOwnershipFromRevenueCat = useCallback(async (storeIdMap?: Record<string, string>) => {
+    try {
+      console.log('[Shop] Fetching customer info for ownership sync');
+      const customerInfo = await withRetry(() => Purchases.getCustomerInfo(), 3, 500);
+      console.log('[Shop] Customer info fetched successfully');
+      await updateOwnershipFromCustomerInfo(customerInfo, storeIdMap);
+    } catch (error: any) {
+      console.error('[Shop] Error syncing ownership:', error.message);
+      setLatestRevenueCatError(error.message);
+    }
+  }, [updateOwnershipFromCustomerInfo]);
+
+  const loadOwnershipAndOfferings = useCallback(async () => {
     setLoading(true);
     setErrorMessage('');
 
+    // Wait for RC to be configured (module-level configure in _layout.tsx)
+    let configAttempts = 0;
+    while (!Purchases.isConfigured() && configAttempts < 20) {
+      await new Promise(r => setTimeout(r, 100));
+      configAttempts++;
+    }
     if (!Purchases.isConfigured()) {
-      console.warn('[RevenueCat] getOfferings attempted before SDK configured');
-      setErrorMessage('Store is still initializing. Please try again in a moment.');
+      setErrorMessage('RevenueCat not configured. Please restart the app.');
       setLoading(false);
       return;
     }
 
     try {
       console.log('[Shop] Fetching RevenueCat offerings for offering:', RC_OFFERING_ID);
-      const offerings = await Purchases.getOfferings();
+      const offerings = await withRetry(() => Purchases.getOfferings(), 3, 500);
 
       const selectedOffering = offerings.all[RC_OFFERING_ID] ?? offerings.current;
 
@@ -182,8 +259,7 @@ export default function ShopScreen() {
 
       if (availablePackages.length === 0) {
         console.warn('[RevenueCat] ⚠️ StoreKit returned 0 products. Verify products exist in App Store Connect for bundle ID com.poseiduxfitness.numble and are approved/ready to submit.');
-        Alert.alert('Products unavailable', 'Products unavailable. Please try again later.');
-        setErrorMessage("No products loaded from Apple. Ensure all In-App Purchase products are Approved in App Store Connect.");
+        setErrorMessage("No products loaded from Apple. Tap \"Retry\" or ensure all In-App Purchase products are Approved in App Store Connect.");
         setDebugInfo(debugData);
         setLoading(false);
         return;
@@ -346,63 +422,13 @@ export default function ShopScreen() {
       setLoading(false);
       console.log('[Shop] Loading complete');
     }
-  };
+  }, [themeLookupMap, chainColorLookupMap, syncOwnershipFromRevenueCat]);
 
-  const syncOwnershipFromRevenueCat = async (storeIdMap?: Record<string, string>) => {
-    try {
-      console.log('[Shop] Fetching customer info for ownership sync');
-      const customerInfo = await Purchases.getCustomerInfo();
-      console.log('[Shop] Customer info fetched successfully');
-      await updateOwnershipFromCustomerInfo(customerInfo, storeIdMap);
-    } catch (error: any) {
-      console.error('[Shop] Error syncing ownership:', error.message);
-      setLatestRevenueCatError(error.message);
-    }
-  };
-
-  const updateOwnershipFromCustomerInfo = useCallback(async (customerInfo: CustomerInfo, storeIdMap?: Record<string, string>) => {
-    // nonSubscriptionTransactions[].productIdentifier is the App Store product ID
-    // (e.g. "com.poseiduxfitness.numble.theme_volcano"), NOT the local ID ("theme_volcano").
-    // We resolve it via storeIdMap (built from fetched packages) or fall back to direct match.
-    const resolvedMap = storeIdMap ?? storeProductIdToLocalId;
-
-    const nonSubTransactions = customerInfo.nonSubscriptionTransactions ?? [];
-    console.log(`[Shop] nonSubscriptionTransactions count: ${nonSubTransactions.length}`);
-
-    const owned = new Set<string>([FREE_THEME_ID, FREE_CHAIN_COLOR_ID]);
-
-    nonSubTransactions.forEach(tx => {
-      const storeId = tx.productIdentifier;
-      // Try resolving via the store->local map first, then fall back to direct local ID match
-      const localId = resolvedMap[storeId] ?? storeId;
-      console.log(`[Shop]   Non-subscription transaction: storeId="${storeId}" -> localId="${localId}"`);
-      if (themeLookupMap.has(localId) || chainColorLookupMap.has(localId)) {
-        owned.add(localId);
-      }
-    });
-
-    // Also check allPurchasedProductIdentifiers as a fallback (same resolution logic)
-    const allPurchased = customerInfo.allPurchasedProductIdentifiers ?? [];
-    console.log(`[Shop] allPurchasedProductIdentifiers count: ${allPurchased.length}`);
-    allPurchased.forEach(storeId => {
-      const localId = resolvedMap[storeId] ?? storeId;
-      if (themeLookupMap.has(localId) || chainColorLookupMap.has(localId)) {
-        owned.add(localId);
-      }
-    });
-
-    setOwnedProductIds(owned);
-
-    const ownedThemeIds = Array.from(owned).filter(id => themeLookupMap.has(id));
-    const ownedColorIds = Array.from(owned).filter(id => chainColorLookupMap.has(id));
-
-    await Promise.all([
-      saveOwnedThemes(ownedThemeIds),
-      saveOwnedColors(ownedColorIds),
-    ]);
-
-    console.log('[Shop] Ownership updated — themes:', ownedThemeIds, '| colors:', ownedColorIds);
-  }, [themeLookupMap, chainColorLookupMap, storeProductIdToLocalId]);
+  useEffect(() => {
+    console.log('[Shop] Mounted — Platform:', Platform.OS);
+    loadLocalDataOnly();
+    loadOwnershipAndOfferings();
+  }, [loadOwnershipAndOfferings]);
 
   const handleBuyItem = useCallback(async (product: ProductWithPrice) => {
     if (!Purchases.isConfigured()) {
@@ -631,6 +657,15 @@ export default function ShopScreen() {
           {errorMessage ? (
             <View style={styles.errorContainer}>
               <Text style={styles.errorText}>{errorMessage}</Text>
+              <TouchableOpacity
+                style={styles.retryButton}
+                onPress={() => {
+                  console.log('[Shop] Retry button pressed — re-fetching offerings');
+                  loadOwnershipAndOfferings();
+                }}
+              >
+                <Text style={styles.retryButtonText}>Retry</Text>
+              </TouchableOpacity>
             </View>
           ) : null}
 
@@ -708,6 +743,19 @@ const styles = StyleSheet.create({
     color: '#ff0000',
     fontSize: 14,
     textAlign: 'center',
+    marginBottom: 12,
+  },
+  retryButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignSelf: 'center',
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   section: {
     marginBottom: 32,

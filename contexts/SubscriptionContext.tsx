@@ -148,15 +148,25 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
           return;
         }
 
-        // _layout.tsx already calls Purchases.configure() with the production key on iOS.
-        // SubscriptionContext must NOT call configure() again — doing so would overwrite
-        // the production key with a test key and break real purchases.
-        // We only configure here if it hasn't been configured yet (e.g. non-iOS platforms).
+        // On iOS: _layout.tsx configures RC at module load. Just use the shared instance.
+        // If somehow not configured yet, retry a few times.
+        if (Platform.OS === "ios") {
+          let attempts = 0;
+          while (!Purchases.isConfigured() && attempts < 10) {
+            await new Promise(r => setTimeout(r, 100));
+            attempts++;
+          }
+          if (!Purchases.isConfigured()) {
+            console.error("[SubscriptionContext] RC still not configured after retries");
+            setLoading(false);
+            return;
+          }
+        }
+
         if (!Purchases.isConfigured()) {
-          // Use DEBUG log level in development, INFO in production
+          // Android / other platforms: configure here
           Purchases.setLogLevel(__DEV__ ? LOG_LEVEL.DEBUG : LOG_LEVEL.INFO);
 
-          // Get API key based on platform and environment
           const testKey = TEST_IOS_API_KEY || TEST_ANDROID_API_KEY;
           const productionKey = Platform.OS === "ios" ? IOS_API_KEY : ANDROID_API_KEY;
           const apiKey = __DEV__ && testKey ? testKey : productionKey;
@@ -174,9 +184,10 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
             console.log("[RevenueCat] Initializing in DEV mode with key:", apiKey.substring(0, 10) + "...");
           }
 
-          await Purchases.configure({ apiKey });
+          // configure() is synchronous — no await needed
+          Purchases.configure({ apiKey });
         } else {
-          console.log("[RevenueCat] Already configured by _layout.tsx — skipping configure() in SubscriptionContext");
+          console.log("[RevenueCat] Already configured — skipping configure() in SubscriptionContext");
         }
 
         if (__DEV__) {
