@@ -70,7 +70,9 @@ export default function RootLayout() {
         const appUserID = await Purchases.getAppUserID();
         console.log("[RevenueCat Diagnostics] Configured. App User ID:", appUserID);
         console.log("[RevenueCat Diagnostics] Bundle ID: com.poseiduxfitness.numble");
-        console.log("[RevenueCat Diagnostics] RC App ID: app733f6356d7");
+        console.log("[RevenueCat Diagnostics] RC App ID: appaca42abb99");
+        console.log("[RevenueCat Diagnostics] RC Project ID: projfc6dd717");
+        console.log("[RevenueCat Diagnostics] Purchase type: NON-CONSUMABLE (one-time) only — no subscriptions");
 
         // Pre-fetch offerings so they are cached before the shop screen opens
         try {

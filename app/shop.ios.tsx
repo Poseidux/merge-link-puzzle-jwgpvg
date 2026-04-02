@@ -39,6 +39,7 @@ import {
 interface ProductWithPrice {
   packageId: string;       // RevenueCat package identifier (e.g. "Volcano")
   productId: string;       // local product ID (e.g. "theme_volcano")
+  storeProductId: string;  // App Store product identifier (e.g. "com.poseiduxfitness.numble.theme_volcano")
   displayName: string;
   price: number;
   priceString?: string;
@@ -70,6 +71,9 @@ export default function ShopScreen() {
 
   const [equippedTheme, setEquippedTheme] = useState<string>(FREE_THEME_ID);
   const [equippedColor, setEquippedColor] = useState<string>(FREE_CHAIN_COLOR_ID);
+
+  // storeProductId -> localProductId reverse map, built from fetched packages
+  const [storeProductIdToLocalId, setStoreProductIdToLocalId] = useState<Record<string, string>>({});
 
   const [debugInfo, setDebugInfo] = useState({
     allOfferingsCount: 0,
@@ -210,6 +214,11 @@ export default function ShopScreen() {
       const themeItems: ProductWithPrice[] = [];
       const chainItems: ProductWithPrice[] = [];
 
+      // Build storeProductId -> localProductId map so ownership checks work correctly.
+      // nonSubscriptionTransactions[].productIdentifier returns the App Store product ID
+      // (e.g. "com.poseiduxfitness.numble.theme_volcano"), NOT the local ID ("theme_volcano").
+      const newStoreProductIdToLocalId: Record<string, string> = {};
+
       fetchedPackageIds.forEach(pkgId => {
         const pkg = packageMap[pkgId];
         const localProductId = PACKAGE_ID_TO_PRODUCT_ID[pkgId];
@@ -220,6 +229,10 @@ export default function ShopScreen() {
           return;
         }
 
+        const storeProductId = pkg.storeProduct.productIdentifier;
+        newStoreProductIdToLocalId[storeProductId] = localProductId;
+        console.log(`[Shop] Store product ID mapping: "${storeProductId}" -> "${localProductId}"`);
+
         const isTheme = (THEME_PACKAGE_IDS as readonly string[]).includes(pkgId);
         const isChain = (CHAIN_PACKAGE_IDS as readonly string[]).includes(pkgId);
 
@@ -229,6 +242,7 @@ export default function ShopScreen() {
             themeItems.push({
               packageId: pkgId,
               productId: localProductId,
+              storeProductId,
               displayName: pkg.storeProduct.title || themeData.displayName,
               price: pkg.storeProduct.price,
               priceString: pkg.storeProduct.priceString,
@@ -243,6 +257,7 @@ export default function ShopScreen() {
             chainItems.push({
               packageId: pkgId,
               productId: localProductId,
+              storeProductId,
               displayName: pkg.storeProduct.title || colorData.displayName,
               price: pkg.storeProduct.price,
               priceString: pkg.storeProduct.priceString,
@@ -253,6 +268,9 @@ export default function ShopScreen() {
           }
         }
       });
+
+      setStoreProductIdToLocalId(newStoreProductIdToLocalId);
+      console.log(`[Shop] Built storeProductId->localId map with ${Object.keys(newStoreProductIdToLocalId).length} entries`);
 
       debugData.packagesMissingStoreProduct = packagesMissingStoreProduct.length;
       debugData.themePackageCount = themeItems.length;
@@ -278,6 +296,7 @@ export default function ShopScreen() {
           allThemes.push({
             packageId: '',
             productId: themeData.productId,
+            storeProductId: '',
             displayName: themeData.displayName,
             price: themeData.price || 0,
             type: 'theme',
@@ -298,6 +317,7 @@ export default function ShopScreen() {
           allChainColors.push({
             packageId: '',
             productId: colorData.productId,
+            storeProductId: '',
             displayName: colorData.displayName,
             price: colorData.price || 0,
             type: 'chainColor',
@@ -310,7 +330,9 @@ export default function ShopScreen() {
       setChainColors(allChainColors);
 
       console.log('[Shop] Syncing ownership from RevenueCat');
-      await syncOwnershipFromRevenueCat();
+      // Pass the freshly-built map directly — state update from setStoreProductIdToLocalId
+      // above is async and won't be visible yet when syncOwnershipFromRevenueCat runs.
+      await syncOwnershipFromRevenueCat(newStoreProductIdToLocalId);
     } catch (error: any) {
       console.error('[Shop] Error loading offerings:', {
         message: error.message,
@@ -326,39 +348,46 @@ export default function ShopScreen() {
     }
   };
 
-  const syncOwnershipFromRevenueCat = async () => {
+  const syncOwnershipFromRevenueCat = async (storeIdMap?: Record<string, string>) => {
     try {
       console.log('[Shop] Fetching customer info for ownership sync');
       const customerInfo = await Purchases.getCustomerInfo();
       console.log('[Shop] Customer info fetched successfully');
-      await updateOwnershipFromCustomerInfo(customerInfo);
+      await updateOwnershipFromCustomerInfo(customerInfo, storeIdMap);
     } catch (error: any) {
       console.error('[Shop] Error syncing ownership:', error.message);
       setLatestRevenueCatError(error.message);
     }
   };
 
-  const updateOwnershipFromCustomerInfo = useCallback(async (customerInfo: CustomerInfo) => {
-    // Use nonSubscriptionTransactions for non-consumable ownership
+  const updateOwnershipFromCustomerInfo = useCallback(async (customerInfo: CustomerInfo, storeIdMap?: Record<string, string>) => {
+    // nonSubscriptionTransactions[].productIdentifier is the App Store product ID
+    // (e.g. "com.poseiduxfitness.numble.theme_volcano"), NOT the local ID ("theme_volcano").
+    // We resolve it via storeIdMap (built from fetched packages) or fall back to direct match.
+    const resolvedMap = storeIdMap ?? storeProductIdToLocalId;
+
     const nonSubTransactions = customerInfo.nonSubscriptionTransactions ?? [];
     console.log(`[Shop] nonSubscriptionTransactions count: ${nonSubTransactions.length}`);
 
     const owned = new Set<string>([FREE_THEME_ID, FREE_CHAIN_COLOR_ID]);
 
     nonSubTransactions.forEach(tx => {
-      const productId = tx.productIdentifier;
-      console.log(`[Shop]   Non-subscription transaction: ${productId}`);
-      if (themeLookupMap.has(productId) || chainColorLookupMap.has(productId)) {
-        owned.add(productId);
+      const storeId = tx.productIdentifier;
+      // Try resolving via the store->local map first, then fall back to direct local ID match
+      const localId = resolvedMap[storeId] ?? storeId;
+      console.log(`[Shop]   Non-subscription transaction: storeId="${storeId}" -> localId="${localId}"`);
+      if (themeLookupMap.has(localId) || chainColorLookupMap.has(localId)) {
+        owned.add(localId);
       }
     });
 
-    // Also check allPurchasedProductIdentifiers as a fallback
+    // Also check allPurchasedProductIdentifiers as a fallback (same resolution logic)
     const allPurchased = customerInfo.allPurchasedProductIdentifiers ?? [];
     console.log(`[Shop] allPurchasedProductIdentifiers count: ${allPurchased.length}`);
-    allPurchased.forEach(productId => {
-      if (themeLookupMap.has(productId) || chainColorLookupMap.has(productId)) {
-        owned.add(productId);
+    allPurchased.forEach(storeId => {
+      const localId = resolvedMap[storeId] ?? storeId;
+      if (themeLookupMap.has(localId) || chainColorLookupMap.has(localId)) {
+        owned.add(localId);
       }
     });
 
@@ -373,7 +402,7 @@ export default function ShopScreen() {
     ]);
 
     console.log('[Shop] Ownership updated — themes:', ownedThemeIds, '| colors:', ownedColorIds);
-  }, [themeLookupMap, chainColorLookupMap]);
+  }, [themeLookupMap, chainColorLookupMap, storeProductIdToLocalId]);
 
   const handleBuyItem = useCallback(async (product: ProductWithPrice) => {
     if (!Purchases.isConfigured()) {
@@ -393,10 +422,16 @@ export default function ShopScreen() {
 
     try {
       const { customerInfo } = await Purchases.purchasePackage(product.pkg);
-      const owned = (customerInfo.nonSubscriptionTransactions ?? []).some(
+      // Check ownership using the store product ID (what RC returns in nonSubscriptionTransactions)
+      const ownedByStoreId = (customerInfo.nonSubscriptionTransactions ?? []).some(
+        tx => tx.productIdentifier === product.storeProductId
+      );
+      // Also check local ID as fallback (in case store ID matches local ID directly)
+      const ownedByLocalId = (customerInfo.nonSubscriptionTransactions ?? []).some(
         tx => tx.productIdentifier === product.productId
       );
-      console.log(`[RevenueCat] Purchase success: "${product.packageId}" | productId: ${product.productId} | in nonSubscriptionTransactions: ${owned}`);
+      const owned = ownedByStoreId || ownedByLocalId;
+      console.log(`[RevenueCat] Purchase success: "${product.packageId}" | storeProductId: ${product.storeProductId} | localProductId: ${product.productId} | in nonSubscriptionTransactions: ${owned}`);
       await updateOwnershipFromCustomerInfo(customerInfo);
       Alert.alert('Success', `${product.displayName} purchased!`);
     } catch (e: any) {
