@@ -1,18 +1,34 @@
 
 import React, { useState, useEffect, useContext, useMemo, useCallback } from 'react';
-import { RC_OFFERING_ID, ALL_PRODUCT_IDS } from '@/constants/RevenueCatProducts';
+import {
+  RC_OFFERING_ID,
+  ALL_PACKAGE_IDS,
+  PACKAGE_ID_TO_PRODUCT_ID,
+  THEME_PACKAGE_IDS,
+  CHAIN_PACKAGE_IDS,
+} from '@/constants/RevenueCatProducts';
 import Constants from 'expo-constants';
 import { IconSymbol } from '@/components/IconSymbol';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Purchases, { PurchasesPackage, CustomerInfo } from 'react-native-purchases';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Dimensions, ActivityIndicator, Alert, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+  Dimensions,
+  ActivityIndicator,
+  Alert,
+  Platform,
+} from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { colors, THEMES, CHAIN_HIGHLIGHT_COLORS } from '@/styles/commonStyles';
 import { RevenueCatContext } from '@/app/_layout';
-import { 
-  loadOwnedThemes, 
-  saveOwnedThemes, 
-  loadOwnedColors, 
+import {
+  loadOwnedThemes,
+  saveOwnedThemes,
+  loadOwnedColors,
   saveOwnedColors,
   loadTheme,
   saveTheme,
@@ -21,7 +37,8 @@ import {
 } from '@/utils/storage';
 
 interface ProductWithPrice {
-  productId: string;
+  packageId: string;       // RevenueCat package identifier (e.g. "Volcano")
+  productId: string;       // local product ID (e.g. "theme_volcano")
   displayName: string;
   price: number;
   priceString?: string;
@@ -47,13 +64,13 @@ export default function ShopScreen() {
   const [themes, setThemes] = useState<ProductWithPrice[]>([]);
   const [chainColors, setChainColors] = useState<ProductWithPrice[]>([]);
 
-  const [ownedThemes, setOwnedThemes] = useState<Set<string>>(new Set([FREE_THEME_ID]));
-  const [ownedChainColors, setOwnedChainColors] = useState<Set<string>>(new Set([FREE_CHAIN_COLOR_ID]));
+  const [ownedProductIds, setOwnedProductIds] = useState<Set<string>>(
+    new Set([FREE_THEME_ID, FREE_CHAIN_COLOR_ID])
+  );
 
   const [equippedTheme, setEquippedTheme] = useState<string>(FREE_THEME_ID);
   const [equippedColor, setEquippedColor] = useState<string>(FREE_CHAIN_COLOR_ID);
 
-  // Debug state
   const [debugInfo, setDebugInfo] = useState({
     allOfferingsCount: 0,
     currentOfferingId: '',
@@ -62,30 +79,26 @@ export default function ShopScreen() {
     packagesMissingStoreProduct: 0,
     themePackageCount: 0,
     chainPackageCount: 0,
-    fetchedProductIds: [] as string[],
-    unmatchedProductIds: [] as string[],
-    missingLocalPaidIds: [] as string[],
+    fetchedPackageIds: [] as string[],
+    unmatchedPackageIds: [] as string[],
+    missingPackageIds: [] as string[],
   });
   const [latestRevenueCatError, setLatestRevenueCatError] = useState('');
 
-  // Build lookup maps from Object.values
   const themeLookupMap = useMemo(() => {
     const map = new Map<string, typeof THEMES[keyof typeof THEMES]>();
-    Object.values(THEMES).forEach(theme => {
-      map.set(theme.productId, theme);
-    });
+    Object.values(THEMES).forEach(theme => map.set(theme.productId, theme));
     return map;
   }, []);
 
   const chainColorLookupMap = useMemo(() => {
     const map = new Map<string, typeof CHAIN_HIGHLIGHT_COLORS[keyof typeof CHAIN_HIGHLIGHT_COLORS]>();
-    Object.values(CHAIN_HIGHLIGHT_COLORS).forEach(color => {
-      map.set(color.productId, color);
-    });
+    Object.values(CHAIN_HIGHLIGHT_COLORS).forEach(color => map.set(color.productId, color));
     return map;
   }, []);
 
   useEffect(() => {
+    console.log('[Shop] Mounted — Platform:', Platform.OS, '| RC ready:', revenueCatReady);
     if (revenueCatReady) {
       loadLocalDataOnly();
       loadOwnershipAndOfferings();
@@ -106,11 +119,8 @@ export default function ShopScreen() {
       setEquippedTheme(savedTheme || FREE_THEME_ID);
       setEquippedColor(savedColor || FREE_CHAIN_COLOR_ID);
 
-      const ownedThemesSet = new Set([FREE_THEME_ID, ...savedOwnedThemes]);
-      const ownedColorsSet = new Set([FREE_CHAIN_COLOR_ID, ...savedOwnedColors]);
-
-      setOwnedThemes(ownedThemesSet);
-      setOwnedChainColors(ownedColorsSet);
+      const owned = new Set([FREE_THEME_ID, FREE_CHAIN_COLOR_ID, ...savedOwnedThemes, ...savedOwnedColors]);
+      setOwnedProductIds(owned);
     } catch (error) {
       console.error('[Shop] Error loading local data:', error);
     }
@@ -121,18 +131,17 @@ export default function ShopScreen() {
     setErrorMessage('');
 
     if (!Purchases.isConfigured()) {
-      console.warn('[RevenueCat Diagnostics] getOfferings attempted before SDK configured');
+      console.warn('[RevenueCat] getOfferings attempted before SDK configured');
       setErrorMessage('Store is still initializing. Please try again in a moment.');
       setLoading(false);
       return;
     }
 
     try {
+      console.log('[Shop] Fetching RevenueCat offerings for offering:', RC_OFFERING_ID);
       const offerings = await Purchases.getOfferings();
 
-      // Use RC_OFFERING_ID ("themes") explicitly, fall back to current
       const selectedOffering = offerings.all[RC_OFFERING_ID] ?? offerings.current;
-      console.log('[RevenueCat Diagnostics] Target offering:', selectedOffering?.identifier ?? 'none');
 
       const debugData = {
         allOfferingsCount: Object.keys(offerings.all).length,
@@ -142,13 +151,17 @@ export default function ShopScreen() {
         packagesMissingStoreProduct: 0,
         themePackageCount: 0,
         chainPackageCount: 0,
-        fetchedProductIds: [] as string[],
-        unmatchedProductIds: [] as string[],
-        missingLocalPaidIds: [] as string[],
+        fetchedPackageIds: [] as string[],
+        unmatchedPackageIds: [] as string[],
+        missingPackageIds: [] as string[],
       };
 
+      console.log('[Shop] All offerings:', Object.keys(offerings.all));
+      console.log('[Shop] Selected offering:', selectedOffering?.identifier ?? 'none');
+
       if (!selectedOffering) {
-        console.warn('[RevenueCat] offerings.current is null — no default offering configured');
+        console.warn('[RevenueCat] No "themes" offering found and no current offering set');
+        Alert.alert('Products unavailable', 'Products unavailable. Please try again later.');
         setErrorMessage('No offerings found. Check RevenueCat configuration.');
         setDebugInfo(debugData);
         setLoading(false);
@@ -158,17 +171,21 @@ export default function ShopScreen() {
       const availablePackages = selectedOffering.availablePackages;
       debugData.totalPackages = availablePackages.length;
 
-      console.log(`[RevenueCat] Offerings loaded: ${availablePackages.length} packages`);
+      console.log(`[Shop] Offerings loaded: ${availablePackages.length} packages found`);
+      availablePackages.forEach(pkg => {
+        console.log(`[Shop]   Package: "${pkg.identifier}" | Product: ${pkg.storeProduct?.productIdentifier ?? 'NO_STORE_PRODUCT'} | Price: ${pkg.storeProduct?.priceString ?? 'N/A'}`);
+      });
 
       if (availablePackages.length === 0) {
-        console.warn('[RevenueCat Diagnostics] StoreKit returned 0 products. Verify products exist in App Store Connect for bundle ID com.poseiduxfitness.numble and are approved/ready to submit. RevenueCat app: app733f6356d7');
-        setErrorMessage("No products loaded from Apple. Offering: 'themes' | Bundle: com.poseiduxfitness.numble | Ensure all In-App Purchase products are Approved in App Store Connect.");
+        console.warn('[RevenueCat] ⚠️ StoreKit returned 0 products. Verify products exist in App Store Connect for bundle ID com.poseiduxfitness.numble and are approved/ready to submit.');
+        Alert.alert('Products unavailable', 'Products unavailable. Please try again later.');
+        setErrorMessage("No products loaded from Apple. Ensure all In-App Purchase products are Approved in App Store Connect.");
         setDebugInfo(debugData);
         setLoading(false);
         return;
       }
 
-      // Build packageMap keyed by storeProduct.productIdentifier (exact product ID)
+      // Build packageMap keyed by pkg.identifier (the RevenueCat package identifier)
       const packageMap: Record<string, PurchasesPackage> = {};
       const packagesMissingStoreProduct: string[] = [];
 
@@ -178,75 +195,88 @@ export default function ShopScreen() {
           console.warn('[Shop] Package missing storeProduct:', pkg.identifier);
           return;
         }
-        const productId = pkg.storeProduct.productIdentifier;
-        packageMap[productId] = pkg;
+        packageMap[pkg.identifier] = pkg;
+        console.log(`[Shop] Package lookup: "${pkg.identifier}" -> found`);
       });
 
-      console.log('[RevenueCat] packageMap keys:', Object.keys(packageMap));
-
-      // Warn about any known product IDs that didn't come back from StoreKit
-      const unmatchedIds = ALL_PRODUCT_IDS.filter(id => !packageMap[id]);
-      if (unmatchedIds.length > 0) {
-        console.warn('[RevenueCat Diagnostics] Product IDs in app but NOT in StoreKit packages:', unmatchedIds);
+      // Warn about any known package IDs that didn't come back from StoreKit
+      const missingPackageIds = ALL_PACKAGE_IDS.filter(id => !packageMap[id]);
+      if (missingPackageIds.length > 0) {
+        console.warn('[RevenueCat] Package IDs in app but NOT returned by StoreKit:', missingPackageIds);
       }
 
-      const fetchedProductIds = Object.keys(packageMap);
-      const unmatchedProductIds: string[] = [];
+      const fetchedPackageIds = Object.keys(packageMap);
+      const unmatchedPackageIds: string[] = [];
+      const themeItems: ProductWithPrice[] = [];
+      const chainItems: ProductWithPrice[] = [];
 
-      const themePackages: ProductWithPrice[] = [];
-      const chainPackages: ProductWithPrice[] = [];
+      fetchedPackageIds.forEach(pkgId => {
+        const pkg = packageMap[pkgId];
+        const localProductId = PACKAGE_ID_TO_PRODUCT_ID[pkgId];
 
-      fetchedProductIds.forEach(productId => {
-        const pkg = packageMap[productId];
-        if (themeLookupMap.has(productId)) {
-          const themeData = themeLookupMap.get(productId)!;
-          themePackages.push({
-            productId,
-            displayName: themeData.displayName,
-            price: pkg.storeProduct.price,
-            priceString: pkg.storeProduct.priceString,
-            type: 'theme',
-            pkg,
-            isAvailable: true,
-          });
-        } else if (chainColorLookupMap.has(productId)) {
-          const colorData = chainColorLookupMap.get(productId)!;
-          chainPackages.push({
-            productId,
-            displayName: colorData.displayName,
-            price: pkg.storeProduct.price,
-            priceString: pkg.storeProduct.priceString,
-            type: 'chainColor',
-            pkg,
-            isAvailable: true,
-          });
-        } else {
-          unmatchedProductIds.push(productId);
+        if (!localProductId) {
+          unmatchedPackageIds.push(pkgId);
+          console.warn(`[Shop] Package "${pkgId}" has no local product ID mapping — skipping`);
+          return;
+        }
+
+        const isTheme = (THEME_PACKAGE_IDS as readonly string[]).includes(pkgId);
+        const isChain = (CHAIN_PACKAGE_IDS as readonly string[]).includes(pkgId);
+
+        if (isTheme) {
+          const themeData = themeLookupMap.get(localProductId);
+          if (themeData) {
+            themeItems.push({
+              packageId: pkgId,
+              productId: localProductId,
+              displayName: pkg.storeProduct.title || themeData.displayName,
+              price: pkg.storeProduct.price,
+              priceString: pkg.storeProduct.priceString,
+              type: 'theme',
+              pkg,
+              isAvailable: true,
+            });
+          }
+        } else if (isChain) {
+          const colorData = chainColorLookupMap.get(localProductId);
+          if (colorData) {
+            chainItems.push({
+              packageId: pkgId,
+              productId: localProductId,
+              displayName: pkg.storeProduct.title || colorData.displayName,
+              price: pkg.storeProduct.price,
+              priceString: pkg.storeProduct.priceString,
+              type: 'chainColor',
+              pkg,
+              isAvailable: true,
+            });
+          }
         }
       });
 
       debugData.packagesMissingStoreProduct = packagesMissingStoreProduct.length;
-      debugData.themePackageCount = themePackages.length;
-      debugData.chainPackageCount = chainPackages.length;
-      debugData.fetchedProductIds = fetchedProductIds;
-      debugData.unmatchedProductIds = unmatchedProductIds;
+      debugData.themePackageCount = themeItems.length;
+      debugData.chainPackageCount = chainItems.length;
+      debugData.fetchedPackageIds = fetchedPackageIds;
+      debugData.unmatchedPackageIds = unmatchedPackageIds;
+      debugData.missingPackageIds = missingPackageIds;
+      setDebugInfo(debugData);
 
-      // Build complete product lists including local-only items
+      // Build complete product lists including local-only items (free + unavailable paid)
       const allThemes: ProductWithPrice[] = [];
       const allChainColors: ProductWithPrice[] = [];
-      const missingLocalPaidIds: string[] = [];
 
       Object.values(THEMES).forEach(themeData => {
-        const rcItem = themePackages.find(p => p.productId === themeData.productId);
+        const rcItem = themeItems.find(p => p.productId === themeData.productId);
         if (rcItem) {
           allThemes.push(rcItem);
         } else {
           const isFree = themeData.productId === FREE_THEME_ID;
           if (!isFree) {
-            console.log(`[RevenueCat] No package found for productId: ${themeData.productId}`);
-            missingLocalPaidIds.push(themeData.productId);
+            console.log(`[RevenueCat] No package found for productId: ${themeData.productId} — not shown as purchasable`);
           }
           allThemes.push({
+            packageId: '',
             productId: themeData.productId,
             displayName: themeData.displayName,
             price: themeData.price || 0,
@@ -257,16 +287,16 @@ export default function ShopScreen() {
       });
 
       Object.values(CHAIN_HIGHLIGHT_COLORS).forEach(colorData => {
-        const rcItem = chainPackages.find(p => p.productId === colorData.productId);
+        const rcItem = chainItems.find(p => p.productId === colorData.productId);
         if (rcItem) {
           allChainColors.push(rcItem);
         } else {
           const isFree = colorData.productId === FREE_CHAIN_COLOR_ID;
           if (!isFree) {
-            console.log(`[RevenueCat] No package found for productId: ${colorData.productId}`);
-            missingLocalPaidIds.push(colorData.productId);
+            console.log(`[RevenueCat] No package found for productId: ${colorData.productId} — not shown as purchasable`);
           }
           allChainColors.push({
+            packageId: '',
             productId: colorData.productId,
             displayName: colorData.displayName,
             price: colorData.price || 0,
@@ -276,92 +306,106 @@ export default function ShopScreen() {
         }
       });
 
-      debugData.missingLocalPaidIds = missingLocalPaidIds;
-      setDebugInfo(debugData);
-
       setThemes(allThemes);
       setChainColors(allChainColors);
 
-      if (packagesMissingStoreProduct.length > 0) {
-        setErrorMessage('RevenueCat package missing store product data for this build.');
-      }
-
+      console.log('[Shop] Syncing ownership from RevenueCat');
       await syncOwnershipFromRevenueCat();
     } catch (error: any) {
-      console.error('[Shop] Error loading offerings:', error);
+      console.error('[Shop] Error loading offerings:', {
+        message: error.message,
+        code: error.code,
+        readableErrorCode: error.readableErrorCode,
+        underlyingErrorMessage: error.underlyingErrorMessage,
+      });
       setErrorMessage(`Failed to load shop: ${error.message}`);
       setLatestRevenueCatError(error.message);
     } finally {
       setLoading(false);
+      console.log('[Shop] Loading complete');
     }
   };
 
   const syncOwnershipFromRevenueCat = async () => {
     try {
+      console.log('[Shop] Fetching customer info for ownership sync');
       const customerInfo = await Purchases.getCustomerInfo();
+      console.log('[Shop] Customer info fetched successfully');
       await updateOwnershipFromCustomerInfo(customerInfo);
     } catch (error: any) {
-      console.error('[Shop] Error syncing ownership:', error);
+      console.error('[Shop] Error syncing ownership:', error.message);
       setLatestRevenueCatError(error.message);
     }
   };
 
   const updateOwnershipFromCustomerInfo = useCallback(async (customerInfo: CustomerInfo) => {
-    const purchasedProductIds = customerInfo.allPurchasedProductIdentifiers;
+    // Use nonSubscriptionTransactions for non-consumable ownership
+    const nonSubTransactions = customerInfo.nonSubscriptionTransactions ?? [];
+    console.log(`[Shop] nonSubscriptionTransactions count: ${nonSubTransactions.length}`);
 
-    const ownedThemesSet = new Set<string>([FREE_THEME_ID]);
-    const ownedColorsSet = new Set<string>([FREE_CHAIN_COLOR_ID]);
+    const owned = new Set<string>([FREE_THEME_ID, FREE_CHAIN_COLOR_ID]);
 
-    purchasedProductIds.forEach(productId => {
-      if (themeLookupMap.has(productId)) {
-        ownedThemesSet.add(productId);
-      } else if (chainColorLookupMap.has(productId)) {
-        ownedColorsSet.add(productId);
+    nonSubTransactions.forEach(tx => {
+      const productId = tx.productIdentifier;
+      console.log(`[Shop]   Non-subscription transaction: ${productId}`);
+      if (themeLookupMap.has(productId) || chainColorLookupMap.has(productId)) {
+        owned.add(productId);
       }
     });
 
-    setOwnedThemes(ownedThemesSet);
-    setOwnedChainColors(ownedColorsSet);
+    // Also check allPurchasedProductIdentifiers as a fallback
+    const allPurchased = customerInfo.allPurchasedProductIdentifiers ?? [];
+    console.log(`[Shop] allPurchasedProductIdentifiers count: ${allPurchased.length}`);
+    allPurchased.forEach(productId => {
+      if (themeLookupMap.has(productId) || chainColorLookupMap.has(productId)) {
+        owned.add(productId);
+      }
+    });
 
-    await saveOwnedThemes(Array.from(ownedThemesSet));
-    await saveOwnedColors(Array.from(ownedColorsSet));
+    setOwnedProductIds(owned);
 
-    if (__DEV__) {
-      console.log('[Shop] Ownership updated:', {
-        ownedThemes: Array.from(ownedThemesSet),
-        ownedColors: Array.from(ownedColorsSet),
-      });
-    }
+    const ownedThemeIds = Array.from(owned).filter(id => themeLookupMap.has(id));
+    const ownedColorIds = Array.from(owned).filter(id => chainColorLookupMap.has(id));
+
+    await Promise.all([
+      saveOwnedThemes(ownedThemeIds),
+      saveOwnedColors(ownedColorIds),
+    ]);
+
+    console.log('[Shop] Ownership updated — themes:', ownedThemeIds, '| colors:', ownedColorIds);
   }, [themeLookupMap, chainColorLookupMap]);
 
-  const handleBuyTheme = useCallback(async (product: ProductWithPrice) => {
+  const handleBuyItem = useCallback(async (product: ProductWithPrice) => {
     if (!Purchases.isConfigured()) {
-      console.warn('[RevenueCat Diagnostics] Purchase attempted before SDK configured');
+      console.warn('[RevenueCat] Purchase attempted before SDK configured');
       Alert.alert('Not ready', 'Store is still initializing. Please try again in a moment.');
       return;
     }
     if (!product.pkg) {
-      console.log(`[RevenueCat] No package found for productId: ${product.productId}`);
+      console.log(`[RevenueCat] No package found for productId: ${product.productId} — cannot purchase`);
       Alert.alert('Unavailable', 'This item is not available for purchase right now.');
       return;
     }
 
-    console.log(`[RevenueCat] Purchasing package: ${product.productId}`);
+    console.log(`[RevenueCat] Purchasing package: "${product.packageId}" (productId: ${product.productId})`);
     setPurchasing(product.productId);
     setErrorMessage('');
 
     try {
       const { customerInfo } = await Purchases.purchasePackage(product.pkg);
-      const owned = customerInfo.allPurchasedProductIdentifiers.includes(product.productId);
-      console.log(`[RevenueCat] Purchase success: ${product.productId} (in allPurchasedProductIdentifiers: ${owned})`);
+      const owned = (customerInfo.nonSubscriptionTransactions ?? []).some(
+        tx => tx.productIdentifier === product.productId
+      );
+      console.log(`[RevenueCat] Purchase success: "${product.packageId}" | productId: ${product.productId} | in nonSubscriptionTransactions: ${owned}`);
       await updateOwnershipFromCustomerInfo(customerInfo);
       Alert.alert('Success', `${product.displayName} purchased!`);
     } catch (e: any) {
-      console.log(`[RevenueCat] Purchase error: ${e.message}`);
+      console.log(`[RevenueCat] Purchase error for "${product.packageId}": ${e.message}`);
       if (!e.userCancelled) {
-        setErrorMessage(`Purchase failed: ${e.message}`);
+        const errMsg = e.readableErrorCode || e.message;
+        setErrorMessage(`Purchase failed: ${errMsg}`);
         setLatestRevenueCatError(e.message);
-        Alert.alert('Purchase Failed', e.message);
+        Alert.alert('Purchase Failed', errMsg);
       }
     } finally {
       setPurchasing(null);
@@ -369,82 +413,44 @@ export default function ShopScreen() {
   }, [updateOwnershipFromCustomerInfo]);
 
   const handleEquipTheme = useCallback(async (productId: string) => {
+    console.log('[Shop] Equipping theme:', productId);
     setEquippedTheme(productId);
     await saveTheme(productId);
-    if (__DEV__) {
-      console.log('[Shop] Theme equipped:', productId);
-    }
   }, []);
 
-  const handleBuyColor = useCallback(async (product: ProductWithPrice) => {
-    if (!Purchases.isConfigured()) {
-      console.warn('[RevenueCat Diagnostics] Purchase attempted before SDK configured');
-      Alert.alert('Not ready', 'Store is still initializing. Please try again in a moment.');
-      return;
-    }
-    if (!product.pkg) {
-      console.log(`[RevenueCat] No package found for productId: ${product.productId}`);
-      Alert.alert('Unavailable', 'This item is not available for purchase right now.');
-      return;
-    }
-
-    console.log(`[RevenueCat] Purchasing package: ${product.productId}`);
-    setPurchasing(product.productId);
-    setErrorMessage('');
-
-    try {
-      const { customerInfo } = await Purchases.purchasePackage(product.pkg);
-      const owned = customerInfo.allPurchasedProductIdentifiers.includes(product.productId);
-      console.log(`[RevenueCat] Purchase success: ${product.productId} (in allPurchasedProductIdentifiers: ${owned})`);
-      await updateOwnershipFromCustomerInfo(customerInfo);
-      Alert.alert('Success', `${product.displayName} purchased!`);
-    } catch (e: any) {
-      console.log(`[RevenueCat] Purchase error: ${e.message}`);
-      if (!e.userCancelled) {
-        setErrorMessage(`Purchase failed: ${e.message}`);
-        setLatestRevenueCatError(e.message);
-        Alert.alert('Purchase Failed', e.message);
-      }
-    } finally {
-      setPurchasing(null);
-    }
-  }, [updateOwnershipFromCustomerInfo]);
-
   const handleEquipColor = useCallback(async (productId: string) => {
+    console.log('[Shop] Equipping chain color:', productId);
     setEquippedColor(productId);
     await saveChainHighlightColor(productId);
-    if (__DEV__) {
-      console.log('[Shop] Chain color equipped:', productId);
-    }
   }, []);
 
   const handleRestorePurchases = useCallback(async () => {
     if (!Purchases.isConfigured()) {
-      console.warn('[RevenueCat Diagnostics] Purchase attempted before SDK configured');
+      console.warn('[RevenueCat] Restore attempted before SDK configured');
       Alert.alert('Not ready', 'Store is still initializing. Please try again in a moment.');
       return;
     }
+    console.log('[Shop] Restoring purchases');
     setRestoring(true);
     setErrorMessage('');
 
     try {
       const customerInfo = await Purchases.restorePurchases();
+      const restoredCount = (customerInfo.nonSubscriptionTransactions ?? []).length;
+      console.log(`[Shop] Restore success — ${restoredCount} non-subscription transactions found`);
       await updateOwnershipFromCustomerInfo(customerInfo);
-      Alert.alert('Success', 'Purchases restored!');
+      Alert.alert('Restored!', 'Your purchases have been restored.');
     } catch (e: any) {
-      if (__DEV__) {
-        console.error('[Shop] Restore error:', {
-          message: e.message,
-          code: e.code,
-          readableErrorCode: e.readableErrorCode,
-          underlyingErrorMessage: e.underlyingErrorMessage,
-          domain: e.domain,
-        });
-      }
-
-      setErrorMessage(`Restore failed: ${e.message}`);
+      console.error('[Shop] Restore failed:', {
+        message: e.message,
+        code: e.code,
+        readableErrorCode: e.readableErrorCode,
+        underlyingErrorMessage: e.underlyingErrorMessage,
+      });
+      const errMsg = e.readableErrorCode || e.message;
+      setErrorMessage(`Restore failed: ${errMsg}`);
       setLatestRevenueCatError(e.message);
-      Alert.alert('Restore Failed', e.message);
+      Alert.alert('Restore Failed', errMsg);
     } finally {
       setRestoring(false);
     }
@@ -452,19 +458,15 @@ export default function ShopScreen() {
 
   const renderThemeCard = (product: ProductWithPrice) => {
     const themeData = themeLookupMap.get(product.productId);
-    if (!themeData) {
-      if (__DEV__) {
-        console.warn('[Shop] Render lookup mismatch for theme:', product.productId);
-      }
-      return null;
-    }
+    if (!themeData) return null;
 
-    const isOwned = ownedThemes.has(product.productId);
+    const isOwned = ownedProductIds.has(product.productId);
     const isEquipped = equippedTheme === product.productId;
     const isFree = product.productId === FREE_THEME_ID;
+    const isPurchasing = purchasing === product.productId;
 
     const priceDisplay = isFree ? 'Free' : (product.priceString || `$${product.price}`);
-    const buttonText = isEquipped ? 'Equipped' : (isOwned ? 'Equip' : priceDisplay);
+    const buttonLabel = isEquipped ? 'Equipped' : (isOwned ? 'Equip' : priceDisplay);
 
     return (
       <View key={product.productId} style={styles.card}>
@@ -473,6 +475,11 @@ export default function ShopScreen() {
           <View style={[styles.previewTile, { backgroundColor: themeData.accentColor }]} />
         </View>
         <Text style={styles.cardTitle}>{product.displayName}</Text>
+        {isOwned && (
+          <View style={styles.ownedBadge}>
+            <Text style={styles.ownedBadgeText}>Owned</Text>
+          </View>
+        )}
         <TouchableOpacity
           style={[
             styles.button,
@@ -483,16 +490,16 @@ export default function ShopScreen() {
             if (isOwned) {
               handleEquipTheme(product.productId);
             } else if (product.isAvailable) {
-              handleBuyTheme(product);
+              handleBuyItem(product);
             }
           }}
-          disabled={purchasing !== null || (!product.isAvailable && !isOwned) || isEquipped}
+          disabled={isPurchasing || purchasing !== null || (!product.isAvailable && !isOwned) || isEquipped}
         >
-          {purchasing === product.productId ? (
+          {isPurchasing ? (
             <ActivityIndicator size="small" color="#fff" />
           ) : (
             <Text style={[styles.buttonText, isEquipped && styles.buttonTextEquipped]}>
-              {buttonText}
+              {buttonLabel}
             </Text>
           )}
         </TouchableOpacity>
@@ -502,24 +509,25 @@ export default function ShopScreen() {
 
   const renderChainColorCard = (product: ProductWithPrice) => {
     const colorData = chainColorLookupMap.get(product.productId);
-    if (!colorData) {
-      if (__DEV__) {
-        console.warn('[Shop] Render lookup mismatch for chain color:', product.productId);
-      }
-      return null;
-    }
+    if (!colorData) return null;
 
-    const isOwned = ownedChainColors.has(product.productId);
+    const isOwned = ownedProductIds.has(product.productId);
     const isEquipped = equippedColor === product.productId;
     const isFree = product.productId === FREE_CHAIN_COLOR_ID;
+    const isPurchasing = purchasing === product.productId;
 
     const priceDisplay = isFree ? 'Free' : (product.priceString || `$${product.price}`);
-    const buttonText = isEquipped ? 'Equipped' : (isOwned ? 'Equip' : priceDisplay);
+    const buttonLabel = isEquipped ? 'Equipped' : (isOwned ? 'Equip' : priceDisplay);
 
     return (
       <View key={product.productId} style={styles.card}>
-        <View style={[styles.colorPreview, { backgroundColor: colorData.hex }]} />
+        <View style={[styles.colorPreview, { backgroundColor: colorData.color }]} />
         <Text style={styles.cardTitle}>{product.displayName}</Text>
+        {isOwned && (
+          <View style={styles.ownedBadge}>
+            <Text style={styles.ownedBadgeText}>Owned</Text>
+          </View>
+        )}
         <TouchableOpacity
           style={[
             styles.button,
@@ -530,16 +538,16 @@ export default function ShopScreen() {
             if (isOwned) {
               handleEquipColor(product.productId);
             } else if (product.isAvailable) {
-              handleBuyColor(product);
+              handleBuyItem(product);
             }
           }}
-          disabled={purchasing !== null || (!product.isAvailable && !isOwned) || isEquipped}
+          disabled={isPurchasing || purchasing !== null || (!product.isAvailable && !isOwned) || isEquipped}
         >
-          {purchasing === product.productId ? (
+          {isPurchasing ? (
             <ActivityIndicator size="small" color="#fff" />
           ) : (
             <Text style={[styles.buttonText, isEquipped && styles.buttonTextEquipped]}>
-              {buttonText}
+              {buttonLabel}
             </Text>
           )}
         </TouchableOpacity>
@@ -568,13 +576,13 @@ export default function ShopScreen() {
           <Text style={styles.debugText}>Current Offering: {debugInfo.currentOfferingId || 'None'}</Text>
           <Text style={styles.debugText}>Selected Offering: {debugInfo.selectedOfferingId || 'None'}</Text>
           <Text style={styles.debugText}>Total Packages: {debugInfo.totalPackages}</Text>
-          <Text style={styles.debugText}>Packages Missing storeProduct: {debugInfo.packagesMissingStoreProduct}</Text>
-          <Text style={styles.debugText}>Theme Package Count: {debugInfo.themePackageCount}</Text>
-          <Text style={styles.debugText}>Chain Package Count: {debugInfo.chainPackageCount}</Text>
-          <Text style={styles.debugText}>Fetched Product IDs: {debugInfo.fetchedProductIds.join(', ') || 'None'}</Text>
-          <Text style={styles.debugText}>Unmatched Product IDs: {debugInfo.unmatchedProductIds.join(', ') || 'None'}</Text>
-          <Text style={styles.debugText}>Missing Local Paid IDs: {debugInfo.missingLocalPaidIds.join(', ') || 'None'}</Text>
-          <Text style={styles.debugText}>Latest RevenueCat error: {latestRevenueCatError || 'None'}</Text>
+          <Text style={styles.debugText}>Missing storeProduct: {debugInfo.packagesMissingStoreProduct}</Text>
+          <Text style={styles.debugText}>Theme Packages: {debugInfo.themePackageCount}</Text>
+          <Text style={styles.debugText}>Chain Packages: {debugInfo.chainPackageCount}</Text>
+          <Text style={styles.debugText}>Fetched IDs: {debugInfo.fetchedPackageIds.join(', ') || 'None'}</Text>
+          <Text style={styles.debugText}>Unmatched IDs: {debugInfo.unmatchedPackageIds.join(', ') || 'None'}</Text>
+          <Text style={styles.debugText}>Missing IDs: {debugInfo.missingPackageIds.join(', ') || 'None'}</Text>
+          <Text style={styles.debugText}>RC Error: {latestRevenueCatError || 'None'}</Text>
         </View>
       )}
 
@@ -682,7 +690,7 @@ const styles = StyleSheet.create({
   },
   card: {
     width: (SCREEN_WIDTH - 48) / 2,
-    backgroundColor: colors.card,
+    backgroundColor: colors.cardBackground,
     borderRadius: 12,
     padding: 12,
     marginBottom: 16,
@@ -713,8 +721,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: colors.text,
-    marginBottom: 8,
+    marginBottom: 6,
     textAlign: 'center',
+  },
+  ownedBadge: {
+    backgroundColor: 'rgba(52, 199, 89, 0.15)',
+    borderWidth: 1,
+    borderColor: colors.success,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginBottom: 6,
+  },
+  ownedBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.success,
   },
   button: {
     backgroundColor: colors.primary,
@@ -725,10 +747,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   buttonEquipped: {
-    backgroundColor: colors.success || '#4CAF50',
+    backgroundColor: colors.success,
   },
   buttonDisabled: {
-    backgroundColor: colors.disabled || '#ccc',
+    backgroundColor: colors.textSecondary,
     opacity: 0.5,
   },
   buttonText: {
@@ -740,7 +762,7 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   restoreButton: {
-    backgroundColor: colors.secondary || colors.primary,
+    backgroundColor: colors.primary,
     paddingVertical: 16,
     borderRadius: 8,
     alignItems: 'center',

@@ -47,7 +47,7 @@ export default function RootLayout() {
         return;
       }
       try {
-        const API_KEY = "appl_eSqPGLdMlJGuNyCAThUysRVZTcj";
+        const API_KEY = "appl_ECLMFKJuAaPHoerTjPgaMwDCdLw";
 
         if (!Purchases.isConfigured()) {
           if (__DEV__) {

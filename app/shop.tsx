@@ -1,13 +1,23 @@
 
-import React, { useState, useEffect, useContext } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Dimensions, ActivityIndicator, Alert, Platform } from 'react-native';
+import React, { useState, useEffect, useContext, useMemo, useCallback } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+  Dimensions,
+  ActivityIndicator,
+  Alert,
+  Platform,
+} from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, THEMES, CHAIN_HIGHLIGHT_COLORS } from '@/styles/commonStyles';
-import { 
-  loadOwnedThemes, 
-  saveOwnedThemes, 
-  loadOwnedColors, 
+import {
+  loadOwnedThemes,
+  saveOwnedThemes,
+  loadOwnedColors,
   saveOwnedColors,
   loadTheme,
   saveTheme,
@@ -18,12 +28,19 @@ import { IconSymbol } from '@/components/IconSymbol';
 import Purchases, { PurchasesPackage, CustomerInfo } from 'react-native-purchases';
 import Constants from 'expo-constants';
 import { RevenueCatContext } from '@/app/_layout';
-import { RC_OFFERING_ID, THEME_PRODUCT_IDS, CHAIN_PRODUCT_IDS } from '@/constants/RevenueCatProducts';
+import {
+  RC_OFFERING_ID,
+  ALL_PACKAGE_IDS,
+  PACKAGE_ID_TO_PRODUCT_ID,
+  THEME_PACKAGE_IDS,
+  CHAIN_PACKAGE_IDS,
+} from '@/constants/RevenueCatProducts';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
 interface ProductWithPrice {
-  productId: string;
+  packageId: string;       // RevenueCat package identifier (e.g. "Volcano")
+  productId: string;       // local product ID (e.g. "theme_volcano")
   displayName: string;
   price: number;
   priceString?: string;
@@ -32,269 +49,91 @@ interface ProductWithPrice {
   isAvailable: boolean;
 }
 
-// RevenueCat REST API Identifiers for reference (DO NOT use these as SDK lookup keys)
-const REVENUECAT_REST_IDS = {
-  offerings: {
-    themes: 'ofrng11cb78188e', // REST ID - for dashboard reference only
-  },
-};
+const FREE_THEME_ID = 'theme_classic';
+const FREE_CHAIN_COLOR_ID = 'chain_gold';
 
 export default function ShopScreen() {
   const router = useRouter();
   const { revenueCatReady } = useContext(RevenueCatContext);
-  const [ownedThemes, setOwnedThemes] = useState<string[]>(['theme_classic']);
-  const [ownedColors, setOwnedColors] = useState<string[]>(['chain_gold']);
-  const [equippedTheme, setEquippedTheme] = useState<string>('theme_classic');
-  const [equippedColor, setEquippedColor] = useState<string>('chain_gold');
-  const [activeTab, setActiveTab] = useState<'themes' | 'colors'>('themes');
+
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [debugInfo, setDebugInfo] = useState<string>('');
   const [requiresDevBuild, setRequiresDevBuild] = useState(false);
-  
-  const [themesWithPrices, setThemesWithPrices] = useState<ProductWithPrice[]>([]);
-  const [colorsWithPrices, setColorsWithPrices] = useState<ProductWithPrice[]>([]);
+
+  const [themes, setThemes] = useState<ProductWithPrice[]>([]);
+  const [chainColors, setChainColors] = useState<ProductWithPrice[]>([]);
+
+  const [ownedProductIds, setOwnedProductIds] = useState<Set<string>>(
+    new Set([FREE_THEME_ID, FREE_CHAIN_COLOR_ID])
+  );
+  const [equippedTheme, setEquippedTheme] = useState<string>(FREE_THEME_ID);
+  const [equippedColor, setEquippedColor] = useState<string>(FREE_CHAIN_COLOR_ID);
+
+  const [activeTab, setActiveTab] = useState<'themes' | 'colors'>('themes');
+
+  const themeLookupMap = useMemo(() => {
+    const map = new Map<string, typeof THEMES[keyof typeof THEMES]>();
+    Object.values(THEMES).forEach(theme => map.set(theme.productId, theme));
+    return map;
+  }, []);
+
+  const chainColorLookupMap = useMemo(() => {
+    const map = new Map<string, typeof CHAIN_HIGHLIGHT_COLORS[keyof typeof CHAIN_HIGHLIGHT_COLORS]>();
+    Object.values(CHAIN_HIGHLIGHT_COLORS).forEach(color => map.set(color.productId, color));
+    return map;
+  }, []);
 
   useEffect(() => {
     console.log('=== Shop Screen Mounted ===');
     console.log('[Shop] Platform:', Platform.OS);
-    console.log('[Shop] App Name:', Constants.expoConfig?.name);
     console.log('[Shop] Is Expo Go:', Constants.appOwnership === 'expo');
     console.log('[Shop] RevenueCat ready:', revenueCatReady);
-    
-    // CRITICAL CHECK: Detect if running in unsupported environment
+
     if (Platform.OS === 'web') {
-      console.error('[Shop] ❌ CRITICAL: Running on WEB - RevenueCat does NOT work on web!');
-      console.error('[Shop] 🔧 SOLUTION: You must test on a physical iOS device with a development build');
+      console.error('[Shop] Running on WEB — RevenueCat does NOT work on web');
       setRequiresDevBuild(true);
-      setErrorMessage('Web Platform Not Supported');
-      setDebugInfo('RevenueCat in-app purchases only work on iOS and Android devices, not in web browsers.');
+      setErrorMessage('RevenueCat in-app purchases only work on iOS and Android devices, not in web browsers.');
       loadLocalDataOnly();
       return;
     }
-    
+
     if (Constants.appOwnership === 'expo') {
-      console.error('[Shop] ❌ CRITICAL: Running in EXPO GO - RevenueCat does NOT work in Expo Go!');
-      console.error('[Shop] 🔧 SOLUTION: You must create a development build and install on a physical device');
+      console.error('[Shop] Running in EXPO GO — RevenueCat does NOT work in Expo Go');
       setRequiresDevBuild(true);
-      setErrorMessage('Expo Go Not Supported');
-      setDebugInfo('RevenueCat requires a custom development build. Expo Go cannot process real in-app purchases.');
+      setErrorMessage('RevenueCat requires a custom development build. Expo Go cannot process real in-app purchases.');
       loadLocalDataOnly();
       return;
     }
 
     if (!revenueCatReady) {
-      console.log('[Shop] RevenueCat not ready yet, waiting...');
       setLoading(true);
       return;
     }
-    
-    console.log('[Shop] ✅ Running on native platform, proceeding with RevenueCat initialization');
-    console.log('[Shop] 📋 RevenueCat REST API Reference IDs (for dashboard verification only):');
-    console.log('[Shop]   Themes Offering REST ID:', REVENUECAT_REST_IDS.offerings.themes);
-    console.log('[Shop] ⚠️ NOTE: SDK uses Offering IDENTIFIER strings ("themes"), not REST IDs');
-    console.log('[Shop] Loading ownership data and RevenueCat offerings');
+
+    loadLocalDataOnly();
     loadOwnershipAndOfferings();
   }, [revenueCatReady]);
 
-  const loadLocalDataOnly = () => {
-    console.log('[Shop] Loading local data only (no RevenueCat)');
-    setLoading(true);
-    
-    const allThemes = Object.values(THEMES).map((theme) => ({
-      productId: theme.productId,
-      displayName: theme.displayName,
-      price: theme.price,
-      priceString: theme.price === 0 ? 'Free' : `$${theme.price.toFixed(2)}`,
-      type: 'theme' as const,
-      isAvailable: theme.price === 0,
-    }));
-    
-    const allColors = Object.values(CHAIN_HIGHLIGHT_COLORS).map((color) => ({
-      productId: color.productId,
-      displayName: color.displayName,
-      price: color.price,
-      priceString: color.price === 0 ? 'Free' : `$${color.price.toFixed(2)}`,
-      type: 'chainColor' as const,
-      isAvailable: color.price === 0,
-    }));
-    
-    setThemesWithPrices(allThemes);
-    setColorsWithPrices(allColors);
-    
-    // Load local ownership
-    loadOwnedThemes().then(setOwnedThemes);
-    loadOwnedColors().then(setOwnedColors);
-    loadTheme().then((theme) => setEquippedTheme(theme || 'theme_classic'));
-    loadChainHighlightColor().then((color) => setEquippedColor(color || 'chain_gold'));
-    
-    setLoading(false);
-  };
-
-  const loadOwnershipAndOfferings = async () => {
+  const loadLocalDataOnly = async () => {
     try {
-      setLoading(true);
-      setErrorMessage(null);
-      setDebugInfo('');
-      
-      console.log('[Shop] Step 1: Loading local ownership data');
-      const themes = await loadOwnedThemes();
-      const colorIds = await loadOwnedColors();
-      const currentTheme = await loadTheme();
-      const currentColor = await loadChainHighlightColor();
-      
-      setOwnedThemes(themes);
-      setOwnedColors(colorIds);
-      setEquippedTheme(currentTheme || 'theme_classic');
-      setEquippedColor(currentColor || 'chain_gold');
-      
-      console.log('[Shop] ✅ Local ownership loaded:', { 
-        themesCount: themes.length, 
-        colorsCount: colorIds.length, 
-        currentTheme, 
-        currentColor 
-      });
-      
-      console.log('[Shop] Step 2: Fetching RevenueCat offerings');
-      const offerings = await Purchases.getOfferings();
+      const [savedTheme, savedColor, savedOwnedThemes, savedOwnedColors] = await Promise.all([
+        loadTheme(),
+        loadChainHighlightColor(),
+        loadOwnedThemes(),
+        loadOwnedColors(),
+      ]);
 
-      // Use RC_OFFERING_ID ("themes") explicitly, fall back to current
-      const selectedOffering = offerings.all[RC_OFFERING_ID] ?? offerings.current;
+      setEquippedTheme(savedTheme || FREE_THEME_ID);
+      setEquippedColor(savedColor || FREE_CHAIN_COLOR_ID);
 
-      const debugLines = [];
-      debugLines.push(`Offerings: [${Object.keys(offerings.all).join(', ') || 'NONE'}]`);
-      debugLines.push(`Current: ${offerings.current?.identifier || 'NONE'}`);
+      const owned = new Set([FREE_THEME_ID, FREE_CHAIN_COLOR_ID, ...savedOwnedThemes, ...savedOwnedColors]);
+      setOwnedProductIds(owned);
 
-      if (!selectedOffering) {
-        const msg = 'offerings.current is null — no default offering configured in RevenueCat.';
-        console.warn(`[RevenueCat] ${msg}`);
-        setErrorMessage(msg);
-        debugLines.push('⚠️ No current offering');
-
-        const allThemes = Object.values(THEMES).map((theme) => ({
-          productId: theme.productId,
-          displayName: theme.displayName,
-          price: theme.price,
-          priceString: theme.price === 0 ? 'Free' : `$${theme.price.toFixed(2)}`,
-          type: 'theme' as const,
-          isAvailable: theme.price === 0,
-        }));
-
-        const allColors = Object.values(CHAIN_HIGHLIGHT_COLORS).map((color) => ({
-          productId: color.productId,
-          displayName: color.displayName,
-          price: color.price,
-          priceString: color.price === 0 ? 'Free' : `$${color.price.toFixed(2)}`,
-          type: 'chainColor' as const,
-          isAvailable: color.price === 0,
-        }));
-
-        setThemesWithPrices(allThemes);
-        setColorsWithPrices(allColors);
-        setDebugInfo(debugLines.join(' | '));
-        setLoading(false);
-        return;
-      }
-
-      const availablePackages = selectedOffering.availablePackages;
-      console.log(`[RevenueCat] Offerings loaded: ${availablePackages.length} packages`);
-      debugLines.push(`Selected: ${selectedOffering.identifier}`);
-      debugLines.push(`Total Packages: ${availablePackages.length}`);
-
-      // Build packageMap keyed by storeProduct.identifier (exact product ID)
-      const packageMap: Record<string, PurchasesPackage> = {};
-      availablePackages.forEach((pkg) => {
-        if (!pkg.storeProduct) {
-          console.warn('[Shop] Package missing storeProduct:', pkg.identifier);
-          return;
-        }
-        packageMap[pkg.storeProduct.identifier] = pkg;
-      });
-
-      console.log('[RevenueCat] packageMap keys:', Object.keys(packageMap));
-
-      // Build full product lists using packageMap for lookup
-      const allThemes = Object.values(THEMES).map((theme) => {
-        const pkg = packageMap[theme.productId];
-        if (pkg) {
-          return {
-            productId: theme.productId,
-            displayName: theme.displayName,
-            price: pkg.storeProduct.price,
-            priceString: pkg.storeProduct.priceString,
-            type: 'theme' as const,
-            pkg,
-            isAvailable: true,
-          };
-        } else {
-          const isFree = theme.price === 0;
-          if (!isFree) {
-            console.log(`[RevenueCat] No package found for productId: ${theme.productId}`);
-          }
-          return {
-            productId: theme.productId,
-            displayName: theme.displayName,
-            price: theme.price,
-            priceString: isFree ? 'Free' : `$${theme.price.toFixed(2)}`,
-            type: 'theme' as const,
-            isAvailable: isFree,
-          };
-        }
-      });
-
-      const allColors = Object.values(CHAIN_HIGHLIGHT_COLORS).map((color) => {
-        const pkg = packageMap[color.productId];
-        if (pkg) {
-          return {
-            productId: color.productId,
-            displayName: color.displayName,
-            price: pkg.storeProduct.price,
-            priceString: pkg.storeProduct.priceString,
-            type: 'chainColor' as const,
-            pkg,
-            isAvailable: true,
-          };
-        } else {
-          const isFree = color.price === 0;
-          if (!isFree) {
-            console.log(`[RevenueCat] No package found for productId: ${color.productId}`);
-          }
-          return {
-            productId: color.productId,
-            displayName: color.displayName,
-            price: color.price,
-            priceString: isFree ? 'Free' : `$${color.price.toFixed(2)}`,
-            type: 'chainColor' as const,
-            isAvailable: isFree,
-          };
-        }
-      });
-
-      setThemesWithPrices(allThemes);
-      setColorsWithPrices(allColors);
-      setDebugInfo(debugLines.join(' | '));
-      
-      console.log('[Shop] Step 5: Syncing ownership from RevenueCat');
-      await syncOwnershipFromRevenueCat();
-      
-    } catch (error: any) {
-      console.error('[Shop] ❌ Error loading offerings');
-      console.error('[Shop] 🔍 FULL ERROR OBJECT:', {
-        message: error.message || 'N/A',
-        code: error.code || 'N/A',
-        readableErrorCode: error.readableErrorCode || 'N/A',
-        underlyingErrorMessage: error.underlyingErrorMessage || 'N/A',
-        domain: error.domain || 'N/A',
-        userInfo: error.userInfo || 'N/A',
-      });
-      
-      const errorDetails = `${error.readableErrorCode || error.message}`;
-      const errorMsg = `Failed to load store: ${errorDetails}`;
-      setErrorMessage(errorMsg);
-      
-      const allThemes = Object.values(THEMES).map((theme) => ({
+      // Build fallback product lists (no RC prices)
+      const allThemes: ProductWithPrice[] = Object.values(THEMES).map(theme => ({
+        packageId: '',
         productId: theme.productId,
         displayName: theme.displayName,
         price: theme.price,
@@ -302,8 +141,9 @@ export default function ShopScreen() {
         type: 'theme' as const,
         isAvailable: theme.price === 0,
       }));
-      
-      const allColors = Object.values(CHAIN_HIGHLIGHT_COLORS).map((color) => ({
+
+      const allColors: ProductWithPrice[] = Object.values(CHAIN_HIGHLIGHT_COLORS).map(color => ({
+        packageId: '',
         productId: color.productId,
         displayName: color.displayName,
         price: color.price,
@@ -311,9 +151,182 @@ export default function ShopScreen() {
         type: 'chainColor' as const,
         isAvailable: color.price === 0,
       }));
-      
-      setThemesWithPrices(allThemes);
-      setColorsWithPrices(allColors);
+
+      setThemes(allThemes);
+      setChainColors(allColors);
+    } catch (error) {
+      console.error('[Shop] Error loading local data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadOwnershipAndOfferings = async () => {
+    setLoading(true);
+    setErrorMessage(null);
+
+    if (!Purchases.isConfigured()) {
+      console.warn('[RevenueCat] getOfferings attempted before SDK configured');
+      setErrorMessage('Store is still initializing. Please try again in a moment.');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      console.log('[Shop] Fetching RevenueCat offerings for offering:', RC_OFFERING_ID);
+      const offerings = await Purchases.getOfferings();
+
+      const selectedOffering = offerings.all[RC_OFFERING_ID] ?? offerings.current;
+
+      console.log('[Shop] All offerings:', Object.keys(offerings.all));
+      console.log('[Shop] Selected offering:', selectedOffering?.identifier ?? 'none');
+
+      if (!selectedOffering) {
+        console.warn('[RevenueCat] No "themes" offering found and no current offering set');
+        Alert.alert('Products unavailable', 'Products unavailable. Please try again later.');
+        setErrorMessage('No offerings found. Check RevenueCat configuration.');
+        setLoading(false);
+        return;
+      }
+
+      const availablePackages = selectedOffering.availablePackages;
+      console.log(`[Shop] Offerings loaded: ${availablePackages.length} packages found`);
+      availablePackages.forEach(pkg => {
+        console.log(`[Shop]   Package: "${pkg.identifier}" | Product: ${pkg.storeProduct?.productIdentifier ?? 'NO_STORE_PRODUCT'} | Price: ${pkg.storeProduct?.priceString ?? 'N/A'}`);
+      });
+
+      if (availablePackages.length === 0) {
+        console.warn('[RevenueCat] ⚠️ StoreKit returned 0 products. Verify products exist in App Store Connect for bundle ID com.poseiduxfitness.numble and are approved/ready to submit.');
+        Alert.alert('Products unavailable', 'Products unavailable. Please try again later.');
+        setErrorMessage('No products loaded from Apple. Ensure all In-App Purchase products are Approved in App Store Connect.');
+        setLoading(false);
+        return;
+      }
+
+      // Build packageMap keyed by pkg.identifier (the RevenueCat package identifier)
+      const packageMap: Record<string, PurchasesPackage> = {};
+
+      availablePackages.forEach(pkg => {
+        if (!pkg.storeProduct) {
+          console.warn('[Shop] Package missing storeProduct:', pkg.identifier);
+          return;
+        }
+        packageMap[pkg.identifier] = pkg;
+        console.log(`[Shop] Package lookup: "${pkg.identifier}" -> found`);
+      });
+
+      // Warn about any known package IDs that didn't come back from StoreKit
+      const missingPackageIds = ALL_PACKAGE_IDS.filter(id => !packageMap[id]);
+      if (missingPackageIds.length > 0) {
+        console.warn('[RevenueCat] Package IDs in app but NOT returned by StoreKit:', missingPackageIds);
+      }
+
+      const fetchedPackageIds = Object.keys(packageMap);
+      const themeItems: ProductWithPrice[] = [];
+      const chainItems: ProductWithPrice[] = [];
+
+      fetchedPackageIds.forEach(pkgId => {
+        const pkg = packageMap[pkgId];
+        const localProductId = PACKAGE_ID_TO_PRODUCT_ID[pkgId];
+
+        if (!localProductId) {
+          console.warn(`[Shop] Package "${pkgId}" has no local product ID mapping — skipping`);
+          return;
+        }
+
+        const isTheme = (THEME_PACKAGE_IDS as readonly string[]).includes(pkgId);
+        const isChain = (CHAIN_PACKAGE_IDS as readonly string[]).includes(pkgId);
+
+        if (isTheme) {
+          const themeData = themeLookupMap.get(localProductId);
+          if (themeData) {
+            themeItems.push({
+              packageId: pkgId,
+              productId: localProductId,
+              displayName: pkg.storeProduct.title || themeData.displayName,
+              price: pkg.storeProduct.price,
+              priceString: pkg.storeProduct.priceString,
+              type: 'theme',
+              pkg,
+              isAvailable: true,
+            });
+          }
+        } else if (isChain) {
+          const colorData = chainColorLookupMap.get(localProductId);
+          if (colorData) {
+            chainItems.push({
+              packageId: pkgId,
+              productId: localProductId,
+              displayName: pkg.storeProduct.title || colorData.displayName,
+              price: pkg.storeProduct.price,
+              priceString: pkg.storeProduct.priceString,
+              type: 'chainColor',
+              pkg,
+              isAvailable: true,
+            });
+          }
+        }
+      });
+
+      // Build complete product lists including local-only items (free + unavailable paid)
+      const allThemes: ProductWithPrice[] = [];
+      const allChainColors: ProductWithPrice[] = [];
+
+      Object.values(THEMES).forEach(themeData => {
+        const rcItem = themeItems.find(p => p.productId === themeData.productId);
+        if (rcItem) {
+          allThemes.push(rcItem);
+        } else {
+          const isFree = themeData.productId === FREE_THEME_ID;
+          if (!isFree) {
+            console.log(`[RevenueCat] No package found for productId: ${themeData.productId} — not shown as purchasable`);
+          }
+          allThemes.push({
+            packageId: '',
+            productId: themeData.productId,
+            displayName: themeData.displayName,
+            price: themeData.price || 0,
+            priceString: themeData.price === 0 ? 'Free' : `$${themeData.price.toFixed(2)}`,
+            type: 'theme',
+            isAvailable: isFree,
+          });
+        }
+      });
+
+      Object.values(CHAIN_HIGHLIGHT_COLORS).forEach(colorData => {
+        const rcItem = chainItems.find(p => p.productId === colorData.productId);
+        if (rcItem) {
+          allChainColors.push(rcItem);
+        } else {
+          const isFree = colorData.productId === FREE_CHAIN_COLOR_ID;
+          if (!isFree) {
+            console.log(`[RevenueCat] No package found for productId: ${colorData.productId} — not shown as purchasable`);
+          }
+          allChainColors.push({
+            packageId: '',
+            productId: colorData.productId,
+            displayName: colorData.displayName,
+            price: colorData.price || 0,
+            priceString: colorData.price === 0 ? 'Free' : `$${colorData.price.toFixed(2)}`,
+            type: 'chainColor',
+            isAvailable: isFree,
+          });
+        }
+      });
+
+      setThemes(allThemes);
+      setChainColors(allChainColors);
+
+      console.log('[Shop] Syncing ownership from RevenueCat');
+      await syncOwnershipFromRevenueCat();
+    } catch (error: any) {
+      console.error('[Shop] Error loading offerings:', {
+        message: error.message,
+        code: error.code,
+        readableErrorCode: error.readableErrorCode,
+        underlyingErrorMessage: error.underlyingErrorMessage,
+      });
+      setErrorMessage(`Failed to load store: ${error.readableErrorCode || error.message}`);
     } finally {
       setLoading(false);
       console.log('=== Shop Loading Complete ===');
@@ -322,198 +335,153 @@ export default function ShopScreen() {
 
   const syncOwnershipFromRevenueCat = async () => {
     try {
-      console.log('[Shop] Fetching customer info from RevenueCat');
+      console.log('[Shop] Fetching customer info for ownership sync');
       const customerInfo = await Purchases.getCustomerInfo();
-      console.log('[Shop] ✅ Customer info fetched');
+      console.log('[Shop] Customer info fetched successfully');
       await updateOwnershipFromCustomerInfo(customerInfo);
     } catch (error: any) {
-      console.error('[Shop] ❌ Error syncing ownership');
-      console.error('[Shop] 🔍 FULL ERROR OBJECT:', {
-        message: error.message || 'N/A',
-        code: error.code || 'N/A',
-        readableErrorCode: error.readableErrorCode || 'N/A',
-        underlyingErrorMessage: error.underlyingErrorMessage || 'N/A',
-        domain: error.domain || 'N/A',
-      });
+      console.error('[Shop] Error syncing ownership:', error.message);
     }
   };
 
-  const updateOwnershipFromCustomerInfo = async (customerInfo: CustomerInfo) => {
-    const ownedThemeIds: string[] = ['theme_classic'];
-    const ownedChainColorIds: string[] = ['chain_gold'];
-    
-    console.log('[Shop] 🔍 Processing customer info for ownership');
-    const purchasedProductIds = customerInfo.allPurchasedProductIdentifiers;
-    console.log(`[Shop] All purchased product identifiers: ${purchasedProductIds.length}`);
-    
-    purchasedProductIds.forEach((productId, index) => {
-      console.log(`[Shop]   Product ${index + 1}: ${productId}`);
-      
-      if ((THEME_PRODUCT_IDS as readonly string[]).includes(productId) && !ownedThemeIds.includes(productId)) {
-        ownedThemeIds.push(productId);
-      } else if ((CHAIN_PRODUCT_IDS as readonly string[]).includes(productId) && !ownedChainColorIds.includes(productId)) {
-        ownedChainColorIds.push(productId);
+  const updateOwnershipFromCustomerInfo = useCallback(async (customerInfo: CustomerInfo) => {
+    // Use nonSubscriptionTransactions for non-consumable ownership
+    const nonSubTransactions = customerInfo.nonSubscriptionTransactions ?? [];
+    console.log(`[Shop] nonSubscriptionTransactions count: ${nonSubTransactions.length}`);
+
+    const owned = new Set<string>([FREE_THEME_ID, FREE_CHAIN_COLOR_ID]);
+
+    nonSubTransactions.forEach(tx => {
+      const productId = tx.productIdentifier;
+      console.log(`[Shop]   Non-subscription transaction: ${productId}`);
+      if (themeLookupMap.has(productId) || chainColorLookupMap.has(productId)) {
+        owned.add(productId);
       }
     });
-    
-    console.log('[Shop] ✅ Ownership updated');
-    console.log(`[Shop]   Owned themes: ${ownedThemeIds.join(', ')}`);
-    console.log(`[Shop]   Owned colors: ${ownedChainColorIds.join(', ')}`);
-    
-    setOwnedThemes(ownedThemeIds);
-    setOwnedColors(ownedChainColorIds);
-    await saveOwnedThemes(ownedThemeIds);
-    await saveOwnedColors(ownedChainColorIds);
-  };
 
-  const handleBuyTheme = async (product: ProductWithPrice) => {
+    // Also check allPurchasedProductIdentifiers as a fallback
+    const allPurchased = customerInfo.allPurchasedProductIdentifiers ?? [];
+    console.log(`[Shop] allPurchasedProductIdentifiers count: ${allPurchased.length}`);
+    allPurchased.forEach(productId => {
+      if (themeLookupMap.has(productId) || chainColorLookupMap.has(productId)) {
+        owned.add(productId);
+      }
+    });
+
+    setOwnedProductIds(owned);
+
+    const ownedThemeIds = Array.from(owned).filter(id => themeLookupMap.has(id));
+    const ownedColorIds = Array.from(owned).filter(id => chainColorLookupMap.has(id));
+
+    await Promise.all([
+      saveOwnedThemes(ownedThemeIds),
+      saveOwnedColors(ownedColorIds),
+    ]);
+
+    console.log('[Shop] Ownership updated — themes:', ownedThemeIds, '| colors:', ownedColorIds);
+  }, [themeLookupMap, chainColorLookupMap]);
+
+  const handleBuyItem = useCallback(async (product: ProductWithPrice) => {
     if (!product.pkg) {
-      console.log(`[RevenueCat] No package found for productId: ${product.productId}`);
+      console.log(`[RevenueCat] No package found for productId: ${product.productId} — cannot purchase`);
       Alert.alert('Unavailable', 'This item is not available for purchase right now.');
       return;
     }
 
-    console.log(`[RevenueCat] Purchasing package: ${product.productId}`);
+    console.log(`[RevenueCat] Purchasing package: "${product.packageId}" (productId: ${product.productId})`);
     setPurchasing(product.productId);
 
     try {
       const { customerInfo } = await Purchases.purchasePackage(product.pkg);
-      const owned = customerInfo.allPurchasedProductIdentifiers.includes(product.productId);
-      console.log(`[RevenueCat] Purchase success: ${product.productId} (in allPurchasedProductIdentifiers: ${owned})`);
+      const owned = (customerInfo.nonSubscriptionTransactions ?? []).some(
+        tx => tx.productIdentifier === product.productId
+      );
+      console.log(`[RevenueCat] Purchase success: "${product.packageId}" | productId: ${product.productId} | in nonSubscriptionTransactions: ${owned}`);
       await updateOwnershipFromCustomerInfo(customerInfo);
       Alert.alert('Success!', `${product.displayName} purchased!`);
     } catch (error: any) {
-      console.log(`[RevenueCat] Purchase error: ${error.message}`);
+      console.log(`[RevenueCat] Purchase error for "${product.packageId}": ${error.message}`);
       if (!error.userCancelled) {
         Alert.alert('Purchase Failed', error.readableErrorCode || error.message);
       }
     } finally {
       setPurchasing(null);
     }
-  };
+  }, [updateOwnershipFromCustomerInfo]);
 
-  const handleEquipTheme = async (themeId: string) => {
-    console.log(`[Shop] Equipping theme: ${themeId}`);
+  const handleEquipTheme = useCallback(async (themeId: string) => {
+    console.log('[Shop] Equipping theme:', themeId);
     setEquippedTheme(themeId);
     await saveTheme(themeId);
-  };
+  }, []);
 
-  const handleBuyColor = async (product: ProductWithPrice) => {
-    if (!product.pkg) {
-      console.log(`[RevenueCat] No package found for productId: ${product.productId}`);
-      Alert.alert('Unavailable', 'This item is not available for purchase right now.');
-      return;
-    }
-
-    console.log(`[RevenueCat] Purchasing package: ${product.productId}`);
-    setPurchasing(product.productId);
-
-    try {
-      const { customerInfo } = await Purchases.purchasePackage(product.pkg);
-      const owned = customerInfo.allPurchasedProductIdentifiers.includes(product.productId);
-      console.log(`[RevenueCat] Purchase success: ${product.productId} (in allPurchasedProductIdentifiers: ${owned})`);
-      await updateOwnershipFromCustomerInfo(customerInfo);
-      Alert.alert('Success!', `${product.displayName} purchased!`);
-    } catch (error: any) {
-      console.log(`[RevenueCat] Purchase error: ${error.message}`);
-      if (!error.userCancelled) {
-        Alert.alert('Purchase Failed', error.readableErrorCode || error.message);
-      }
-    } finally {
-      setPurchasing(null);
-    }
-  };
-
-  const handleEquipColor = async (colorId: string) => {
-    console.log(`[Shop] Equipping color: ${colorId}`);
+  const handleEquipColor = useCallback(async (colorId: string) => {
+    console.log('[Shop] Equipping chain color:', colorId);
     setEquippedColor(colorId);
     await saveChainHighlightColor(colorId);
-  };
+  }, []);
 
-  const handleRestorePurchases = async () => {
+  const handleRestorePurchases = useCallback(async () => {
+    console.log('[Shop] Restoring purchases');
+    setRestoring(true);
+
     try {
-      console.log('[Shop] 🔄 Restoring purchases');
-      setRestoring(true);
-      
       const customerInfo = await Purchases.restorePurchases();
-      console.log('[Shop] ✅ Restore successful');
-      
+      const restoredCount = (customerInfo.nonSubscriptionTransactions ?? []).length;
+      console.log(`[Shop] Restore success — ${restoredCount} non-subscription transactions found`);
       await updateOwnershipFromCustomerInfo(customerInfo);
       Alert.alert('Restored!', 'Your purchases have been restored.');
     } catch (error: any) {
-      console.error('[Shop] ❌ Restore failed');
-      console.error('[Shop] 🔍 FULL ERROR OBJECT:', {
-        message: error.message || 'N/A',
-        code: error.code || 'N/A',
-        readableErrorCode: error.readableErrorCode || 'N/A',
-        underlyingErrorMessage: error.underlyingErrorMessage || 'N/A',
-        domain: error.domain || 'N/A',
+      console.error('[Shop] Restore failed:', {
+        message: error.message,
+        code: error.code,
+        readableErrorCode: error.readableErrorCode,
+        underlyingErrorMessage: error.underlyingErrorMessage,
       });
-      
       Alert.alert('Restore Failed', error.readableErrorCode || error.message);
     } finally {
       setRestoring(false);
     }
-  };
+  }, [updateOwnershipFromCustomerInfo]);
 
   const tabTextThemes = 'Themes';
   const tabTextColors = 'Colors';
   const restoreButtonText = 'Restore Purchases';
 
   if (loading) {
-    const loadingText = 'Loading Store...';
     return (
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-        <Stack.Screen 
-          options={{
-            headerShown: true,
-            title: 'Shop',
-            headerBackTitle: 'Back',
-          }}
-        />
+        <Stack.Screen options={{ headerShown: true, title: 'Shop', headerBackTitle: 'Back' }} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>{loadingText}</Text>
+          <Text style={styles.loadingText}>Loading Store...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   if (requiresDevBuild) {
-    const title = errorMessage || 'Development Build Required';
-    const message1 = debugInfo || 'RevenueCat requires a development build.';
-    const continueText = 'Continue Browsing';
-    
     return (
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-        <Stack.Screen 
-          options={{
-            headerShown: true,
-            title: 'Shop',
-            headerBackTitle: 'Back',
-          }}
-        />
-        <ScrollView 
-          style={styles.scrollView}
-          contentContainerStyle={styles.requiresDevBuildContainer}
-        >
+        <Stack.Screen options={{ headerShown: true, title: 'Shop', headerBackTitle: 'Back' }} />
+        <ScrollView contentContainerStyle={styles.requiresDevBuildContainer}>
           <IconSymbol
             ios_icon_name="exclamationmark.triangle.fill"
             android_material_icon_name="warning"
             size={64}
             color="#FF9500"
           />
-          <Text style={styles.requiresDevBuildTitle}>{title}</Text>
-          <Text style={styles.requiresDevBuildMessage}>{message1}</Text>
-          
+          <Text style={styles.requiresDevBuildTitle}>Development Build Required</Text>
+          <Text style={styles.requiresDevBuildMessage}>{errorMessage}</Text>
           <TouchableOpacity
             style={styles.requiresDevBuildContinueButton}
             onPress={() => {
+              console.log('[Shop] Continue browsing pressed (dev build warning dismissed)');
               setRequiresDevBuild(false);
               setErrorMessage(null);
             }}
           >
-            <Text style={styles.requiresDevBuildContinueButtonText}>{continueText}</Text>
+            <Text style={styles.requiresDevBuildContinueButtonText}>Continue Browsing</Text>
           </TouchableOpacity>
         </ScrollView>
       </SafeAreaView>
@@ -522,40 +490,33 @@ export default function ShopScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      <Stack.Screen 
-        options={{
-          headerShown: true,
-          title: 'Shop',
-          headerBackTitle: 'Back',
-        }}
-      />
-      
-      {debugInfo && (
-        <View style={styles.debugBanner}>
-          <Text style={styles.debugBannerTitle}>RevenueCat Debug</Text>
-          <Text style={styles.debugBannerText}>{debugInfo}</Text>
-        </View>
-      )}
-      
+      <Stack.Screen options={{ headerShown: true, title: 'Shop', headerBackTitle: 'Back' }} />
+
       {errorMessage && (
         <View style={styles.errorBanner}>
           <Text style={styles.errorBannerText}>{errorMessage}</Text>
         </View>
       )}
-      
+
       <View style={styles.tabBar}>
         <TouchableOpacity
           style={[styles.tab, activeTab === 'themes' && styles.tabActive]}
-          onPress={() => setActiveTab('themes')}
+          onPress={() => {
+            console.log('[Shop] Tab pressed: Themes');
+            setActiveTab('themes');
+          }}
         >
           <Text style={[styles.tabText, activeTab === 'themes' && styles.tabTextActive]}>
             {tabTextThemes}
           </Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity
           style={[styles.tab, activeTab === 'colors' && styles.tabActive]}
-          onPress={() => setActiveTab('colors')}
+          onPress={() => {
+            console.log('[Shop] Tab pressed: Colors');
+            setActiveTab('colors');
+          }}
         >
           <Text style={[styles.tabText, activeTab === 'colors' && styles.tabTextActive]}>
             {tabTextColors}
@@ -563,23 +524,24 @@ export default function ShopScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
         {activeTab === 'themes' && (
           <View style={styles.grid}>
-            {themesWithPrices.map((product) => {
+            {themes.map(product => {
               const theme = THEMES[product.productId];
               if (!theme) return null;
-              
-              const isOwned = ownedThemes.includes(product.productId);
+
+              const isOwned = ownedProductIds.has(product.productId);
               const isEquipped = equippedTheme === product.productId;
               const isPurchasing = purchasing === product.productId;
-              const priceText = product.priceString || (product.price === 0 ? 'Free' : `$${product.price.toFixed(2)}`);
+              const isFree = product.productId === FREE_THEME_ID;
+              const priceText = isFree ? 'Free' : (product.priceString || `$${Number(product.price).toFixed(2)}`);
               const statusText = isEquipped ? 'Equipped' : (isOwned ? 'Owned' : (product.isAvailable ? priceText : 'Unavailable'));
-              
+
               return (
                 <View key={product.productId} style={styles.itemCard}>
                   <View style={[styles.themePreview, { backgroundColor: theme.boardBackground }]}>
@@ -589,14 +551,20 @@ export default function ShopScreen() {
                       <View style={[styles.previewTile, { backgroundColor: theme.tileColors[8]?.[1] || theme.accentColor }]} />
                     </View>
                   </View>
-                  
+
                   <Text style={styles.itemName}>{product.displayName}</Text>
-                  
+
+                  {isOwned && !isEquipped && (
+                    <View style={styles.ownedBadge}>
+                      <Text style={styles.ownedBadgeText}>Owned</Text>
+                    </View>
+                  )}
+
                   <View style={styles.itemActions}>
                     {!isOwned && product.isAvailable && (
                       <TouchableOpacity
                         style={[styles.actionButton, styles.buyButton]}
-                        onPress={() => handleBuyTheme(product)}
+                        onPress={() => handleBuyItem(product)}
                         disabled={isPurchasing}
                       >
                         {isPurchasing ? (
@@ -609,18 +577,18 @@ export default function ShopScreen() {
                               size={16}
                               color="#FFFFFF"
                             />
-                            <Text style={styles.buyButtonText}>{statusText}</Text>
+                            <Text style={styles.buyButtonText}>{priceText}</Text>
                           </>
                         )}
                       </TouchableOpacity>
                     )}
-                    
+
                     {!isOwned && !product.isAvailable && (
                       <View style={[styles.actionButton, styles.unavailableButton]}>
                         <Text style={styles.unavailableButtonText}>{statusText}</Text>
                       </View>
                     )}
-                    
+
                     {isOwned && !isEquipped && (
                       <TouchableOpacity
                         style={[styles.actionButton, styles.equipButton]}
@@ -629,7 +597,7 @@ export default function ShopScreen() {
                         <Text style={styles.equipButtonText}>Equip</Text>
                       </TouchableOpacity>
                     )}
-                    
+
                     {isEquipped && (
                       <View style={[styles.actionButton, styles.equippedButton]}>
                         <IconSymbol
@@ -650,27 +618,34 @@ export default function ShopScreen() {
 
         {activeTab === 'colors' && (
           <View style={styles.grid}>
-            {colorsWithPrices.map((product) => {
+            {chainColors.map(product => {
               const colorObj = CHAIN_HIGHLIGHT_COLORS[product.productId];
               if (!colorObj) return null;
-              
-              const isOwned = ownedColors.includes(product.productId);
+
+              const isOwned = ownedProductIds.has(product.productId);
               const isEquipped = equippedColor === product.productId;
               const isPurchasing = purchasing === product.productId;
-              const priceText = product.priceString || (product.price === 0 ? 'Free' : `$${product.price.toFixed(2)}`);
+              const isFree = product.productId === FREE_CHAIN_COLOR_ID;
+              const priceText = isFree ? 'Free' : (product.priceString || `$${Number(product.price).toFixed(2)}`);
               const statusText = isEquipped ? 'Equipped' : (isOwned ? 'Owned' : (product.isAvailable ? priceText : 'Unavailable'));
-              
+
               return (
                 <View key={product.productId} style={styles.itemCard}>
                   <View style={[styles.colorPreview, { backgroundColor: colorObj.color }]} />
-                  
+
                   <Text style={styles.itemName}>{product.displayName}</Text>
-                  
+
+                  {isOwned && !isEquipped && (
+                    <View style={styles.ownedBadge}>
+                      <Text style={styles.ownedBadgeText}>Owned</Text>
+                    </View>
+                  )}
+
                   <View style={styles.itemActions}>
                     {!isOwned && product.isAvailable && (
                       <TouchableOpacity
                         style={[styles.actionButton, styles.buyButton]}
-                        onPress={() => handleBuyColor(product)}
+                        onPress={() => handleBuyItem(product)}
                         disabled={isPurchasing}
                       >
                         {isPurchasing ? (
@@ -683,18 +658,18 @@ export default function ShopScreen() {
                               size={16}
                               color="#FFFFFF"
                             />
-                            <Text style={styles.buyButtonText}>{statusText}</Text>
+                            <Text style={styles.buyButtonText}>{priceText}</Text>
                           </>
                         )}
                       </TouchableOpacity>
                     )}
-                    
+
                     {!isOwned && !product.isAvailable && (
                       <View style={[styles.actionButton, styles.unavailableButton]}>
                         <Text style={styles.unavailableButtonText}>{statusText}</Text>
                       </View>
                     )}
-                    
+
                     {isOwned && !isEquipped && (
                       <TouchableOpacity
                         style={[styles.actionButton, styles.equipButton]}
@@ -703,7 +678,7 @@ export default function ShopScreen() {
                         <Text style={styles.equipButtonText}>Equip</Text>
                       </TouchableOpacity>
                     )}
-                    
+
                     {isEquipped && (
                       <View style={[styles.actionButton, styles.equippedButton]}>
                         <IconSymbol
@@ -721,7 +696,7 @@ export default function ShopScreen() {
             })}
           </View>
         )}
-        
+
         <TouchableOpacity
           style={styles.restoreButton}
           onPress={handleRestorePurchases}
@@ -792,23 +767,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#FFFFFF',
-  },
-  debugBanner: {
-    backgroundColor: 'rgba(255, 152, 0, 0.1)',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 152, 0, 0.3)',
-    padding: 12,
-  },
-  debugBannerTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 4,
-  },
-  debugBannerText: {
-    fontSize: 11,
-    fontFamily: 'monospace',
-    color: colors.textSecondary,
   },
   errorBanner: {
     backgroundColor: 'rgba(255, 59, 48, 0.1)',
@@ -908,7 +866,22 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.text,
     textAlign: 'center',
-    marginBottom: 10,
+    marginBottom: 6,
+  },
+  ownedBadge: {
+    backgroundColor: 'rgba(52, 199, 89, 0.15)',
+    borderWidth: 1,
+    borderColor: colors.success,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginBottom: 6,
+    alignSelf: 'center',
+  },
+  ownedBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.success,
   },
   itemActions: {
     width: '100%',
