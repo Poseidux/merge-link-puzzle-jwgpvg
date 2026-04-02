@@ -2,7 +2,7 @@
 import "react-native-reanimated";
 import React, { useEffect, useState, createContext } from "react";
 import { useFonts } from "expo-font";
-import { Stack } from "expo-router";
+import { Stack, usePathname, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { SystemBars } from "react-native-edge-to-edge";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -16,9 +16,10 @@ import {
 } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
 import { WidgetProvider } from "@/contexts/WidgetContext";
-import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
+import { SubscriptionProvider, useSubscription } from "@/contexts/SubscriptionContext";
 import Purchases, { LOG_LEVEL } from "react-native-purchases";
 import { RC_OFFERING_ID } from "@/constants/RevenueCatProducts";
+import { isOnboardingComplete } from "@/utils/onboardingStorage";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -44,6 +45,40 @@ export const unstable_settings = {
 export const RevenueCatContext = createContext<{ revenueCatReady: boolean }>({
   revenueCatReady: false,
 });
+
+
+function SubscriptionRedirect() {
+  const { isSubscribed, loading } = useSubscription();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  useEffect(() => {
+    if (loading) return;
+    const onOnboarding = pathname.startsWith("/onboarding");
+    if (onOnboarding) return;
+
+    let cancelled = false;
+    isOnboardingComplete().then((done) => {
+      if (cancelled) return;
+      if (!done) return;
+      const onPaywall = pathname === "/paywall";
+      if (onPaywall) return;
+      if (!isSubscribed) {
+        router.replace("/paywall");
+      }
+    }).catch(() => {
+      if (cancelled) return;
+      const onPaywall = pathname === "/paywall";
+      if (onPaywall) return;
+      if (!isSubscribed) {
+        router.replace("/paywall");
+      }
+    });
+    return () => { cancelled = true; };
+  }, [isSubscribed, loading, pathname]);
+
+  return null;
+}
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -143,6 +178,7 @@ export default function RootLayout() {
 
   return (
     <SubscriptionProvider>
+          <SubscriptionRedirect />
       <StatusBar style="auto" animated />
       <RevenueCatContext.Provider value={{ revenueCatReady }}>
         <ThemeProvider

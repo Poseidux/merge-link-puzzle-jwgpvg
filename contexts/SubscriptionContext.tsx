@@ -101,7 +101,7 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
     const mockPackage = {
       identifier: "$rc_monthly",
       product: {
-        title: "Monthly",
+        title: "Premium",
         priceString: "$4.99/month",
         description: "Unlock all premium features",
       },
@@ -148,48 +148,37 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
           return;
         }
 
-        // On iOS: RC is configured in _layout.tsx. This app uses non-consumables only — no subscriptions.
-        // SubscriptionContext is a no-op on iOS.
-        if (Platform.OS === "ios") {
-          setIsSubscribed(false);
+        // Use DEBUG log level in development, INFO in production
+        Purchases.setLogLevel(__DEV__ ? LOG_LEVEL.DEBUG : LOG_LEVEL.INFO);
+
+        // Get API key based on platform and environment
+        // In development (__DEV__), use ANY available test key (test store works for all platforms)
+        // This allows Expo Go to work on iOS even without a platform-specific test key
+        const testKey = TEST_IOS_API_KEY || TEST_ANDROID_API_KEY;
+        const productionKey = Platform.OS === "ios" ? IOS_API_KEY : ANDROID_API_KEY;
+        const apiKey = __DEV__ && testKey ? testKey : productionKey;
+
+        if (!apiKey) {
+          console.warn(
+            "[RevenueCat] API key not provided for this platform. " +
+            "Please add revenueCatApiKeyIos/revenueCatApiKeyAndroid to app.json extra."
+          );
           setLoading(false);
           return;
         }
 
-        if (!Purchases.isConfigured()) {
-          // Android / other platforms: configure here
-          Purchases.setLogLevel(__DEV__ ? LOG_LEVEL.DEBUG : LOG_LEVEL.INFO);
-
-          const testKey = TEST_IOS_API_KEY || TEST_ANDROID_API_KEY;
-          const productionKey = Platform.OS === "ios" ? IOS_API_KEY : ANDROID_API_KEY;
-          const apiKey = __DEV__ && testKey ? testKey : productionKey;
-
-          if (!apiKey) {
-            console.warn(
-              "[RevenueCat] API key not provided for this platform. " +
-              "Please add revenueCatApiKeyIos/revenueCatApiKeyAndroid to app.json extra."
-            );
-            setLoading(false);
-            return;
-          }
-
-          if (__DEV__) {
-            console.log("[RevenueCat] Initializing in DEV mode with key:", apiKey.substring(0, 10) + "...");
-          }
-
-          // configure() is synchronous — no await needed
-          Purchases.configure({ apiKey });
-        } else {
-          console.log("[RevenueCat] Already configured — skipping configure() in SubscriptionContext");
-        }
-
         if (__DEV__) {
+          console.log("[RevenueCat] Initializing in DEV mode with key:", apiKey.substring(0, 10) + "...");
           // Restore cached subscription state immediately to avoid paywall flash on bundle reload.
+          // The customerInfoUpdateListener (fired by configure() below) is the authoritative
+          // source and will immediately overwrite this with real RC Keychain data.
           const cached = await SecureStore.getItemAsync(NATIVE_PURCHASE_KEY).catch(() => null);
           if (cached === "true") {
             setIsSubscribed(true);
           }
         }
+
+        await Purchases.configure({ apiKey });
 
         // Listen for real-time subscription changes (e.g., purchase from another device)
         customerInfoListener = Purchases.addCustomerInfoUpdateListener(

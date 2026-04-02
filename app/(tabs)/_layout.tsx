@@ -1,8 +1,11 @@
 
 import React from 'react';
 import { Stack } from 'expo-router';
+import { useSubscriptionGuard } from "@/hooks/useSubscriptionGuard";
 
 export default function TabLayout() {
+  useSubscriptionGuard();
+
   // For Android and Web, use Stack navigation without floating tab bar
   return (
     <Stack

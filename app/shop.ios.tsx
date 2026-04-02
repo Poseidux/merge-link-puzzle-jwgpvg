@@ -684,6 +684,16 @@ export default function ShopScreen() {
             </View>
           </View>
 
+              <TouchableOpacity
+            style={styles.paywallButton}
+            onPress={() => {
+              console.log('[Shop] Go Pro button pressed — navigating to /paywall');
+              router.push('/paywall');
+            }}
+          >
+            <Text style={styles.paywallButtonText}>⭐ Go Pro — Unlock Everything</Text>
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={[styles.restoreButton, restoring && styles.buttonDisabled]}
             onPress={handleRestorePurchases}
@@ -845,12 +855,25 @@ const styles = StyleSheet.create({
   buttonTextEquipped: {
     color: '#fff',
   },
+  paywallButton: {
+    backgroundColor: '#764BA2',
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  paywallButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
   restoreButton: {
     backgroundColor: colors.primary,
     paddingVertical: 16,
     borderRadius: 8,
     alignItems: 'center',
-    marginTop: 16,
+    marginTop: 8,
     marginBottom: 32,
   },
   restoreButtonText: {

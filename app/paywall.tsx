@@ -31,23 +31,18 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const FEATURES = [
   {
     icon: "🎨",
-    title: "Theme Packs",
-    description: "Unlock beautiful themes like Volcano, Aurora, Neon and more",
+    title: "Unlock All Themes",
+    description: "Access all 25 premium color themes",
   },
   {
-    icon: "🌈",
+    icon: "⛓️",
     title: "Chain Colors",
-    description: "Customize your chain highlight colors",
+    description: "Unlock all 11 exclusive chain colors",
   },
   {
-    icon: "✨",
-    title: "One-Time Purchase",
-    description: "Buy once, own forever — no subscriptions",
-  },
-  {
-    icon: "🔓",
-    title: "Instant Unlock",
-    description: "Themes unlock immediately after purchase",
+    icon: "🏆",
+    title: "Premium Experience",
+    description: "Elevate your Numble game with exclusive visuals",
   },
 ];
 
@@ -285,9 +280,9 @@ export default function PaywallScreen() {
               <View style={styles.premiumBadge}>
                 <Text style={styles.premiumBadgeText}>PREMIUM</Text>
               </View>
-              <Text style={styles.title}>Unlock Themes</Text>
+              <Text style={styles.title}>Upgrade to Premium</Text>
               <Text style={styles.subtitle}>
-                Personalize your Numble experience with beautiful themes and colors
+                Unlock all features and get the most out of the app
               </Text>
             </View>
 
