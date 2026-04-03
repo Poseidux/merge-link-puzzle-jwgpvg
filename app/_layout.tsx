@@ -2,7 +2,7 @@
 import "react-native-reanimated";
 import React, { useEffect, useState, createContext } from "react";
 import { useFonts } from "expo-font";
-import { Stack, usePathname, useRouter } from "expo-router";
+import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { SystemBars } from "react-native-edge-to-edge";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -16,10 +16,10 @@ import {
 } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
 import { WidgetProvider } from "@/contexts/WidgetContext";
-import { SubscriptionProvider, useSubscription } from "@/contexts/SubscriptionContext";
+import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
 import Purchases, { LOG_LEVEL } from "react-native-purchases";
 import { RC_OFFERING_ID } from "@/constants/RevenueCatProducts";
-import { isOnboardingComplete } from "@/utils/onboardingStorage";
+
 
 SplashScreen.preventAutoHideAsync();
 
@@ -47,38 +47,9 @@ export const RevenueCatContext = createContext<{ revenueCatReady: boolean }>({
 });
 
 
-function SubscriptionRedirect() {
-  const { isSubscribed, loading } = useSubscription();
-  const router = useRouter();
-  const pathname = usePathname();
-
-  useEffect(() => {
-    if (loading) return;
-    const onOnboarding = pathname.startsWith("/onboarding");
-    if (onOnboarding) return;
-
-    let cancelled = false;
-    isOnboardingComplete().then((done) => {
-      if (cancelled) return;
-      if (!done) return;
-      const onPaywall = pathname === "/paywall";
-      if (onPaywall) return;
-      if (!isSubscribed) {
-        router.replace("/paywall");
-      }
-    }).catch(() => {
-      if (cancelled) return;
-      const onPaywall = pathname === "/paywall";
-      if (onPaywall) return;
-      if (!isSubscribed) {
-        router.replace("/paywall");
-      }
-    });
-    return () => { cancelled = true; };
-  }, [isSubscribed, loading, pathname]);
-
-  return null;
-}
+// No subscription redirect — the app sells individual non-consumable items (themes and chain
+// colors), not a subscription. Users are never forced to the paywall; they browse the shop
+// and purchase items individually.
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -178,7 +149,6 @@ export default function RootLayout() {
 
   return (
     <SubscriptionProvider>
-          <SubscriptionRedirect />
       <StatusBar style="auto" animated />
       <RevenueCatContext.Provider value={{ revenueCatReady }}>
         <ThemeProvider

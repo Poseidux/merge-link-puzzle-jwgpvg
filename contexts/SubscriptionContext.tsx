@@ -35,6 +35,7 @@ import Purchases, {
 } from "react-native-purchases";
 import Constants from "expo-constants";
 import * as SecureStore from "expo-secure-store";
+import { RC_OFFERING_ID } from "@/constants/RevenueCatProducts";
 
 // Read API keys from app.json (expo.extra)
 const extra = Constants.expoConfig?.extra || {};
@@ -148,37 +149,42 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
           return;
         }
 
-        // Use DEBUG log level in development, INFO in production
-        Purchases.setLogLevel(__DEV__ ? LOG_LEVEL.DEBUG : LOG_LEVEL.INFO);
+        // On iOS, _layout.tsx already calls Purchases.configure() synchronously at module load
+        // with the production API key. Skip re-configuring to avoid duplicate SDK instances.
+        if (!Purchases.isConfigured()) {
+          // Use DEBUG log level in development, INFO in production
+          Purchases.setLogLevel(__DEV__ ? LOG_LEVEL.DEBUG : LOG_LEVEL.INFO);
 
-        // Get API key based on platform and environment
-        // In development (__DEV__), use ANY available test key (test store works for all platforms)
-        // This allows Expo Go to work on iOS even without a platform-specific test key
-        const testKey = TEST_IOS_API_KEY || TEST_ANDROID_API_KEY;
-        const productionKey = Platform.OS === "ios" ? IOS_API_KEY : ANDROID_API_KEY;
-        const apiKey = __DEV__ && testKey ? testKey : productionKey;
+          // Get API key based on platform and environment
+          const testKey = TEST_IOS_API_KEY || TEST_ANDROID_API_KEY;
+          const productionKey = Platform.OS === "ios" ? IOS_API_KEY : ANDROID_API_KEY;
+          const apiKey = __DEV__ && testKey ? testKey : productionKey;
 
-        if (!apiKey) {
-          console.warn(
-            "[RevenueCat] API key not provided for this platform. " +
-            "Please add revenueCatApiKeyIos/revenueCatApiKeyAndroid to app.json extra."
-          );
-          setLoading(false);
-          return;
+          if (!apiKey) {
+            console.warn(
+              "[RevenueCat] API key not provided for this platform. " +
+              "Please add revenueCatApiKeyIos/revenueCatApiKeyAndroid to app.json extra."
+            );
+            setLoading(false);
+            return;
+          }
+
+          if (__DEV__) {
+            console.log("[RevenueCat] Initializing in DEV mode with key:", apiKey.substring(0, 10) + "...");
+          }
+
+          await Purchases.configure({ apiKey });
+        } else {
+          console.log("[RevenueCat] Already configured (iOS module-load configure) — skipping");
         }
 
         if (__DEV__) {
-          console.log("[RevenueCat] Initializing in DEV mode with key:", apiKey.substring(0, 10) + "...");
           // Restore cached subscription state immediately to avoid paywall flash on bundle reload.
-          // The customerInfoUpdateListener (fired by configure() below) is the authoritative
-          // source and will immediately overwrite this with real RC Keychain data.
           const cached = await SecureStore.getItemAsync(NATIVE_PURCHASE_KEY).catch(() => null);
           if (cached === "true") {
             setIsSubscribed(true);
           }
         }
-
-        await Purchases.configure({ apiKey });
 
         // Listen for real-time subscription changes (e.g., purchase from another device)
         customerInfoListener = Purchases.addCustomerInfoUpdateListener(
@@ -222,9 +228,12 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
       const fetchedOfferings = await Purchases.getOfferings();
       setOfferings(fetchedOfferings);
 
-      if (fetchedOfferings.current) {
-        setCurrentOffering(fetchedOfferings.current);
-        setPackages(fetchedOfferings.current.availablePackages);
+      // Prefer the named 'themes' offering; fall back to current
+      const offering = fetchedOfferings.all[RC_OFFERING_ID] ?? fetchedOfferings.current;
+      if (offering) {
+        setCurrentOffering(offering);
+        setPackages(offering.availablePackages);
+        console.log("[RevenueCat] Offering loaded:", offering.identifier, "| packages:", offering.availablePackages.length);
       }
     } catch (error) {
       console.error("[RevenueCat] Failed to fetch offerings:", error);

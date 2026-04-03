@@ -85,16 +85,19 @@ export default function PaywallScreen() {
   // Handle purchase
   const handlePurchase = async () => {
     if (!selectedPackage) return;
+    console.log("[Paywall] Purchase button pressed — package:", selectedPackage.identifier);
 
     try {
       setPurchasing(true);
       const success = await purchasePackage(selectedPackage);
       if (success) {
-        Alert.alert("Welcome!", "Thank you for your purchase.", [
-          { text: "OK", onPress: () => router.replace("/(tabs)/(home)") },
+        console.log("[Paywall] Purchase succeeded — package:", selectedPackage.identifier);
+        Alert.alert("Purchased!", "Your item has been unlocked.", [
+          { text: "OK", onPress: () => router.back() },
         ]);
       }
     } catch (error: any) {
+      console.log("[Paywall] Purchase failed:", error.message);
       Alert.alert("Purchase Failed", error.message || "Please try again.");
     } finally {
       setPurchasing(false);
@@ -103,20 +106,23 @@ export default function PaywallScreen() {
 
   // Handle restore
   const handleRestore = async () => {
+    console.log("[Paywall] Restore Purchases button pressed");
     try {
       setRestoring(true);
       const restored = await restorePurchases();
       if (restored) {
-        Alert.alert("Restored!", "Your subscription has been restored.", [
-          { text: "OK", onPress: () => router.replace("/(tabs)/(home)") },
+        console.log("[Paywall] Restore succeeded");
+        Alert.alert("Restored!", "Your purchases have been restored.", [
+          { text: "OK", onPress: () => router.back() },
         ]);
       } else {
         Alert.alert(
           "No Purchases Found",
-          "We couldn't find any previous purchases."
+          "We couldn't find any previous purchases to restore."
         );
       }
     } catch (error: any) {
+      console.log("[Paywall] Restore failed:", error.message);
       Alert.alert("Restore Failed", error.message || "Please try again.");
     } finally {
       setRestoring(false);
@@ -124,7 +130,8 @@ export default function PaywallScreen() {
   };
 
   const handleClose = () => {
-    router.replace("/(tabs)/(home)");
+    console.log("[Paywall] Close button pressed");
+    router.back();
   };
 
   // Handle web mock purchase (replicates RevenueCat test store flow for web preview)
@@ -276,13 +283,17 @@ export default function PaywallScreen() {
           >
             {/* Header */}
             <View style={styles.header}>
+              {/* Close button */}
+              <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
+                <Text style={styles.closeButtonText}>✕</Text>
+              </TouchableOpacity>
               {/* Premium badge */}
               <View style={styles.premiumBadge}>
-                <Text style={styles.premiumBadgeText}>PREMIUM</Text>
+                <Text style={styles.premiumBadgeText}>NUMBLE SHOP</Text>
               </View>
-              <Text style={styles.title}>Upgrade to Premium</Text>
+              <Text style={styles.title}>Unlock Premium Items</Text>
               <Text style={styles.subtitle}>
-                Unlock all features and get the most out of the app
+                Purchase themes and chain colors individually — yours forever
               </Text>
             </View>
 
@@ -415,7 +426,7 @@ export default function PaywallScreen() {
               </>
             ) : (
               <>
-                {/* Native: Subscribe Button */}
+                {/* Native: Purchase Button */}
                 <TouchableOpacity
                   style={[
                     styles.primaryButton,
@@ -430,9 +441,9 @@ export default function PaywallScreen() {
                     <Text style={styles.primaryButtonText}>
                       {selectedPackage
                         ? (selectedPackage.product.priceString
-                            ? `Subscribe for ${selectedPackage.product.priceString}`
-                            : "Subscribe")
-                        : "Select a plan"}
+                            ? `Buy for ${selectedPackage.product.priceString}`
+                            : "Purchase")
+                        : "Select an item"}
                     </Text>
                   )}
                 </TouchableOpacity>
@@ -453,9 +464,8 @@ export default function PaywallScreen() {
                 {/* Legal Text - Required by App Store */}
                 <Text style={styles.legalText}>
                   Payment will be charged to your{" "}
-                  {Platform.OS === "ios" ? "Apple ID" : "Google Play"} account.
-                  Subscription automatically renews unless canceled at least 24 hours
-                  before the end of the current period.
+                  {Platform.OS === "ios" ? "Apple ID" : "Google Play"} account at
+                  confirmation. This is a one-time purchase — no subscription.
                 </Text>
               </>
             )}
@@ -572,6 +582,23 @@ const styles = StyleSheet.create({
   header: {
     alignItems: "center",
     marginBottom: 24,
+  },
+  closeButton: {
+    position: "absolute",
+    top: -8,
+    right: 0,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 10,
+  },
+  closeButtonText: {
+    fontSize: 16,
+    color: "#fff",
+    fontWeight: "600",
   },
   premiumBadge: {
     backgroundColor: "rgba(255, 255, 255, 0.25)",
